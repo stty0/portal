@@ -61,7 +61,9 @@
       <a href="nodes.html"><span class="ico">▤</span> 노드 / 파티션</a>
       <a href="jobs.html"><span class="ico">☰</span> 전체 Job 관리</a>
       <div class="nav-group">사용자 / 정책</div>
-      <a href="users.html" class="active"><span class="ico">👥</span> 사용자 · 계정 · QOS</a>
+      <a href="users.html" class="active"><span class="ico">👥</span> 사용자</a>
+      <a href="accounts.html"><span class="ico">🗂</span> 계정</a>
+      <a href="qos.html"><span class="ico">⚖</span> QOS</a>
       <div class="nav-group">운영</div>
       <a href="reports.html"><span class="ico">◔</span> 통계 / 리포트</a>
       <a href="billing.html"><span class="ico">₩</span> 비용 / Billing</a>
@@ -73,7 +75,7 @@
   <div class="main">
 
     <main class="content">
-      <div class="crumbs">HPC Portal Admin › 사용자 · 계정 · QOS › <b>사용자</b></div>
+      <div class="crumbs">HPC Portal Admin › 사용자 › <b>사용자 목록</b></div>
       <div class="page-head">
         <div>
           <h1>사용자</h1>
@@ -88,11 +90,8 @@
       </div>
 
       <div class="tabs">
-        <a class="tab active" href="users.html">사용자 (A-US-01)</a>
+        <a class="tab active" href="users.html">사용자 목록 (A-US-01)</a>
         <a class="tab" href="ad.html">AD 연결 (A-US-01)</a>
-        <a class="tab" href="accounts.html">계정/Account (A-US-02)</a>
-        <a class="tab" href="qos.html">QOS (A-US-03)</a>
-        <a class="tab" href="mappings.html">클러스터 매핑 · Fairshare (A-US-07·04)</a>
       </div>
 
       <!-- A-US-01 사용자 -->
@@ -112,25 +111,25 @@
             <tbody>
               <tr>
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px">JP</span><b>박정렬</b> <span class="mono" style="color:var(--ink-3)">jrpark</span></div></td>
-                <td class="mono">jungryul0515.park@…</td><td><span class="chip gray">USER</span></td><td class="mono">acct-ai</td><td class="mono">normal</td><td class="mono">10분 전</td>
+                <td class="mono">jungryul0515.park@…</td><td><span class="chip gray">USER</span></td><td><span class="chip">acct-ai</span> <span class="chip">acct-bio</span></td><td class="mono">normal</td><td class="mono">10분 전</td>
                 <td><span class="badge completed">활성</span></td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
               <tr>
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#17994f,#0d6635)">SS</span><b>선상준</b> <span class="mono" style="color:var(--ink-3)">seonsj</span></div></td>
-                <td class="mono">sangjun.seon@…</td><td><span class="chip gray">USER</span></td><td class="mono">acct-bio</td><td class="mono">normal</td><td class="mono">2시간 전</td>
+                <td class="mono">sangjun.seon@…</td><td><span class="chip gray">USER</span></td><td><span class="chip">acct-bio</span></td><td class="mono">normal</td><td class="mono">2시간 전</td>
                 <td><span class="badge completed">활성</span></td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
               <tr>
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#d3383c,#8f1f22)">JL</span><b>이주영</b> <span class="mono" style="color:var(--ink-3)">jylee</span></div></td>
-                <td class="mono">juyoung.lee@…</td><td><span class="chip">ADMIN</span></td><td class="mono">acct-ops</td><td class="mono">—</td><td class="mono">40분 전</td>
+                <td class="mono">juyoung.lee@…</td><td><span class="chip">ADMIN</span></td><td><span class="chip">acct-ops</span> <span class="chip">acct-ai</span></td><td class="mono">—</td><td class="mono">40분 전</td>
                 <td><span class="badge completed">활성 · 2FA</span></td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
               <tr>
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#8a93a8,#5a6377)">SK</span><b>강세윤</b> <span class="mono" style="color:var(--ink-3)">sykang</span> <span class="chip gray" title="13:20 AD 동기화로 자동 등록">AD 자동 등록</span></div></td>
-                <td class="mono">seyun.kang@…</td><td><span class="chip gray">USER</span></td><td class="mono">acct-vision</td><td class="mono">normal</td><td class="mono">방금 전</td>
+                <td class="mono">seyun.kang@…</td><td><span class="chip gray">USER</span></td><td><span class="chip">acct-vision</span></td><td class="mono">normal</td><td class="mono">방금 전</td>
                 <td><span class="badge completed">활성</span></td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>

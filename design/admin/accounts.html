@@ -61,7 +61,9 @@
       <a href="nodes.html"><span class="ico">▤</span> 노드 / 파티션</a>
       <a href="jobs.html"><span class="ico">☰</span> 전체 Job 관리</a>
       <div class="nav-group">사용자 / 정책</div>
-      <a href="users.html" class="active"><span class="ico">👥</span> 사용자 · 계정 · QOS</a>
+      <a href="users.html"><span class="ico">👥</span> 사용자</a>
+      <a href="accounts.html" class="active"><span class="ico">🗂</span> 계정</a>
+      <a href="qos.html"><span class="ico">⚖</span> QOS</a>
       <div class="nav-group">운영</div>
       <a href="reports.html"><span class="ico">◔</span> 통계 / 리포트</a>
       <a href="billing.html"><span class="ico">₩</span> 비용 / Billing</a>
@@ -73,47 +75,53 @@
   <div class="main">
 
     <main class="content">
-      <div class="crumbs">HPC Portal Admin › 사용자 · 계정 · QOS › <b>계정(Account)</b></div>
+      <div class="crumbs">HPC Portal Admin › 계정 › <b>계정 관리</b></div>
       <div class="page-head">
         <div>
           <h1>계정(Account)</h1>
-          <p class="sub">AD 그룹 동기화로 생성·관리 · 포털은 조회 및 매핑만 담당 (A-US-02 · A-US-04)</p>
+          <p class="sub">포털에서 Slurm 계정 생성·관리 · AD 사용자를 계정에 N:M 매핑(join) (A-US-02)</p>
         </div>
         <div class="page-actions">
-          <button class="btn btn-outline">⇅ AD 수동 동기화</button>
+          <button class="btn btn-primary" data-open-modal="accountModal" data-modal-title="계정 생성">＋ 계정 생성</button>
         </div>
       </div>
 
       <div class="tabs">
-        <a class="tab" href="users.html">사용자 (A-US-01)</a>
-        <a class="tab" href="ad.html">AD 연결 (A-US-01)</a>
-        <a class="tab active" href="accounts.html">계정/Account (A-US-02)</a>
-        <a class="tab" href="qos.html">QOS (A-US-03)</a>
+        <a class="tab active" href="accounts.html">계정 관리 (A-US-02)</a>
         <a class="tab" href="mappings.html">클러스터 매핑 · Fairshare (A-US-07·04)</a>
       </div>
 
-      <!-- A-US-02 계정 트리 -->
+      <!-- A-US-02 계정 목록 -->
       <div class="card">
-        <div class="card-head"><h2>계정(Account) 구조 <span class="fid">A-US-02</span></h2><div style="display:flex;gap:8px;align-items:center"><span class="chip gray" title="공유 slurmdbd — 계정 트리는 전 클러스터 공통">전 클러스터 공통</span><span class="chip gray" title="계정 생성/삭제는 포털에서 수행하지 않습니다">조회 전용</span></div></div>
-        <div class="card-body">
-          <ul class="ftree">
-            <li><b>root</b></li>
-            <ul>
-              <li class="sel">🏷 acct-ai — AI연구팀 <span style="margin-left:auto;font-size:11px;color:var(--ink-3)">사용자 12 · share 100</span></li>
-              <ul>
-                <li>👤 jrpark · leejh · minsk 외 9</li>
-              </ul>
-              <li>🏷 acct-bio — 바이오연구소 <span style="margin-left:auto;font-size:11px;color:var(--ink-3)">사용자 18 · share 80</span></li>
-              <li>🏷 acct-vision — 비전랩 <span style="margin-left:auto;font-size:11px;color:var(--ink-3)">사용자 7 · share 60</span></li>
-              <li>🏷 acct-met — 기상모델링 <span style="margin-left:auto;font-size:11px;color:var(--ink-3)">사용자 5 · share 60</span></li>
-            </ul>
-          </ul>
-          <!-- A-US-04 -->
-          <div class="notice info mt-16" style="font-size:12px;padding:9px 12px">
-            <span>ℹ</span>
-            <div>계정(Account)은 <b>AD 그룹 동기화로 생성·관리</b>되며 포털에서는 만들지 않습니다. 포털에서는 <a href="mappings.html"><b>계정 · 클러스터 매핑</b></a>에서 사용 가능 클러스터와 fairshare만 관리합니다.</div>
-          </div>
+        <div class="card-head"><h2>계정 목록 <span class="fid">A-US-02</span></h2><span class="chip gray" title="공유 slurmdbd — 계정은 전 클러스터 공통">전 클러스터 공통</span></div>
+        <div class="card-body flush table-wrap">
+          <table class="tbl">
+            <thead><tr><th>계정</th><th>설명</th><th>상위</th><th class="num">구성원</th><th style="width:230px">액션</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="mono"><b>acct-ai</b></td><td>AI연구팀</td><td class="mono">root</td><td class="num mono">12</td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-ai 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><b>acct-bio</b></td><td>바이오연구소</td><td class="mono">root</td><td class="num mono">18</td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-bio 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><b>acct-vision</b></td><td>비전랩</td><td class="mono">root</td><td class="num mono">7</td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-vision 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><b>acct-met</b></td><td>기상모델링</td><td class="mono">root</td><td class="num mono">5</td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-met 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><b>acct-ops</b></td><td>HPC운영팀</td><td class="mono">root</td><td class="num mono">3</td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-ops 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+        <div class="card-foot" style="font-size:12px;color:var(--ink-3)">계정(Account)은 Slurm 프로젝트/그룹 단위입니다. AD 사용자를 계정에 <b>매핑(join)</b>하면 계정의 클러스터 접근·정책을 상속합니다 — 한 사용자가 여러 계정에 속할 수 있습니다(N:M). 클러스터 접근·fairshare는 <a href="mappings.html">클러스터 매핑</a> 탭에서 관리하며, 모든 변경은 감사 로그(C-05)에 기록됩니다.</div>
       </div>
 
     </main>
@@ -128,6 +136,89 @@
     </footer>
   </div>
 </div>
+<!-- 계정 생성/수정 모달 (A-US-02) -->
+<div class="modal-backdrop hidden" id="accountModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="acTitle" style="max-width:560px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">🗂</span>
+      <h3 id="acTitle" style="flex:1"><span class="m-title-text">계정 생성</span> <span class="fid">A-US-02</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>계정명 <span class="req">*</span></label><input class="input mono" placeholder="예: acct-ai"><span class="hint">sacctmgr Account 이름 (전 클러스터 공통)</span></div>
+        <div class="field"><label>상위 계정</label><select class="select"><option>root</option><option>acct-ai</option><option>acct-bio</option></select></div>
+        <div class="field full"><label>설명</label><input class="input" placeholder="예: AI연구팀"></div>
+        <div class="field full"><label>조직 (Organization)</label><input class="input" placeholder="예: 연구개발본부"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-primary btn-sm" type="button">저장 (sacctmgr add account)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 구성원(AD 사용자) 매핑 모달 (A-US-02, N:M) -->
+<div class="modal-backdrop hidden" id="memberModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mbTitle" style="max-width:600px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">👥</span>
+      <h3 id="mbTitle" style="flex:1"><span class="m-title-text">구성원 관리</span> <span class="fid">A-US-02</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;max-height:70vh;overflow:auto">
+      <div>
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">AD 사용자 추가</label>
+        <div style="display:flex;gap:8px">
+          <select class="select" style="flex:1"><option>사용자 검색/선택…</option><option>박정렬 (jrpark)</option><option>선상준 (seonsj)</option><option>이주영 (jylee)</option><option>강세윤 (sykang)</option></select>
+          <button class="btn btn-primary btn-sm" type="button">＋ 추가 (join)</button>
+        </div>
+        <span class="hint">한 사용자는 여러 계정에 소속될 수 있습니다 (N:M). sacctmgr add user … account=</span>
+      </div>
+      <div>
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">현재 구성원</label>
+        <div class="table-wrap"><table class="tbl">
+          <thead><tr><th>사용자</th><th>ID</th><th style="width:90px">제거</th></tr></thead>
+          <tbody>
+            <tr><td>박정렬</td><td class="mono">jrpark</td><td><button class="btn btn-sm btn-danger">제거</button></td></tr>
+            <tr><td>이주영</td><td class="mono">jylee</td><td><button class="btn btn-sm btn-danger">제거</button></td></tr>
+            <tr><td>민석규</td><td class="mono">minsk</td><td><button class="btn btn-sm btn-danger">제거</button></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>닫기</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  // 등록/수정 모달 공통 open/close (기존 .modal 패턴 재사용)
+  function closeModal(m) { m.classList.add('hidden'); }
+  document.querySelectorAll('[data-open-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var m = document.getElementById(btn.getAttribute('data-open-modal'));
+      if (!m) return;
+      var t = btn.getAttribute('data-modal-title');
+      var lbl = m.querySelector('.m-title-text');
+      if (t && lbl) lbl.textContent = t;
+      m.classList.remove('hidden');
+    });
+  });
+  document.querySelectorAll('.modal-backdrop').forEach(function (m) {
+    m.addEventListener('click', function (e) { if (e.target === m) closeModal(m); });
+    m.querySelectorAll('.m-close, [data-close]').forEach(function (b) {
+      b.addEventListener('click', function () { closeModal(m); });
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(closeModal);
+  });
+})();
+</script>
 <script>
 (function () {
   // 사이드바 접기/펼치기 — 사용자 포털과 동일 동작, 상태 공유(localStorage)
