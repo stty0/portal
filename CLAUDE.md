@@ -33,6 +33,15 @@ Claude가 이 프로젝트에서 세션마다 읽는 기본 컨텍스트 파일�
 - 승인된 Task 구현, 테스트 작성/실행, 버그 수정, commit/branch/PR 작업
 - **위임 방법**: `/codex:rescue` 스킬 또는 `codex exec` 로 넘긴다. 위임 시 관련 `exec-plan.md` Task 범위를 명시한다.
 
+## 코딩 가이드라인 (Karpathy) — 상시 적용
+구현·수정·리뷰·리팩터링 작업을 시작할 때 **`andrej-karpathy-skills:karpathy-guidelines` 스킬을 먼저 invoke**한다. 핵심 4원칙:
+1. **Think Before Coding** — 가정을 명시하고, 해석이 여럿이면 제시하고, 불명확하면 멈추고 질문한다.
+2. **Simplicity First** — 요청된 것만, 최소 코드로. 투기적 추상화·설정·불가능 시나리오 예외처리 금지.
+3. **Surgical Changes** — 요청과 직결되는 라인만 수정. 인접 코드 임의 개선·리팩터·기존 dead code 삭제 금지(발견 시 보고만).
+4. **Goal-Driven Execution** — 검증 가능한 성공 기준 정의 후 통과까지 반복. 다단계는 `단계 → 검증` 계획 명시.
+
+> Codex 위임 시에도 이 원칙(특히 최소·수술적 변경)을 지시에 포함한다. 사소한 작업은 판단껏 생략 가능.
+
 ## 작업 문서 (docs/ 하위 working 파일)
 | 파일 | 작성 | 내용 |
 |---|---|---|
