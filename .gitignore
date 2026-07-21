@@ -8,9 +8,9 @@ Desktop.ini
 .idea/
 *.swp
 
-# Claude Code local session state (공유 불필요)
-.claude/sessions/
-.claude/state/
+# Claude Code local session state (공유 불필요, 모든 depth)
+**/.claude/sessions/
+**/.claude/state/
 
 # Logs / temp
 *.log
