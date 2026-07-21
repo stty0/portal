@@ -54,3 +54,12 @@ Claude가 이 프로젝트에서 세션마다 읽는 기본 컨텍스트 파일�
 
 ## 검증 방법 (재사용)
 notes.md의 검증 스크립트 패턴 유지: (1) 태그 균형 (2) 내부 href/src 링크 존재 (3) 기능 ID grep 커버리지 + negative control.
+
+## 프로젝트 전용 서브에이전트 (.claude/agents/)
+Claude의 검토·검증을 돕는 에이전트. Agent 툴로 호출한다.
+| 에이전트 | 용도 |
+|---|---|
+| `portal-verifier` | 기계적 검증(태그 균형·내부 링크·ID 커버리지+negative control) 실행·보고 |
+| `portal-reviewer` | 변경을 정의서·구조 규칙 대비 검토, 계획 이탈·고위험 신호 지적 |
+
+구현·Git 위임은 플러그인 에이전트 `codex:codex-rescue`를 사용한다.
