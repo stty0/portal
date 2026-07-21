@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QOS 정책 | HPC Portal</title>
+<title>AD 연결 | HPC Portal</title>
 <link rel="stylesheet" href="../css/style.css">
 </head>
 <body class="scp">
@@ -73,38 +73,75 @@
   <div class="main">
 
     <main class="content">
-      <div class="crumbs">HPC Portal Admin › 사용자 · 계정 · QOS › <b>QOS 정책</b></div>
+      <div class="crumbs">HPC Portal Admin › 사용자 · 계정 · QOS › <b>AD 연결</b></div>
       <div class="page-head">
         <div>
-          <h1>QOS 정책</h1>
-          <p class="sub">QOS 정의는 공유 slurmdbd로 전 클러스터 공통 · 파티션 접근 제어 포함 (A-US-03 · A-US-05)</p>
+          <h1>AD 연결</h1>
+          <p class="sub">단일 Active Directory 연동 · 허용 그룹·식별 속성 조건 사용자 자동 동기화 (A-US-01)</p>
         </div>
         <div class="page-actions">
-          <button class="btn btn-outline" data-open-modal="partitionAclModal" data-modal-title="파티션 접근 제어">파티션 접근 제어</button>
-          <button class="btn btn-primary" data-open-modal="qosModal" data-modal-title="QOS 생성">＋ QOS 생성</button>
+          <span style="font-size:12px;color:var(--ink-3);align-self:center">마지막 동기화 13:20 · 다음 자동 14:20</span>
+          <button class="btn btn-outline">⇅ AD 수동 동기화</button>
+          <button class="btn btn-primary" data-open-modal="adConnModal" data-modal-title="AD 연결 설정">🔗 AD 연결 설정</button>
         </div>
       </div>
 
       <div class="tabs">
         <a class="tab" href="users.html">사용자 (A-US-01)</a>
-        <a class="tab" href="ad.html">AD 연결 (A-US-01)</a>
+        <a class="tab active" href="ad.html">AD 연결 (A-US-01)</a>
         <a class="tab" href="accounts.html">계정/Account (A-US-02)</a>
-        <a class="tab active" href="qos.html">QOS (A-US-03)</a>
+        <a class="tab" href="qos.html">QOS (A-US-03)</a>
       </div>
 
-      <!-- A-US-03 QOS -->
-      <div class="card">
-        <div class="card-head"><h2>QOS 정책 <span class="fid">A-US-03</span></h2><span class="chip gray" title="공유 slurmdbd — QOS 정의는 전 클러스터 공통">전 클러스터 공통</span></div>
-        <div class="card-body flush table-wrap">
-          <table class="tbl">
-            <thead><tr><th>QOS</th><th class="num">우선순위</th><th>최대 Job/사용자</th><th>자원 한도</th><th style="width:110px">액션</th></tr></thead>
-            <tbody>
-              <tr><td><b>normal</b></td><td class="num mono">10</td><td class="mono">20</td><td class="mono">gpu≤12, cpu≤512</td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="qosModal" data-modal-title="QOS 수정">수정</button></div></td></tr>
-              <tr><td><b>high</b> <span class="chip gray">승인제</span></td><td class="num mono">50</td><td class="mono">5</td><td class="mono">gpu≤24, preempt</td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="qosModal" data-modal-title="QOS 수정">수정</button></div></td></tr>
-              <tr><td><b>debug</b></td><td class="num mono">30</td><td class="mono">2</td><td class="mono">walltime≤1h</td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="qosModal" data-modal-title="QOS 수정">수정</button></div></td></tr>
-              <tr><td><b>long</b></td><td class="num mono">5</td><td class="mono">3</td><td class="mono">walltime≤14d, cpu≤256</td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="qosModal" data-modal-title="QOS 수정">수정</button></div></td></tr>
-            </tbody>
-          </table>
+      <!-- A-US-01 Active Directory 연결 -->
+      <div class="grid" style="grid-template-columns: 1.6fr 1fr">
+        <div class="card">
+          <div class="card-head">
+            <h2>Active Directory 연결 <span class="fid">A-US-01</span></h2>
+            <span class="badge completed">연결됨 · dc1.corp.example.com · TLS ✓</span>
+          </div>
+          <div class="card-body">
+            <dl class="dl" style="grid-template-columns:150px 1fr">
+              <dt>LDAPS 서버 주소</dt><dd class="mono">ldaps://dc1.corp.example.com:636</dd>
+              <dt>Base DN</dt><dd class="mono">DC=corp,DC=example,DC=com</dd>
+              <dt>Bind 계정</dt><dd class="mono">svc-sse@corp.example.com</dd>
+              <dt>Bind 암호</dt><dd class="mono">•••••••••• <span style="font-size:11px;color:var(--ink-3)">(Secret 저장)</span></dd>
+              <dt>허용 그룹</dt><dd class="mono">CN=HPC-Users,OU=Groups,DC=corp,DC=example,DC=com</dd>
+              <dt>사용자 식별 속성</dt><dd class="mono">uid</dd>
+              <dt>자동 동기화 주기</dt><dd class="mono">1시간</dd>
+            </dl>
+          </div>
+          <div class="card-foot" style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+            <span style="margin-right:auto;font-size:12px;color:var(--ink-3)">변경 사항은 감사 로그(C-05)에 기록됩니다</span>
+            <button class="btn btn-outline" data-open-modal="adConnModal" data-modal-title="AD 연결 수정">수정</button>
+            <button class="btn btn-danger">삭제</button>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="card">
+            <div class="card-head"><h2>동기화 상태</h2><button class="btn btn-sm btn-outline">⇅ 지금 동기화</button></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:12px">
+              <dl class="dl" style="grid-template-columns:110px 1fr">
+                <dt>마지막 동기화</dt><dd class="mono">2026-07-15 13:20:04 <span class="badge completed" style="margin-left:4px">성공</span></dd>
+                <dt>대상 사용자</dt><dd class="mono">HPC-Users 그룹 45명</dd>
+                <dt>반영 결과</dt><dd class="mono">신규 1 · 갱신 41 · 비활성 2 · 제외 1</dd>
+                <dt>다음 자동 실행</dt><dd class="mono">14:20 (1시간 주기)</dd>
+              </dl>
+              <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>⚠</span><div>AD에서 제거된 사용자는 즉시 삭제하지 않고 <b>비활성</b> 처리됩니다. 실행 중 Job은 유지됩니다.</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>동기화 이력</h2></div>
+            <div class="card-body">
+              <ul class="timeline">
+                <li class="done"><span class="t">13:20</span>자동 동기화 — 신규 1명 (sykang) 자동 등록 · 활성</li>
+                <li class="done"><span class="t">12:20</span>자동 동기화 — 변경 없음</li>
+                <li class="err"><span class="t">11:20</span>동기화 실패 — LDAPS 응답 시간 초과 (재시도 성공)</li>
+                <li class="done"><span class="t">10:41</span>수동 동기화 (opadmin) — 비활성 2명 처리</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -120,53 +157,50 @@
     </footer>
   </div>
 </div>
-<!-- QOS 생성/수정 모달 (A-US-03) -->
-<div class="modal-backdrop hidden" id="qosModal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="qosTitle" style="max-width:560px">
+<!-- AD 연결 설정 모달 (A-US-01) — 단일 AD 서버 -->
+<div class="modal-backdrop hidden" id="adConnModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adTitle" style="max-width:680px">
     <div class="modal-head" style="background:var(--surface)">
-      <span class="m-ico">👥</span>
-      <h3 id="qosTitle" style="flex:1"><span class="m-title-text">QOS 생성</span> <span class="fid">A-US-03</span></h3>
+      <span class="m-ico">🔗</span>
+      <h3 id="adTitle" style="flex:1"><span class="m-title-text">AD 연결 설정</span> <span class="fid">A-US-01</span></h3>
       <button class="m-close" type="button" aria-label="닫기">✕</button>
     </div>
-    <div class="modal-body" style="max-height:70vh;overflow:auto">
-      <div class="form-grid">
-        <div class="field"><label>QOS명 <span class="req">*</span></label><input class="input mono" placeholder="예: high"></div>
-        <div class="field"><label>우선순위</label><input class="input mono" placeholder="50"></div>
-        <div class="field"><label>최대 Job/사용자</label><input class="input mono" placeholder="5"></div>
-        <div class="field"><label>최대 Walltime</label><input class="input mono" placeholder="예: 14-00:00:00"></div>
-        <div class="field full"><label>자원 한도</label><input class="input mono" placeholder="예: gpu≤24, cpu≤512"><span class="hint">공유 slurmdbd — 전 클러스터 공통 적용</span></div>
-        <div class="field full"><label class="checkline"><input type="checkbox"> 승인제 (신청 후 관리자 승인)</label></div>
+    <div class="modal-body" style="max-height:72vh;overflow:auto">
+      <div class="notice info" style="margin-bottom:16px;font-size:12px;padding:9px 12px">
+        <span>ℹ</span>
+        <div>포털은 <b>하나의 AD</b>에만 연결됩니다. 사용자는 AD에서 주기적으로 읽어와 동기화되며, 포털에서 직접 생성하지 않습니다. 역할(USER/ADMIN)·계정(Account) 매핑은 포털에서 관리합니다.</div>
       </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
-      <button class="btn btn-primary btn-sm" type="button">저장 (sacctmgr)</button>
-    </div>
-  </div>
-</div>
-
-<!-- 파티션 접근 제어 모달 (A-US-05) -->
-<div class="modal-backdrop hidden" id="partitionAclModal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="paclTitle" style="max-width:520px">
-    <div class="modal-head" style="background:var(--surface)">
-      <span class="m-ico">👥</span>
-      <h3 id="paclTitle" style="flex:1"><span class="m-title-text">파티션 접근 제어</span> <span class="fid">A-US-05</span></h3>
-      <button class="m-close" type="button" aria-label="닫기">✕</button>
-    </div>
-    <div class="modal-body">
       <div class="form-grid">
-        <div class="field"><label>대상</label>
-          <select class="select"><option>seoul-hpc / gpu</option><option>seoul-hpc / bigmem</option><option>pangyo-gpu / gpu-large</option></select>
+        <div class="field"><label>LDAPS 서버 주소 <span class="req">*</span> <span class="chip gray" title="저장 위치">CR spec</span></label>
+          <input class="input mono" value="ldaps://dc1.corp.example.com:636">
         </div>
-        <div class="field"><label>AllowAccounts</label>
-          <input class="input mono" value="acct-ai, acct-vision, acct-nlp">
-          <span class="hint">해당 클러스터 slurm.conf 반영 · 적용 시 slurmctld reconfigure 수행</span>
+        <div class="field"><label>Base DN (검색 시작점) <span class="req">*</span> <span class="chip gray">CR spec</span></label>
+          <input class="input mono" value="DC=corp,DC=example,DC=com">
+        </div>
+        <div class="field"><label>Bind 계정 <span class="req">*</span> <span class="chip gray">CR spec</span></label>
+          <input class="input mono" value="svc-sse@corp.example.com">
+        </div>
+        <div class="field"><label>Bind 암호 <span class="req">*</span> <span class="chip gray">Secret</span></label>
+          <input class="input mono" type="password" value="••••••••••">
+          <span class="hint">암호는 Secret에 별도 저장되며 화면에 표시되지 않습니다</span>
+        </div>
+        <div class="field full"><label>허용 그룹 (권장) <span class="chip gray">CR spec</span></label>
+          <input class="input mono" value="CN=HPC-Users,OU=Groups,DC=corp,DC=example,DC=com">
+          <span class="hint">지정 시 이 그룹 소속 사용자만 동기화 대상이 됩니다 (memberOf 기준)</span>
+        </div>
+        <div class="field"><label>사용자 식별 속성</label>
+          <select class="select"><option>cn</option><option selected>uid</option><option>sAMAccountName</option></select>
+          <span class="hint">포털/Slurm 사용자명으로 사용할 AD 속성</span>
+        </div>
+        <div class="field"><label>자동 동기화 주기</label>
+          <select class="select"><option>15분</option><option selected>1시간</option><option>6시간</option><option>24시간</option></select>
         </div>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
-      <button class="btn btn-primary btn-sm" type="button">적용</button>
+      <button class="btn btn-outline btn-sm" type="button">연결 테스트</button>
+      <button class="btn btn-primary btn-sm" type="button">저장</button>
     </div>
   </div>
 </div>

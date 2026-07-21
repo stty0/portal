@@ -77,12 +77,7 @@
       <div class="page-head">
         <div>
           <h1>사용자</h1>
-          <p class="sub">Active Directory 연동(단일 AD) · 사용자는 AD에서 동기화, 포털은 역할·계정 매핑만 담당 (A-US-01)</p>
-        </div>
-        <div class="page-actions">
-          <span style="font-size:12px;color:var(--ink-3);align-self:center">마지막 동기화 13:20 · 다음 자동 14:20</span>
-          <button class="btn btn-outline">⇅ AD 수동 동기화</button>
-          <button class="btn btn-primary" data-open-modal="adConnModal" data-modal-title="AD 연결 설정">🔗 AD 연결 설정</button>
+          <p class="sub">AD 동기화로 자동 등록된 사용자 조회 · 역할 부여 · 비활성화 (A-US-01) · AD 연결/동기화는 <a href="ad.html">AD 연결</a> 탭</p>
         </div>
       </div>
 
@@ -94,9 +89,9 @@
 
       <div class="tabs">
         <a class="tab active" href="users.html">사용자 (A-US-01)</a>
+        <a class="tab" href="ad.html">AD 연결 (A-US-01)</a>
         <a class="tab" href="accounts.html">계정/Account (A-US-02)</a>
         <a class="tab" href="qos.html">QOS (A-US-03)</a>
-        <a class="tab" href="mappings.html">클러스터 매핑 · Fairshare (A-US-07·04)</a>
       </div>
 
       <!-- A-US-01 사용자 -->
@@ -144,58 +139,6 @@
         <div class="pagination"><a href="#">‹</a><a class="cur" href="#">1</a><a href="#">2</a><a href="#">…</a><a href="#">9</a><a href="#">›</a></div>
       </div>
 
-      <!-- A-US-01 Active Directory 연결 -->
-      <div class="grid mt-16" style="grid-template-columns: 1.6fr 1fr">
-        <div class="card">
-          <div class="card-head">
-            <h2>Active Directory 연결 <span class="fid">A-US-01</span></h2>
-            <span class="badge completed">연결됨 · dc1.corp.example.com · TLS ✓</span>
-          </div>
-          <div class="card-body">
-            <dl class="dl" style="grid-template-columns:150px 1fr">
-              <dt>LDAPS 서버 주소</dt><dd class="mono">ldaps://dc1.corp.example.com:636</dd>
-              <dt>Base DN</dt><dd class="mono">DC=corp,DC=example,DC=com</dd>
-              <dt>Bind 계정</dt><dd class="mono">svc-sse@corp.example.com</dd>
-              <dt>Bind 암호</dt><dd class="mono">•••••••••• <span style="font-size:11px;color:var(--ink-3)">(Secret 저장)</span></dd>
-              <dt>허용 그룹</dt><dd class="mono">CN=HPC-Users,OU=Groups,DC=corp,DC=example,DC=com</dd>
-              <dt>사용자 식별 속성</dt><dd class="mono">uid</dd>
-              <dt>자동 동기화 주기</dt><dd class="mono">1시간</dd>
-            </dl>
-          </div>
-          <div class="card-foot" style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
-            <span style="margin-right:auto;font-size:12px;color:var(--ink-3)">변경 사항은 감사 로그(C-05)에 기록됩니다</span>
-            <button class="btn btn-outline" data-open-modal="adConnModal" data-modal-title="AD 연결 수정">수정</button>
-            <button class="btn btn-danger">삭제</button>
-          </div>
-        </div>
-
-        <div style="display:flex;flex-direction:column;gap:16px">
-          <div class="card">
-            <div class="card-head"><h2>동기화 상태</h2><button class="btn btn-sm btn-outline">⇅ 지금 동기화</button></div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:12px">
-              <dl class="dl" style="grid-template-columns:110px 1fr">
-                <dt>마지막 동기화</dt><dd class="mono">2026-07-15 13:20:04 <span class="badge completed" style="margin-left:4px">성공</span></dd>
-                <dt>대상 사용자</dt><dd class="mono">HPC-Users 그룹 45명</dd>
-                <dt>반영 결과</dt><dd class="mono">신규 1 · 갱신 41 · 비활성 2 · 제외 1</dd>
-                <dt>다음 자동 실행</dt><dd class="mono">14:20 (1시간 주기)</dd>
-              </dl>
-              <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>⚠</span><div>AD에서 제거된 사용자는 즉시 삭제하지 않고 <b>비활성</b> 처리됩니다. 실행 중 Job은 유지됩니다.</div></div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-head"><h2>동기화 이력</h2></div>
-            <div class="card-body">
-              <ul class="timeline">
-                <li class="done"><span class="t">13:20</span>자동 동기화 — 신규 1명 (sykang) 자동 등록 · 활성</li>
-                <li class="done"><span class="t">12:20</span>자동 동기화 — 변경 없음</li>
-                <li class="err"><span class="t">11:20</span>동기화 실패 — LDAPS 응답 시간 초과 (재시도 성공)</li>
-                <li class="done"><span class="t">10:41</span>수동 동기화 (opadmin) — 비활성 2명 처리</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-
     </main>
 
     <!-- 본문 하단 푸터 -->
@@ -206,53 +149,6 @@
       </div>
       <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
     </footer>
-  </div>
-</div>
-<!-- AD 연결 설정 모달 (A-US-01) — 단일 AD 서버 -->
-<div class="modal-backdrop hidden" id="adConnModal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adTitle" style="max-width:680px">
-    <div class="modal-head" style="background:var(--surface)">
-      <span class="m-ico">🔗</span>
-      <h3 id="adTitle" style="flex:1"><span class="m-title-text">AD 연결 설정</span> <span class="fid">A-US-01</span></h3>
-      <button class="m-close" type="button" aria-label="닫기">✕</button>
-    </div>
-    <div class="modal-body" style="max-height:72vh;overflow:auto">
-      <div class="notice info" style="margin-bottom:16px;font-size:12px;padding:9px 12px">
-        <span>ℹ</span>
-        <div>포털은 <b>하나의 AD</b>에만 연결됩니다. 사용자는 AD에서 주기적으로 읽어와 동기화되며, 포털에서 직접 생성하지 않습니다. 역할(USER/ADMIN)·계정(Account) 매핑은 포털에서 관리합니다.</div>
-      </div>
-      <div class="form-grid">
-        <div class="field"><label>LDAPS 서버 주소 <span class="req">*</span> <span class="chip gray" title="저장 위치">CR spec</span></label>
-          <input class="input mono" value="ldaps://dc1.corp.example.com:636">
-        </div>
-        <div class="field"><label>Base DN (검색 시작점) <span class="req">*</span> <span class="chip gray">CR spec</span></label>
-          <input class="input mono" value="DC=corp,DC=example,DC=com">
-        </div>
-        <div class="field"><label>Bind 계정 <span class="req">*</span> <span class="chip gray">CR spec</span></label>
-          <input class="input mono" value="svc-sse@corp.example.com">
-        </div>
-        <div class="field"><label>Bind 암호 <span class="req">*</span> <span class="chip gray">Secret</span></label>
-          <input class="input mono" type="password" value="••••••••••">
-          <span class="hint">암호는 Secret에 별도 저장되며 화면에 표시되지 않습니다</span>
-        </div>
-        <div class="field full"><label>허용 그룹 (권장) <span class="chip gray">CR spec</span></label>
-          <input class="input mono" value="CN=HPC-Users,OU=Groups,DC=corp,DC=example,DC=com">
-          <span class="hint">지정 시 이 그룹 소속 사용자만 동기화 대상이 됩니다 (memberOf 기준)</span>
-        </div>
-        <div class="field"><label>사용자 식별 속성</label>
-          <select class="select"><option>cn</option><option selected>uid</option><option>sAMAccountName</option></select>
-          <span class="hint">포털/Slurm 사용자명으로 사용할 AD 속성</span>
-        </div>
-        <div class="field"><label>자동 동기화 주기</label>
-          <select class="select"><option>15분</option><option selected>1시간</option><option>6시간</option><option>24시간</option></select>
-        </div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
-      <button class="btn btn-outline btn-sm" type="button">연결 테스트</button>
-      <button class="btn btn-primary btn-sm" type="button">저장</button>
-    </div>
   </div>
 </div>
 <script>
@@ -311,32 +207,6 @@
       e.preventDefault();
       applyCluster(o.dataset.cluster);
     });
-  });
-})();
-</script>
-<script>
-(function () {
-  // 등록/수정 모달 공통 open/close (기존 .modal 패턴 재사용)
-  function closeModal(m) { m.classList.add('hidden'); }
-  document.querySelectorAll('[data-open-modal]').forEach(function (btn) {
-    btn.addEventListener('click', function (e) {
-      e.preventDefault();
-      var m = document.getElementById(btn.getAttribute('data-open-modal'));
-      if (!m) return;
-      var t = btn.getAttribute('data-modal-title');
-      var lbl = m.querySelector('.m-title-text');
-      if (t && lbl) lbl.textContent = t;
-      m.classList.remove('hidden');
-    });
-  });
-  document.querySelectorAll('.modal-backdrop').forEach(function (m) {
-    m.addEventListener('click', function (e) { if (e.target === m) closeModal(m); });
-    m.querySelectorAll('.m-close, [data-close]').forEach(function (b) {
-      b.addEventListener('click', function () { closeModal(m); });
-    });
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(closeModal);
   });
 })();
 </script>
