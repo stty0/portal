@@ -96,26 +96,26 @@
         <div class="card-head"><h2>계정 목록 <span class="fid">A-US-02</span></h2><span class="chip gray" title="공유 slurmdbd — 계정은 전 클러스터 공통">전 클러스터 공통</span></div>
         <div class="card-body flush table-wrap">
           <table class="tbl">
-            <thead><tr><th>계정</th><th>설명</th><th>상위</th><th class="num">구성원</th><th style="width:230px">액션</th></tr></thead>
+            <thead><tr><th>계정</th><th>설명</th><th>상위</th><th class="num">구성원</th><th>QOS (기본/허용)</th><th style="width:230px">액션</th></tr></thead>
             <tbody>
               <tr>
-                <td class="mono"><b>acct-ai</b></td><td>AI연구팀</td><td class="mono">root</td><td class="num mono">12</td>
+                <td class="mono"><b>acct-ai</b></td><td>AI연구팀</td><td class="mono">root</td><td class="num mono">12</td><td class="mono">normal(기본), high</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-ai 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
               </tr>
               <tr>
-                <td class="mono"><b>acct-bio</b></td><td>바이오연구소</td><td class="mono">root</td><td class="num mono">18</td>
+                <td class="mono"><b>acct-bio</b></td><td>바이오연구소</td><td class="mono">root</td><td class="num mono">18</td><td class="mono">normal(기본), debug</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-bio 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
               </tr>
               <tr>
-                <td class="mono"><b>acct-vision</b></td><td>비전랩</td><td class="mono">root</td><td class="num mono">7</td>
+                <td class="mono"><b>acct-vision</b></td><td>비전랩</td><td class="mono">root</td><td class="num mono">7</td><td class="mono">normal(기본)</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-vision 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
               </tr>
               <tr>
-                <td class="mono"><b>acct-met</b></td><td>기상모델링</td><td class="mono">root</td><td class="num mono">5</td>
+                <td class="mono"><b>acct-met</b></td><td>기상모델링</td><td class="mono">root</td><td class="num mono">5</td><td class="mono">normal(기본), long</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-met 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
               </tr>
               <tr>
-                <td class="mono"><b>acct-ops</b></td><td>HPC운영팀</td><td class="mono">root</td><td class="num mono">3</td>
+                <td class="mono"><b>acct-ops</b></td><td>HPC운영팀</td><td class="mono">root</td><td class="num mono">3</td><td class="mono">normal(기본), high</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-ops 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
               </tr>
             </tbody>
@@ -150,6 +150,16 @@
         <div class="field"><label>상위 계정</label><select class="select"><option>root</option><option>acct-ai</option><option>acct-bio</option></select></div>
         <div class="field full"><label>설명</label><input class="input" placeholder="예: AI연구팀"></div>
         <div class="field full"><label>조직 (Organization)</label><input class="input" placeholder="예: 연구개발본부"></div>
+        <div class="field full"><label>허용 QOS <span class="fid">A-US-03</span></label>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;padding-top:4px">
+            <label class="checkline"><input type="checkbox" checked> normal</label>
+            <label class="checkline"><input type="checkbox"> high</label>
+            <label class="checkline"><input type="checkbox" checked> debug</label>
+            <label class="checkline"><input type="checkbox"> long</label>
+          </div>
+          <span class="hint">소속 사용자가 Job 제출 시 선택 가능한 QOS 집합 (sacctmgr … set qos=)</span>
+        </div>
+        <div class="field"><label>기본 QOS</label><select class="select"><option>normal</option><option>debug</option><option>high</option><option>long</option></select><span class="hint">--qos 미지정 시 적용 (DefaultQOS)</span></div>
       </div>
     </div>
     <div class="modal-foot">
