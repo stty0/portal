@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>비용 / Billing | HPC Portal</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body class="scp">
+    <header class="topbar gnb">
+      <a class="gnb-logo" href="dashboard.html">Digital Twin Platform</a>
+      <div class="gnb-search">🔍 <input type="text" placeholder="사용자, Job ID, 노드 및 문서를 검색하세요."><span class="kbd">[Alt+s]</span></div>
+      <!-- 공통 상단 우측 컨트롤: 알림 / 도움말 / 계정 -->
+      <div class="tb-item">
+        <button class="top-icon" type="button" data-menu title="알림"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+        <div class="tb-menu" style="min-width:320px">
+          <div class="tb-menu-head">알림</div>
+          <a class="tb-noti" href="nodes.html"><span class="n-ico err">!</span><div><b>노드 g013 DOWN (NodeHealthCheck)</b><small>seoul-hpc · 12분 전</small></div></a>
+          <a class="tb-noti" href="jobs.html"><span class="n-ico warn">⏱</span><div><b>gpu 파티션 대기 Job 15건 초과</b><small>seoul-hpc · 40분 전</small></div></a>
+          <a class="tb-noti" href="users.html"><span class="n-ico ok">✓</span><div><b>계정 신청 승인 대기 2건</b><small>1시간 전</small></div></a>
+          <div class="tb-menu-foot"><a href="#">알림 전체 보기 →</a></div>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="top-icon tb-help" type="button" data-menu title="도움말"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-2.9 2.4-2.9 4"/><path d="M12 17.5h.01"/></svg></button>
+        <div class="tb-menu" style="min-width:220px">
+          <a class="tb-mi" href="#">Support Center</a>
+          <a class="tb-mi" href="#">Documentation</a>
+          <a class="tb-mi" href="../user/notices.html">공지사항</a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-region" type="button" data-menu title="클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">클러스터</span><span class="chev">▾</span></button>
+        <div class="tb-menu" id="clusterMenu" style="min-width:260px">
+          <div class="tb-menu-head">클러스터 선택</div>
+          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="전체 클러스터"><span>전체 클러스터</span><code>all</code></a>
+          <a class="tb-mi tb-cl-opt" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
+          <a class="tb-mi tb-cl-opt" href="#" data-cluster="pangyo-gpu"><span>GPU 특화</span><code>pangyo-gpu</code></a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-profile" type="button" data-menu title="계정"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8.2" r="3.4"/><path d="M4.8 19.6c1.5-3.1 4.1-4.8 7.2-4.8s5.7 1.7 7.2 4.8"/></svg></button>
+        <div class="tb-menu" style="min-width:250px">
+          <div class="tb-menu-user"><span class="avatar" style="background:linear-gradient(135deg,#d3383c,#8f1f22)">OP</span><div><b>운영관리자</b><small>HPC운영팀 · ADMIN · 2FA ✓</small></div></div>
+          <a class="tb-mi" href="../user/cluster.html">↪ 사용자 포털로</a>
+          <div class="tb-sep"></div>
+          <a class="tb-mi" href="../index.html">⏻ 로그아웃</a>
+        </div>
+      </div>
+    </header>
+
+<div class="layout">
+
+  <aside class="sidebar snb snb-admin">
+    <div class="side-logo"><span class="logo-mark">H</span><span>HPC Portal<small>Admin Console</small></span><button class="side-collapse" type="button" title="접기">⇤</button></div>
+    <nav class="side-nav">
+      <div class="nav-group">모니터링</div>
+      <a href="dashboard.html"><span class="ico">▦</span> 통합 대시보드</a>
+      <div class="nav-group">자원 관리</div>
+      <a href="clusters.html"><span class="ico">🖧</span> 클러스터 관리</a>
+      <a href="nodes.html"><span class="ico">▤</span> 노드 / 파티션</a>
+      <a href="jobs.html"><span class="ico">☰</span> 전체 Job 관리</a>
+      <div class="nav-group">사용자 / 정책</div>
+      <a href="users.html"><span class="ico">👥</span> 사용자 · 계정 · QOS</a>
+      <div class="nav-group">운영</div>
+      <a href="reports.html"><span class="ico">◔</span> 통계 / 리포트</a>
+      <a href="billing.html" class="active"><span class="ico">₩</span> 비용 / Billing</a>
+      <a href="license.html"><span class="ico">🗝</span> License 관리</a>
+      <a href="settings.html"><span class="ico">⚙</span> 포털 운영 설정</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+
+    <main class="content">
+      <div class="crumbs">HPC Portal Admin › <b>비용 › Billing</b></div>
+      <div class="page-head">
+        <div>
+          <h1>비용 / Billing <span class="chip" style="vertical-align:3px">Samsung Cloud Platform</span></h1>
+          <p class="sub">SCP Billing API 연동 · 자원 Type/Tag 필터로 HPC 사용 비용 식별·표시 (A-BL-01~04) · 마지막 수집 오늘 06:00</p>
+        </div>
+        <div class="page-actions">
+          <select class="select select-sm" style="width:140px"><option>2026년 7월</option><option>2026년 6월</option><option>2026년 2분기</option></select>
+          <button class="btn btn-outline">⇩ CSV 내보내기</button>
+          <button class="btn btn-primary">⇅ 지금 수집</button>
+        </div>
+      </div>
+
+      <!-- 비용 요약 -->
+      <div class="grid grid-4">
+        <div class="stat"><span class="label">이번 달 누적 (7/1~15)</span><span class="value">₩140<small>만</small></span><span class="delta">일평균 ₩9.3만</span></div>
+        <div class="stat acc-pend"><span class="label">월말 예상</span><span class="value">₩289<small>만</small></span><span class="delta up">▲ 8% vs 전월</span></div>
+        <div class="stat acc-fail"><span class="label">월 비용 상한 대비</span><span class="value">72<small>%</small></span><span class="delta down">상한 ₩400만 — 알림 임계 80%</span></div>
+        <div class="stat acc-gpu"><span class="label">미태깅 자원 비용</span><span class="value">₩21<small>만</small></span><span class="delta">식별 필요 3건</span></div>
+      </div>
+
+      <div class="grid grid-3 mt-16">
+        <!-- 월별/일별 추이 -->
+        <div class="card col-span-2">
+          <div class="card-head"><h2>비용 추이 <span class="fid">A-BL-03</span></h2>
+            <div class="legend"><span class="lg"><span class="sw" style="background:var(--brand-600)"></span>스토리지</span><span class="lg"><span class="sw" style="background:var(--violet)"></span>네트워크/기타</span></div>
+          </div>
+          <div class="card-body">
+            <div class="chart-bars">
+              <div class="cb"><div class="bar-col" style="height:31%"></div><div class="bar-col alt" style="height:10%"></div><span class="cap">1월</span></div>
+              <div class="cb"><div class="bar-col" style="height:36%"></div><div class="bar-col alt" style="height:12%"></div><span class="cap">2월</span></div>
+              <div class="cb"><div class="bar-col" style="height:42%"></div><div class="bar-col alt" style="height:14%"></div><span class="cap">3월</span></div>
+              <div class="cb"><div class="bar-col" style="height:48%"></div><div class="bar-col alt" style="height:15%"></div><span class="cap">4월</span></div>
+              <div class="cb"><div class="bar-col" style="height:61%"></div><div class="bar-col alt" style="height:17%"></div><span class="cap">5월</span></div>
+              <div class="cb"><div class="bar-col" style="height:70%"></div><div class="bar-col alt" style="height:19%"></div><span class="cap">6월</span></div>
+              <div class="cb"><div class="bar-col" style="height:38%"></div><div class="bar-col alt" style="height:10%"></div><span class="cap">7월(진행)</span></div>
+              <div class="cb"><div class="bar-col" style="height:2%;opacity:.25"></div><div class="bar-col alt" style="height:2%;opacity:.25"></div><span class="cap" style="color:var(--ink-3)">8월</span></div>
+              <div class="cb"><div class="bar-col" style="height:2%;opacity:.25"></div><div class="bar-col alt" style="height:2%;opacity:.25"></div><span class="cap" style="color:var(--ink-3)">9월</span></div>
+              <div class="cb"><div class="bar-col" style="height:2%;opacity:.25"></div><div class="bar-col alt" style="height:2%;opacity:.25"></div><span class="cap" style="color:var(--ink-3)">10월</span></div>
+              <div class="cb"><div class="bar-col" style="height:2%;opacity:.25"></div><div class="bar-col alt" style="height:2%;opacity:.25"></div><span class="cap" style="color:var(--ink-3)">11월</span></div>
+              <div class="cb"><div class="bar-col" style="height:2%;opacity:.25"></div><div class="bar-col alt" style="height:2%;opacity:.25"></div><span class="cap" style="color:var(--ink-3)">12월</span></div>
+            </div>
+            <div class="chart-line-caption"><span>SCP Billing API · 일 1회 수집 (06:00) + 수동 수집</span><span>월 청구액 (VAT 제외)</span></div>
+          </div>
+        </div>
+
+        <!-- Tag(클러스터)별 비용 -->
+        <div class="card">
+          <div class="card-head"><h2>Tag별 비용 (7월) <span class="fid">A-BL-04</span></h2></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:13px">
+            <div class="meter"><div class="meter-top"><span class="lbl">hpc-role=archive (아카이브/백업)</span><span class="val">₩84만</span></div><div class="bar"><i style="width:60%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">hpc-role=staging (데이터 스테이징)</span><span class="val">₩35만</span></div><div class="bar"><i class="violet" style="width:25%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">미태깅 (untagged)</span><span class="val">₩21만</span></div><div class="bar"><i class="err" style="width:15%"></i></div></div>
+            <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>🏷</span><div>미태깅 자원 3건 발견 — Volume 2, Public IP 1. <b>태그 규칙(hpc-cluster=*)</b> 적용을 권장합니다. <a href="#">자원 목록 →</a></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- A-BL-02 자원 Type별 비용 -->
+      <div class="card mt-16">
+        <div class="card-head">
+          <h2>자원 Type별 비용 (7월) <span class="fid">A-BL-02</span></h2>
+          <div style="display:flex;gap:8px">
+            <select class="select select-sm" style="width:170px"><option>전체 Type</option><option>Virtual Server</option><option>GPU Server</option><option>Block Storage</option><option>Object Storage</option><option>Networking</option></select>
+            <select class="select select-sm" style="width:200px"><option>Tag: 전체</option><option>hpc-role=archive</option><option>hpc-role=staging</option><option>미태깅</option></select>
+          </div>
+        </div>
+        <div class="card-body flush table-wrap">
+          <table class="tbl">
+            <thead><tr><th>자원 Type</th><th>SCP 상품</th><th>Tag</th><th class="num">수량</th><th class="num">사용량</th><th class="num">비용 (7/1~15)</th><th class="num">월말 예상</th><th class="num">전월 대비</th></tr></thead>
+            <tbody>
+              <tr><td><b>Object Storage</b> <span class="chip gray">스토리지</span></td><td class="mono">표준 (연구 데이터 아카이브)</td><td><span class="chip gray">archive</span></td><td class="num mono">2 버킷</td><td class="num mono">142 TB</td><td class="num mono">₩58만</td><td class="num mono">₩118만</td><td class="num" style="color:var(--ok)">▼ 3%</td></tr>
+              <tr><td><b>Backup</b> <span class="chip gray">스토리지</span></td><td class="mono">스냅샷 · 이미지 백업</td><td><span class="chip gray">archive</span></td><td class="num mono">14 세트</td><td class="num mono">38 TB</td><td class="num mono">₩26만</td><td class="num mono">₩54만</td><td class="num" style="color:var(--ink-3)">± 0%</td></tr>
+              <tr><td><b>Block Storage</b> <span class="chip gray">스토리지</span></td><td class="mono">SSD (데이터 스테이징)</td><td><span class="chip gray">staging</span></td><td class="num mono">8 vol</td><td class="num mono">12 TB·월</td><td class="num mono">₩24만</td><td class="num mono">₩50만</td><td class="num" style="color:var(--err)">▲ 9%</td></tr>
+              <tr><td><b>Networking</b> <span class="chip gray">네트워크</span></td><td class="mono">전용선 · 데이터 전송</td><td><span class="chip gray">staging</span></td><td class="num mono">—</td><td class="num mono">아웃바운드 3.1 TB</td><td class="num mono">₩11만</td><td class="num mono">₩23만</td><td class="num" style="color:var(--err)">▲ 14%</td></tr>
+              <tr><td><b>기타</b></td><td class="mono">NAT GW · DNS · Public IP</td><td><span class="badge plain pending" style="font-size:10.5px">미태깅 포함</span></td><td class="num mono">7</td><td class="num mono">—</td><td class="num mono">₩21만</td><td class="num mono">₩44만</td><td class="num" style="color:var(--ink-3)">± 0%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot" style="display:flex;gap:14px">
+          <span>합계 <b>₩140만</b> (7/1~15, VAT 제외)</span>
+          <span style="margin-left:auto">포털 스토리지 현황(A-DB-05)·아카이브 사용량과 교차 검증 (<a href="dashboard.html">대시보드 연계</a>)</span>
+        </div>
+      </div>
+
+      <div class="grid grid-2 mt-16">
+        <!-- A-BL-01 SCP 연동 credential -->
+        <div class="card">
+          <div class="card-head">
+            <h2>SCP Billing API 연동 <span class="fid">A-BL-01</span></h2>
+            <span class="badge completed">연결됨 · billing:read ✓</span>
+          </div>
+          <div class="card-body">
+            <div class="notice info" style="margin-bottom:16px;font-size:12px;padding:9px 12px">
+              <span>🔐</span>
+              <div><b>Billing 조회 권한만 가진 전용 키</b>를 사용하세요. Secret Key는 Secret 저장소에 암호화 보관되며 저장 후 다시 표시되지 않습니다.</div>
+            </div>
+            <div class="form-grid">
+              <div class="field"><label>API 엔드포인트 <span class="chip gray">CR spec</span></label>
+                <input class="input mono" value="https://billing.api.samsungsdscloud.com">
+              </div>
+              <div class="field"><label>SCP 프로젝트 ID <span class="req">*</span> <span class="chip gray">CR spec</span></label>
+                <input class="input mono" value="PROJECT-a1b2c3d4">
+              </div>
+              <div class="field"><label>Access Key <span class="req">*</span> <span class="chip gray">CR spec</span></label>
+                <input class="input mono" value="SCPAK7F3K2M9Q1XXXX">
+              </div>
+              <div class="field"><label>Secret Key <span class="req">*</span> <span class="chip gray">Secret</span></label>
+                <input class="input mono" type="password" value="••••••••••••••••">
+                <span class="hint">billing 권한이 부여된 키인지 저장 시 자동 검증합니다</span>
+              </div>
+              <div class="field"><label>수집 주기</label>
+                <select class="select"><option selected>일 1회 (06:00)</option><option>6시간</option><option>1시간</option></select>
+              </div>
+              <div class="field"><label>월 비용 상한 알림</label>
+                <input class="input mono" value="4,000,000">
+                <span class="hint">원(KRW) · 80% 도달 시 관리자 알림 발송</span>
+              </div>
+            </div>
+          </div>
+          <div class="card-foot" style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+            <span style="margin-right:auto;font-size:12px;color:var(--ink-3)">키 변경은 감사 로그(C-05)에 기록 · 마지막 검증 06:00 성공</span>
+            <button class="btn btn-outline">연결 테스트</button>
+            <button class="btn btn-primary">저장</button>
+          </div>
+        </div>
+
+        <!-- 필터 규칙 -->
+        <div class="card">
+          <div class="card-head"><h2>자원 식별 필터 <span class="fid">A-BL-02·04</span></h2><button class="btn btn-sm btn-primary">＋ 규칙 추가</button></div>
+          <div class="card-body flush table-wrap">
+            <table class="tbl">
+              <thead><tr><th>구분</th><th>조건</th><th>매핑</th><th>상태</th><th style="width:110px">액션</th></tr></thead>
+              <tbody>
+                <tr><td><span class="chip">Tag</span></td><td class="mono">hpc-role = archive</td><td>아카이브/백업 비용</td><td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
+                <tr><td><span class="chip">Tag</span></td><td class="mono">hpc-role = staging</td><td>데이터 스테이징 비용</td><td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
+                <tr><td><span class="chip gray">Type</span></td><td class="mono">resourceType = ObjectStorage, Backup, BlockStorage</td><td>스토리지 분류</td><td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
+                <tr><td><span class="chip gray">Type</span></td><td class="mono">resourceType = VirtualServer</td><td>컴퓨트 (현재 미사용 · 0건)</td><td><label class="switch"><input type="checkbox"><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-body" style="border-top:1px solid var(--line)">
+            <div class="field">
+              <label>필터 밖 자원 처리</label>
+              <select class="select"><option selected>"미태깅"으로 집계 + 주간 리포트 알림</option><option>무시 (HPC 외 자원으로 간주)</option></select>
+            </div>
+          </div>
+          <div class="card-foot" style="text-align:right"><button class="btn btn-primary">필터 저장</button></div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- 본문 하단 푸터 -->
+    <footer class="portal-foot">
+      <div class="pf-top">
+        <div><a href="#">개인정보처리방침</a> | <a href="#">이용약관</a> | <a href="#">DPA</a> | Copyright SAMSUNG SDS. All rights reserved. | 🌐 한국어</div>
+        <b>SAMSUNG SDS</b>
+      </div>
+      <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
+    </footer>
+  </div>
+</div>
+<script>
+(function () {
+  // 사이드바 접기/펼치기 — 사용자 포털과 동일 동작, 상태 공유(localStorage)
+  var KEY = 'hpc-snb-collapsed';
+  var sb = document.querySelector('.sidebar');
+  if (!sb) return;
+  var collapseBtn = sb.querySelector('.side-collapse');
+  if (!collapseBtn) return;
+  sb.querySelectorAll('.side-nav a').forEach(function (a) { a.title = a.textContent.trim(); });
+  function apply(collapsed) {
+    sb.classList.toggle('collapsed', collapsed);
+    collapseBtn.textContent = collapsed ? '☰' : '⇤';
+    collapseBtn.title = collapsed ? '펼치기' : '접기';
+    localStorage.setItem(KEY, collapsed ? '1' : '');
+  }
+  apply(localStorage.getItem(KEY) === '1');
+  collapseBtn.addEventListener('click', function () {
+    sb.classList.add('anim');
+    apply(!sb.classList.contains('collapsed'));
+  });
+})();
+</script>
+<script>
+(function () {
+  // 상단 우측 드롭다운 공통 토글
+  var items = document.querySelectorAll('.tb-item');
+  document.querySelectorAll('.tb-item > [data-menu]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var item = btn.parentElement;
+      var open = item.classList.contains('open');
+      items.forEach(function (i) { i.classList.remove('open'); });
+      if (!open) item.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function () {
+    items.forEach(function (i) { i.classList.remove('open'); });
+  });
+})();
+</script>
+<script>
+(function () {
+  // 클러스터 선택 (admin) — 선택 표시/유지
+  var KEY = 'hpc-admin-cluster';
+  var opts = Array.prototype.slice.call(document.querySelectorAll('.tb-cl-opt'));
+  function applyCluster(name) {
+    opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.cluster === name); });
+    localStorage.setItem(KEY, name);
+  }
+  var saved = localStorage.getItem(KEY);
+  if (saved) applyCluster(saved);
+  opts.forEach(function (o) {
+    o.addEventListener('click', function (e) {
+      e.preventDefault();
+      applyCluster(o.dataset.cluster);
+    });
+  });
+})();
+</script>
+</body>
+</html>

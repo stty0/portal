@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>클러스터 | HPC Portal</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body class="scp">
+    <header class="topbar gnb">
+      <a class="gnb-logo" href="cluster.html">Digital Twin Platform</a>
+      <div class="gnb-search">🔍 <input type="text" placeholder="Job ID, 파일, 앱 및 문서를 검색하세요."><span class="kbd">[Alt+s]</span></div>
+      <!-- 공통 상단 우측 컨트롤: 알림 / 도움말 / 클러스터 / 계정 -->
+      <div class="tb-item">
+        <button class="top-icon" type="button" data-menu title="알림"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+        <div class="tb-menu" style="min-width:320px">
+          <div class="tb-menu-head">알림</div>
+          <a class="tb-noti" href="job-detail.html"><span class="n-ico ok">✓</span><div><b>Job #45788 완료</b><small>preproc-dataset · 10분 전</small></div></a>
+          <a class="tb-noti" href="job-detail.html"><span class="n-ico err">!</span><div><b>Job #45771 실패 (OOM · ExitCode 137)</b><small>train-baseline · 1시간 전</small></div></a>
+          <a class="tb-noti" href="notices.html"><span class="n-ico warn">📢</span><div><b>[점검] gpu 파티션 정기 점검</b><small>7/20(월) 02:00~06:00 · seoul-hpc</small></div></a>
+          <div class="tb-menu-foot"><a href="#">알림 전체 보기 →</a></div>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="top-icon tb-help" type="button" data-menu title="도움말"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-2.9 2.4-2.9 4"/><path d="M12 17.5h.01"/></svg></button>
+        <div class="tb-menu" style="min-width:220px">
+          <a class="tb-mi" href="#">Support Center</a>
+          <a class="tb-mi" href="#">Documentation</a>
+          <a class="tb-mi" href="notices.html">공지사항</a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-region" type="button" data-menu title="작업 클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">클러스터</span><span class="chev">▾</span></button>
+        <div class="tb-menu" id="clusterMenu" style="min-width:260px">
+          <div class="tb-menu-head">작업 클러스터 선택</div>
+          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
+          <a class="tb-mi tb-cl-opt" href="#" data-cluster="pangyo-gpu"><span>GPU 특화</span><code>pangyo-gpu</code></a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-profile" type="button" data-menu title="계정"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8.2" r="3.4"/><path d="M4.8 19.6c1.5-3.1 4.1-4.8 7.2-4.8s5.7 1.7 7.2 4.8"/></svg></button>
+        <div class="tb-menu" style="min-width:250px">
+          <div class="tb-menu-user"><span class="avatar">JP</span><div><b>박정렬</b><small>Digital Twin실행그룹 · USER</small></div></div>
+          <a class="tb-mi" href="usage.html">◔ 내 사용량 / 프로필</a>
+          <a class="tb-mi" href="#">🔑 SSH 키 관리</a>
+          <a class="tb-mi" href="#">🌐 언어: 한국어 (KOR)</a>
+          <a class="tb-mi" href="../admin/dashboard.html">🛡 관리자 포털로</a>
+          <div class="tb-sep"></div>
+          <a class="tb-mi" href="../index.html">⏻ 로그아웃</a>
+        </div>
+      </div>
+    </header>
+
+<div class="layout">
+
+  <!-- ===== Sidebar (USER) ===== -->
+  <aside class="sidebar snb">
+    <div class="side-logo"><span class="logo-mark">H</span><span>HPC Portal<small>Slurm Multi-Cluster</small></span><button class="side-collapse" type="button" title="접기">⇤</button></div>
+    <nav class="side-nav">
+      <div class="nav-group">워크스페이스</div>
+      <a href="cluster.html" class="active"><span class="ico">🖧</span> 클러스터</a>
+      <a href="jobs.html"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.2" cy="6" r="1.1"/><circle cx="4.2" cy="12" r="1.1"/><circle cx="4.2" cy="18" r="1.1"/></svg></span> Job 목록</a>
+      <a href="job-submit.html"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9z"/><path d="M13 3v6h6"/><path d="M8 12h4"/><path d="M8 16.5h4.5m0 0l-1.8-1.8m1.8 1.8l-1.8 1.8"/></svg></span> Job 제출</a>
+      <a href="apps.html"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6"/><path d="M12 16v4"/><path d="M9 11.5l5-5m0 0h-3.3m3.3 0v3.3"/></svg></span> 인터랙티브 앱</a>
+      <div class="nav-group">데이터 &amp; 도구</div>
+      <a href="files.html"><span class="ico">🗀</span> 파일 관리자</a>
+      <a href="terminal.html"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.2"/><path d="M7 9.5l3 2.5-3 2.5"/><path d="M12.5 15h4.5"/></svg></span> 웹 터미널</a>
+    </nav>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <div class="main">
+    <main class="content">
+      <div class="crumbs">HPC Portal › <b>클러스터</b></div>
+      <div class="page-head">
+        <div>
+          <h1>클러스터</h1>
+          <p class="sub">전체 클러스터 상태 및 가용 자원 현황 · 마지막 갱신 10초 전 (30초 주기 자동 갱신)</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-outline" href="#">⟳ 새로고침</a>
+        </div>
+      </div>
+
+      <!-- U-CL-01 멀티 클러스터 현황 -->
+      <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:16px">
+        <div class="cluster-card cl-a">
+          <div class="cc-head">🖧 <b>seoul-hpc</b><span class="chip gray">본원 · 기본</span><span class="badge running">정상</span></div>
+          <div class="cc-desc">Slurm 24.05 · 노드 100 · normal/gpu/bigmem/debug</div>
+          <div class="cc-stats"><span>내 Job <b>5</b></span><span>idle 노드 <b>27</b></span><span>파티션 <b>4</b></span><span>전체 CPU Core <b>10,752</b></span><span>GPU 가용 <b>8/96</b></span></div>
+        </div>
+        <div class="cluster-card cl-b">
+          <div class="cc-head">🖧 <b>pangyo-gpu</b><span class="chip gray">GPU 특화</span><span class="badge running">정상</span></div>
+          <div class="cc-desc">Slurm 24.05 · 노드 32 · gpu/gpu-large</div>
+          <div class="cc-stats"><span>내 Job <b>1</b></span><span>idle 노드 <b>6</b></span><span>파티션 <b>2</b></span><span>전체 CPU Core <b>4,096</b></span><span>GPU 가용 <b>48/256</b></span></div>
+        </div>
+      </div>
+
+      <div class="mt-16">
+        <!-- U-CL-02 클러스터 가용 자원 -->
+        <div class="card">
+          <div class="card-head"><h2>파티션 <span class="fid">U-CL-02</span></h2><span style="font-size:13px;color:var(--ink-3)">sinfo 기준 · 파티션을 클릭하면 컴퓨트 노드 정보가 표시됩니다</span></div>
+          <div class="card-body flush table-wrap">
+            <table class="tbl">
+              <thead><tr><th>파티션</th><th>노드 (idle/전체)</th><th class="num">CPU Core</th><th class="num">GPU</th><th>최대 Walltime</th><th>상태</th></tr></thead>
+              <tbody>
+                <tr class="part-row" data-cluster="seoul-hpc" data-part="normal"><td><span class="chip">normal</span></td><td class="mono">18 / 64</td><td class="num mono">2,304 / 8,192</td><td class="num mono">—</td><td class="mono">3-00:00:00</td><td><span class="badge idle">여유</span></td></tr>
+                <tr class="part-row" data-cluster="seoul-hpc" data-part="gpu"><td><span class="chip">gpu</span></td><td class="mono">2 / 24</td><td class="num mono">128 / 1,536</td><td class="num mono">8 / 96 (A100)</td><td class="mono">2-00:00:00</td><td><span class="badge drain">혼잡</span></td></tr>
+                <tr class="part-row" data-cluster="seoul-hpc" data-part="bigmem"><td><span class="chip">bigmem</span></td><td class="mono">3 / 8</td><td class="num mono">384 / 1,024</td><td class="num mono">—</td><td class="mono">7-00:00:00</td><td><span class="badge idle">여유</span></td></tr>
+                <tr class="part-row" data-cluster="pangyo-gpu" data-part="gpu"><td><span class="chip">gpu</span></td><td class="mono">6 / 24</td><td class="num mono">768 / 3,072</td><td class="num mono">48 / 192 (H100)</td><td class="mono">2-00:00:00</td><td><span class="badge idle">여유</span></td></tr>
+                <tr class="part-row" data-cluster="pangyo-gpu" data-part="gpu-large"><td><span class="chip">gpu-large</span></td><td class="mono">0 / 8</td><td class="num mono">0 / 1,024</td><td class="num mono">0 / 64 (H100)</td><td class="mono">4-00:00:00</td><td><span class="badge down">만석</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+    <!-- 하단 고정 푸터 (.content가 flex:1로 늘어나 항상 페이지 최하단) -->
+    <footer class="portal-foot">
+      <div class="pf-top">
+        <div><a href="#">개인정보처리방침</a> | <a href="#">이용약관</a> | <a href="#">DPA</a> | Copyright SAMSUNG SDS. All rights reserved. | 🌐 한국어</div>
+        <b>SAMSUNG SDS</b>
+      </div>
+      <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
+    </footer>
+  </div>
+</div>
+
+
+<!-- 공통 공지 팝업 — 전 페이지 공통 frame 영역 (U-CL-03) -->
+<div class="modal-backdrop hidden" id="noticeModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
+    <div class="modal-head">
+      <span class="m-ico">📢</span>
+      <h3 id="noticeTitle">[점검 공지] gpu 파티션 정기 점검</h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      7/20(월) 02:00~06:00 <span class="chip cl">seoul-hpc</span> gpu 파티션 정기 점검이 예정되어 있습니다.<br>
+      해당 시간대에 걸치는 walltime의 Job은 대기 처리됩니다. <a href="notices.html">자세히</a>
+    </div>
+    <div class="modal-foot">
+      <label class="m-today"><input type="checkbox" id="noticeToday"> 오늘 하루 보지 않기</label>
+      <button class="btn btn-primary btn-sm" type="button" id="noticeOk">확인</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var HIDE_KEY = 'hpc-notice-hide-until'; // 오늘 하루 보지 않기
+  var SEEN_KEY = 'hpc-notice-seen';       // 세션 내 재표시 방지
+  var modal = document.getElementById('noticeModal');
+  var today = new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem(HIDE_KEY) !== today && !sessionStorage.getItem(SEEN_KEY)) {
+    modal.classList.remove('hidden');
+  }
+  function closeNotice() {
+    if (document.getElementById('noticeToday').checked) localStorage.setItem(HIDE_KEY, today);
+    sessionStorage.setItem(SEEN_KEY, '1');
+    modal.classList.add('hidden');
+  }
+  modal.querySelector('.m-close').addEventListener('click', closeNotice);
+  document.getElementById('noticeOk').addEventListener('click', closeNotice);
+  modal.addEventListener('click', function (e) { if (e.target === modal) closeNotice(); });
+})();
+</script>
+<script>
+(function () {
+  // 상단 우측 드롭다운 공통 토글
+  var items = document.querySelectorAll('.tb-item');
+  document.querySelectorAll('.tb-item > [data-menu]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var item = btn.parentElement;
+      var open = item.classList.contains('open');
+      items.forEach(function (i) { i.classList.remove('open'); });
+      if (!open) item.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function () {
+    items.forEach(function (i) { i.classList.remove('open'); });
+  });
+  // 클러스터 단일 선택 — 선택된 클러스터의 데이터만 표시, localStorage로 페이지 간 유지
+  var CLUSTER_KEY = 'hpc-cluster';
+  var opts = Array.prototype.slice.call(document.querySelectorAll('.tb-cl-opt'));
+  function clusterOf(el) {
+    if (el.dataset && el.dataset.cluster) return el.dataset.cluster;
+    if (el.querySelector('.chip.cl-b')) return 'pangyo-gpu';
+    if (el.querySelector('.chip.cl')) return 'seoul-hpc';
+    return null;
+  }
+  function applyCluster(name) {
+    opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.cluster === name); });
+    // 클러스터 칩이 붙은 테이블 행 필터링 (칩 없는 행은 항상 표시)
+    document.querySelectorAll('.content table tbody tr').forEach(function (tr) {
+      var c = clusterOf(tr);
+      tr.style.display = (c && c !== name) ? 'none' : '';
+    });
+    // 클러스터 현황 카드 필터링
+    document.querySelectorAll('.cluster-card').forEach(function (card) {
+      var c = card.classList.contains('cl-b') ? 'pangyo-gpu' : 'seoul-hpc';
+      card.style.display = (c !== name) ? 'none' : '';
+    });
+    // 필터 결과가 비면 테이블 중앙에 빈 상태 표시
+    document.querySelectorAll('.content table tbody').forEach(function (tb) {
+      var rows = Array.prototype.slice.call(tb.querySelectorAll('tr'));
+      var visible = rows.filter(function (r) {
+        return !r.classList.contains('empty-row') && r.style.display !== 'none';
+      }).length;
+      var er = tb.querySelector('.empty-row');
+      if (!visible) {
+        if (!er) {
+          er = document.createElement('tr');
+          er.className = 'empty-row';
+          er.innerHTML = '<td colspan="99"><div class="tbl-empty"><span>🗎</span>데이터가 없습니다.</div></td>';
+          tb.appendChild(er);
+        }
+        er.style.display = '';
+      } else if (er) {
+        er.style.display = 'none';
+      }
+    });
+    localStorage.setItem(CLUSTER_KEY, name);
+  }
+  applyCluster(localStorage.getItem(CLUSTER_KEY) === 'pangyo-gpu' ? 'pangyo-gpu' : 'seoul-hpc');
+  opts.forEach(function (o) {
+    o.addEventListener('click', function (e) {
+      e.preventDefault();
+      applyCluster(o.dataset.cluster);
+    });
+  });
+})();
+</script>
+<script>
+(function () {
+  // 파티션 행 클릭 → 해당 파티션에 할당된 컴퓨트 노드 상세 (목업 데이터)
+  var B = {
+    ALLOC: '<span class="badge running">ALLOC</span>',
+    IDLE: '<span class="badge idle">IDLE</span>'
+  };
+  // 파티션 요약(idle 수, CPU/GPU 가용)과 합계가 일치하도록 전체 노드 목록을 생성
+  function pad3(i) { return ('00' + i).slice(-3); }
+  function fmtMem(usedGB, totalGB) {
+    if (totalGB >= 1000) return (usedGB / 1000).toFixed(1) + ' / ' + (totalGB / 1000).toFixed(1) + ' TB';
+    return usedGB + ' / ' + totalGB + ' GB';
+  }
+  function makeNodes(prefix, total, allocCount, cpu, memGB, gpu, gpuType) {
+    var list = [];
+    for (var i = 1; i <= total; i++) {
+      var alloc = i <= allocCount;
+      var usedMem = alloc ? Math.round(memGB * (60 + (i * 13) % 35) / 100) : 4 + (i % 6);
+      var load = alloc ? (cpu * (85 + (i * 11) % 25) / 100).toFixed(1) : ((i % 3) / 10).toFixed(1);
+      var gpuCol = gpu ? (alloc ? gpu : 0) + ' / ' + gpu + ' (' + gpuType + ')' : '—';
+      list.push([
+        prefix + pad3(i),
+        alloc ? B.ALLOC : B.IDLE,
+        (alloc ? cpu : 0) + ' / ' + cpu,
+        fmtMem(usedMem, memGB),
+        gpuCol,
+        String(alloc ? (i % 3) + 1 : 0),
+        load
+      ]);
+    }
+    return list;
+  }
+  var NODES = {
+    'seoul-hpc|normal': makeNodes('n', 64, 46, 128, 512, 0, ''),        // idle 18 · CPU 2,304/8,192
+    'seoul-hpc|gpu': makeNodes('g', 24, 22, 64, 512, 4, 'A100'),        // idle 2 · GPU 8/96
+    'seoul-hpc|bigmem': makeNodes('m', 8, 5, 128, 2000, 0, ''),         // idle 3 · CPU 384/1,024
+    'pangyo-gpu|gpu': makeNodes('pg', 24, 18, 128, 1000, 8, 'H100'),    // idle 6 · GPU 48/192
+    'pangyo-gpu|gpu-large': makeNodes('pl', 8, 8, 128, 2000, 8, 'H100') // idle 0 · 만석
+  };
+  var rows = Array.prototype.slice.call(document.querySelectorAll('tr.part-row'));
+  var NODE_HEAD = '<thead><tr><th>노드명</th><th>상태</th><th class="num">CPU (할당/전체)</th><th class="num">메모리 (할당/전체)</th><th class="num">GPU (할당/전체)</th><th class="num">실행 Job</th><th class="num">CPU Load</th></tr></thead>';
+  function collapse(r) {
+    var next = r.nextElementSibling;
+    if (!next || !next.classList.contains('node-detail-row')) return;
+    next.querySelector('.node-detail').classList.remove('open');
+    r.classList.remove('sel-row');
+    setTimeout(function () { next.remove(); }, 320);
+  }
+  rows.forEach(function (r) {
+    r.addEventListener('click', function () {
+      var next = r.nextElementSibling;
+      if (next && next.classList.contains('node-detail-row')) { collapse(r); return; } // 같은 파티션 재클릭 → 접기
+      var key = r.dataset.cluster + '|' + r.dataset.part;
+      var data = NODES[key] || [];
+      var html = data.map(function (n) {
+        return '<tr><td class="mono">' + n[0] + '</td><td>' + n[1] + '</td><td class="num mono">' + n[2] +
+          '</td><td class="num mono">' + n[3] + '</td><td class="num mono">' + n[4] +
+          '</td><td class="num mono">' + n[5] + '</td><td class="num mono">' + n[6] + '</td></tr>';
+      }).join('');
+      var tr = document.createElement('tr');
+      tr.className = 'node-detail-row';
+      tr.innerHTML = '<td colspan="6" class="nd-cell"><div class="node-detail"><div class="nd-inner"><div class="nd-pad">' +
+        '<div class="nd-title">컴퓨트 노드 — ' + r.dataset.part + ' 파티션 (' + r.dataset.cluster + ') · 총 ' + data.length + '개</div>' +
+        '<div class="nd-box"><div class="nd-scroll"><table class="tbl">' + NODE_HEAD + '<tbody>' + html + '</tbody></table></div></div>' +
+        '</div></div></div></td>';
+      r.parentNode.insertBefore(tr, r.nextSibling);
+      r.classList.add('sel-row');
+      // 삽입 직후 open 클래스를 붙여 펼침 애니메이션 트리거
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { tr.querySelector('.node-detail').classList.add('open'); });
+      });
+    });
+  });
+  // 클러스터 전환 시 펼쳐진 노드 정보 모두 접기
+  document.querySelectorAll('.tb-cl-opt').forEach(function (o) {
+    o.addEventListener('click', function () { rows.forEach(collapse); });
+  });
+})();
+</script>
+<script>
+(function () {
+  // 사이드바 접기/펼치기 — GNB ☰ 버튼과 사이드바 ⇤ 버튼이 토글 쌍, 상태는 localStorage 유지
+  var KEY = 'hpc-snb-collapsed';
+  var sb = document.querySelector('.sidebar.snb');
+  if (!sb) return;
+  var burger = document.querySelector('.gnb-burger');
+  var collapseBtn = sb.querySelector('.side-collapse');
+  // 접힘 상태에서 아이콘 위에 메뉴명 툴팁 표시
+  sb.querySelectorAll('.side-nav a').forEach(function (a) { a.title = a.textContent.trim(); });
+  function apply(collapsed) {
+    sb.classList.toggle('collapsed', collapsed);
+    collapseBtn.textContent = collapsed ? '☰' : '⇤';
+    collapseBtn.title = collapsed ? '펼치기' : '접기';
+    localStorage.setItem(KEY, collapsed ? '1' : '');
+  }
+  apply(localStorage.getItem(KEY) === '1');
+  [burger, collapseBtn].forEach(function (b) {
+    if (b) b.addEventListener('click', function () { sb.classList.add('anim'); apply(!sb.classList.contains('collapsed')); });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사용량 / 프로필 | HPC Portal</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body class="scp">
+    <header class="topbar gnb">
+      <a class="gnb-logo" href="cluster.html">Digital Twin Platform</a>
+      <div class="gnb-search">🔍 <input type="text" placeholder="Job ID, 파일, 앱 및 문서를 검색하세요."><span class="kbd">[Alt+s]</span></div>
+      <!-- 공통 상단 우측 컨트롤: 알림 / 도움말 / 클러스터 / 계정 -->
+      <div class="tb-item">
+        <button class="top-icon" type="button" data-menu title="알림"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+        <div class="tb-menu" style="min-width:320px">
+          <div class="tb-menu-head">알림</div>
+          <a class="tb-noti" href="job-detail.html"><span class="n-ico ok">✓</span><div><b>Job #45788 완료</b><small>preproc-dataset · 10분 전</small></div></a>
+          <a class="tb-noti" href="job-detail.html"><span class="n-ico err">!</span><div><b>Job #45771 실패 (OOM · ExitCode 137)</b><small>train-baseline · 1시간 전</small></div></a>
+          <a class="tb-noti" href="notices.html"><span class="n-ico warn">📢</span><div><b>[점검] gpu 파티션 정기 점검</b><small>7/20(월) 02:00~06:00 · seoul-hpc</small></div></a>
+          <div class="tb-menu-foot"><a href="#">알림 전체 보기 →</a></div>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="top-icon tb-help" type="button" data-menu title="도움말"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-2.9 2.4-2.9 4"/><path d="M12 17.5h.01"/></svg></button>
+        <div class="tb-menu" style="min-width:220px">
+          <a class="tb-mi" href="#">Support Center</a>
+          <a class="tb-mi" href="#">Documentation</a>
+          <a class="tb-mi" href="notices.html">공지사항</a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-region" type="button" data-menu title="작업 클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">클러스터</span><span class="chev">▾</span></button>
+        <div class="tb-menu" id="clusterMenu" style="min-width:260px">
+          <div class="tb-menu-head">작업 클러스터 선택</div>
+          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
+          <a class="tb-mi tb-cl-opt" href="#" data-cluster="pangyo-gpu"><span>GPU 특화</span><code>pangyo-gpu</code></a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-profile" type="button" data-menu title="계정"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8.2" r="3.4"/><path d="M4.8 19.6c1.5-3.1 4.1-4.8 7.2-4.8s5.7 1.7 7.2 4.8"/></svg></button>
+        <div class="tb-menu" style="min-width:250px">
+          <div class="tb-menu-user"><span class="avatar">JP</span><div><b>박정렬</b><small>Digital Twin실행그룹 · USER</small></div></div>
+          <a class="tb-mi" href="usage.html">◔ 내 사용량 / 프로필</a>
+          <a class="tb-mi" href="#">🔑 SSH 키 관리</a>
+          <a class="tb-mi" href="#">🌐 언어: 한국어 (KOR)</a>
+          <a class="tb-mi" href="../admin/dashboard.html">🛡 관리자 포털로</a>
+          <div class="tb-sep"></div>
+          <a class="tb-mi" href="../index.html">⏻ 로그아웃</a>
+        </div>
+      </div>
+    </header>
+
+<div class="layout">
+
+  <aside class="sidebar snb">
+    <div class="side-logo"><span class="logo-mark">H</span><span>HPC Portal<small>Slurm Multi-Cluster</small></span><button class="side-collapse" type="button" title="접기">⇤</button></div>
+    <nav class="side-nav">
+      <div class="nav-group">워크스페이스</div>
+      <a href="cluster.html"><span class="ico">🖧</span> 클러스터</a>
+      <a href="jobs.html"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.2" cy="6" r="1.1"/><circle cx="4.2" cy="12" r="1.1"/><circle cx="4.2" cy="18" r="1.1"/></svg></span> Job 목록</a>
+      <a href="job-submit.html"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9z"/><path d="M13 3v6h6"/><path d="M8 12h4"/><path d="M8 16.5h4.5m0 0l-1.8-1.8m1.8 1.8l-1.8 1.8"/></svg></span> Job 제출</a>
+      <a href="apps.html"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6"/><path d="M12 16v4"/><path d="M9 11.5l5-5m0 0h-3.3m3.3 0v3.3"/></svg></span> 인터랙티브 앱</a>
+      <div class="nav-group">데이터 &amp; 도구</div>
+      <a href="files.html"><span class="ico">🗀</span> 파일 관리자</a>
+      <a href="terminal.html"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.2"/><path d="M7 9.5l3 2.5-3 2.5"/><path d="M12.5 15h4.5"/></svg></span> 웹 터미널</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <main class="content">
+      <div class="crumbs">HPC Portal › <b>사용량 › 프로필</b></div>
+      <div class="page-head">
+        <div>
+          <h1>내 사용량 / 프로필</h1>
+          <p class="sub">사용 통계 · Fairshare · 알림/SSH 키 설정 (U-AC-01~04)</p>
+        </div>
+        <div class="page-actions">
+          <select class="select select-sm" style="width:140px"><option>최근 30일</option><option>최근 7일</option><option>이번 분기</option></select>
+          <button class="btn btn-outline">⇩ CSV 내보내기</button>
+        </div>
+      </div>
+
+      <!-- U-AC-01 -->
+      <div class="grid grid-4">
+        <div class="stat"><span class="label">CPU 시간 (30일 · 전 클러스터)</span><span class="value">17,388 <small>core·h</small></span><span class="delta up">▲ 12% vs 전월</span></div>
+        <div class="stat acc-gpu"><span class="label">GPU 시간 (30일 · 전 클러스터)</span><span class="value">1,072 <small>gpu·h</small></span><span class="delta up">▲ 31% vs 전월</span></div>
+        <div class="stat acc-done"><span class="label">완료 Job 수</span><span class="value">121</span><span class="delta">성공률 92%</span></div>
+        <div class="stat acc-pend"><span class="label">평균 대기 시간</span><span class="value">22 <small>분</small></span><span class="delta down">▲ gpu 파티션 혼잡</span></div>
+      </div>
+
+      <!-- 클러스터별 사용량 분포 -->
+      <div class="card mt-16">
+        <div class="card-head"><h2>클러스터별 사용량 분포 (30일)</h2><span style="font-size:13px;color:var(--ink-3)">sreport -M all 집계</span></div>
+        <div class="card-body flush table-wrap">
+          <table class="tbl">
+            <thead><tr><th>클러스터</th><th class="num">CPU core·h</th><th class="num">GPU gpu·h</th><th class="num">Job 수</th><th class="num">평균 대기</th><th style="width:34%">비중</th></tr></thead>
+            <tbody>
+              <tr><td><span class="chip cl">seoul-hpc</span></td><td class="num mono">14,930</td><td class="num mono">704</td><td class="num mono">104</td><td class="num mono">26분</td><td><div class="meter"><div class="bar"><i style="width:82%"></i></div></div></td></tr>
+              <tr><td><span class="chip cl-b">pangyo-gpu</span></td><td class="num mono">2,458</td><td class="num mono">368</td><td class="num mono">17</td><td class="num mono">6분</td><td><div class="meter"><div class="bar"><i class="violet" style="width:14%"></i></div></div></td></tr>            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid grid-3 mt-16">
+        <!-- 사용량 차트 -->
+        <div class="card col-span-2">
+          <div class="card-head"><h2>주간 사용량 추이 <span class="fid">U-AC-01</span></h2>
+            <div class="legend"><span class="lg"><span class="sw" style="background:var(--brand-600)"></span>CPU core·h</span><span class="lg"><span class="sw" style="background:var(--violet)"></span>GPU gpu·h</span></div>
+          </div>
+          <div class="card-body">
+            <div class="chart-bars">
+              <div class="cb"><div class="bar-col" style="height:38%"></div><div class="bar-col alt" style="height:16%"></div><span class="cap">6/16</span></div>
+              <div class="cb"><div class="bar-col" style="height:52%"></div><div class="bar-col alt" style="height:22%"></div><span class="cap">6/23</span></div>
+              <div class="cb"><div class="bar-col" style="height:44%"></div><div class="bar-col alt" style="height:35%"></div><span class="cap">6/30</span></div>
+              <div class="cb"><div class="bar-col" style="height:71%"></div><div class="bar-col alt" style="height:48%"></div><span class="cap">7/7</span></div>
+              <div class="cb"><div class="bar-col" style="height:88%"></div><div class="bar-col alt" style="height:64%"></div><span class="cap">7/14</span></div>
+            </div>
+            <div class="chart-line-caption"><span>sreport / sacct 집계 기준</span><span>단위: 주간 합계</span></div>
+          </div>
+        </div>
+
+        <!-- U-AC-02 Fairshare -->
+        <div class="card">
+          <div class="card-head"><h2>Fairshare / 한도 <span class="fid">U-AC-02</span></h2><span class="chip cl">seoul-hpc</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;align-items:center;gap:16px">
+              <div class="donut" style="--p:62" data-label="0.62"></div>
+              <div style="font-size:13.5px;color:var(--ink-2)">
+                <b style="font-size:14.5px;color:var(--ink)">acct-ai fairshare</b><br>
+                RawShares 100 · 사용률 상위 27%<br>우선순위 기여: 보통
+              </div>
+            </div>
+            <div class="meter"><div class="meter-top"><span class="lbl">QOS normal — 동시 GPU 한도</span><span class="val">9 / 12</span></div><div class="bar"><i class="warn" style="width:75%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">QOS normal — 동시 Job 한도</span><span class="val">6 / 20</span></div><div class="bar"><i style="width:30%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">분기 GPU 할당량</span><span class="val">1,072 / 3,000 h</span></div><div class="bar"><i class="ok" style="width:36%"></i></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-2 mt-16">
+        <!-- U-AC-03 프로필 -->
+        <div class="card">
+          <div class="card-head"><h2>프로필 / 알림 설정 <span class="fid">U-AC-03</span></h2></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label>이름</label><input class="input" value="박정렬" disabled></div>
+              <div class="field"><label>이메일</label><input class="input" value="jungryul0515.park@samsungsds.com" disabled></div>
+              <div class="field full"><label>알림 수신</label>
+                <div style="display:flex;gap:18px;padding-top:6px;flex-wrap:wrap">
+                  <label class="checkline"><span class="switch"><input type="checkbox" checked><span class="knob"></span></span> Job 완료/실패 이메일</label>
+                  <label class="checkline"><span class="switch"><input type="checkbox" checked><span class="knob"></span></span> 포털 푸시</label>
+                  <label class="checkline"><span class="switch"><input type="checkbox"><span class="knob"></span></span> 점검 공지 SMS</label>
+                </div>
+              </div>
+              <div class="field full"><label>SSH 공개키</label>
+                <textarea class="textarea mono" style="min-height:70px">ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF3k...9uQ jrpark@laptop</textarea>
+                <span class="hint">로그인 노드 직접 접속(ssh)에 사용됩니다. 키는 5분 내 전 노드에 배포됩니다.</span>
+              </div>
+            </div>
+          </div>
+          <div class="card-foot" style="text-align:right"><button class="btn btn-primary">저장</button></div>
+        </div>
+
+        <!-- U-AC-04 지원 요청 -->
+        <div class="card">
+          <div class="card-head"><h2>지원 요청 (헬프데스크) <span class="fid">U-AC-04</span></h2><a class="more" href="#">내 티켓 (2)</a></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label>유형</label><select class="select"><option>Job 실패 문의</option><option>계정/권한</option><option>소프트웨어 설치 요청</option><option>기타</option></select></div>
+              <div class="field"><label>관련 Job ID <span class="hint" style="display:inline">(자동 첨부)</span></label><select class="select mono"><option>45771 — train-baseline (FAILED)</option><option>45812 — llm-finetune-r3</option><option>선택 안 함</option></select></div>
+              <div class="field full"><label>내용</label><textarea class="textarea" placeholder="문제 상황을 설명해 주세요. 선택한 Job의 스크립트/로그가 자동 첨부됩니다."></textarea></div>
+            </div>
+            <div class="notice info mt-16" style="font-size:13px"><span>ℹ</span><div>선택한 Job의 <b>제출 스크립트, stdout/stderr 끝부분 200줄, sacct 요약</b>이 티켓에 자동 첨부됩니다.</div></div>
+          </div>
+          <div class="card-foot" style="text-align:right"><button class="btn btn-primary">티켓 제출</button></div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- 하단 고정 푸터 (.content가 flex:1로 늘어나 항상 페이지 최하단) -->
+    <footer class="portal-foot">
+      <div class="pf-top">
+        <div><a href="#">개인정보처리방침</a> | <a href="#">이용약관</a> | <a href="#">DPA</a> | Copyright SAMSUNG SDS. All rights reserved. | 🌐 한국어</div>
+        <b>SAMSUNG SDS</b>
+      </div>
+      <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
+    </footer>
+  </div>
+</div>
+
+
+<!-- 공통 공지 팝업 — 전 페이지 공통 frame 영역 (U-CL-03) -->
+<div class="modal-backdrop hidden" id="noticeModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
+    <div class="modal-head">
+      <span class="m-ico">📢</span>
+      <h3 id="noticeTitle">[점검 공지] gpu 파티션 정기 점검</h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      7/20(월) 02:00~06:00 <span class="chip cl">seoul-hpc</span> gpu 파티션 정기 점검이 예정되어 있습니다.<br>
+      해당 시간대에 걸치는 walltime의 Job은 대기 처리됩니다. <a href="notices.html">자세히</a>
+    </div>
+    <div class="modal-foot">
+      <label class="m-today"><input type="checkbox" id="noticeToday"> 오늘 하루 보지 않기</label>
+      <button class="btn btn-primary btn-sm" type="button" id="noticeOk">확인</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var HIDE_KEY = 'hpc-notice-hide-until'; // 오늘 하루 보지 않기
+  var SEEN_KEY = 'hpc-notice-seen';       // 세션 내 재표시 방지
+  var modal = document.getElementById('noticeModal');
+  var today = new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem(HIDE_KEY) !== today && !sessionStorage.getItem(SEEN_KEY)) {
+    modal.classList.remove('hidden');
+  }
+  function closeNotice() {
+    if (document.getElementById('noticeToday').checked) localStorage.setItem(HIDE_KEY, today);
+    sessionStorage.setItem(SEEN_KEY, '1');
+    modal.classList.add('hidden');
+  }
+  modal.querySelector('.m-close').addEventListener('click', closeNotice);
+  document.getElementById('noticeOk').addEventListener('click', closeNotice);
+  modal.addEventListener('click', function (e) { if (e.target === modal) closeNotice(); });
+})();
+</script>
+<script>
+(function () {
+  // 상단 우측 드롭다운 공통 토글
+  var items = document.querySelectorAll('.tb-item');
+  document.querySelectorAll('.tb-item > [data-menu]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var item = btn.parentElement;
+      var open = item.classList.contains('open');
+      items.forEach(function (i) { i.classList.remove('open'); });
+      if (!open) item.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function () {
+    items.forEach(function (i) { i.classList.remove('open'); });
+  });
+  // 클러스터 단일 선택 — 선택된 클러스터의 데이터만 표시, localStorage로 페이지 간 유지
+  var CLUSTER_KEY = 'hpc-cluster';
+  var opts = Array.prototype.slice.call(document.querySelectorAll('.tb-cl-opt'));
+  function clusterOf(el) {
+    if (el.dataset && el.dataset.cluster) return el.dataset.cluster;
+    if (el.querySelector('.chip.cl-b')) return 'pangyo-gpu';
+    if (el.querySelector('.chip.cl')) return 'seoul-hpc';
+    return null;
+  }
+  function applyCluster(name) {
+    opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.cluster === name); });
+    // 클러스터 칩이 붙은 테이블 행 필터링 (칩 없는 행은 항상 표시)
+    document.querySelectorAll('.content table tbody tr').forEach(function (tr) {
+      var c = clusterOf(tr);
+      tr.style.display = (c && c !== name) ? 'none' : '';
+    });
+    // 클러스터 현황 카드 필터링
+    document.querySelectorAll('.cluster-card').forEach(function (card) {
+      var c = card.classList.contains('cl-b') ? 'pangyo-gpu' : 'seoul-hpc';
+      card.style.display = (c !== name) ? 'none' : '';
+    });
+    // 필터 결과가 비면 테이블 중앙에 빈 상태 표시
+    document.querySelectorAll('.content table tbody').forEach(function (tb) {
+      var rows = Array.prototype.slice.call(tb.querySelectorAll('tr'));
+      var visible = rows.filter(function (r) {
+        return !r.classList.contains('empty-row') && r.style.display !== 'none';
+      }).length;
+      var er = tb.querySelector('.empty-row');
+      if (!visible) {
+        if (!er) {
+          er = document.createElement('tr');
+          er.className = 'empty-row';
+          er.innerHTML = '<td colspan="99"><div class="tbl-empty"><span>🗎</span>데이터가 없습니다.</div></td>';
+          tb.appendChild(er);
+        }
+        er.style.display = '';
+      } else if (er) {
+        er.style.display = 'none';
+      }
+    });
+    localStorage.setItem(CLUSTER_KEY, name);
+  }
+  applyCluster(localStorage.getItem(CLUSTER_KEY) === 'pangyo-gpu' ? 'pangyo-gpu' : 'seoul-hpc');
+  opts.forEach(function (o) {
+    o.addEventListener('click', function (e) {
+      e.preventDefault();
+      applyCluster(o.dataset.cluster);
+    });
+  });
+})();
+</script>
+<script>
+(function () {
+  // 사이드바 접기/펼치기 — GNB ☰ 버튼과 사이드바 ⇤ 버튼이 토글 쌍, 상태는 localStorage 유지
+  var KEY = 'hpc-snb-collapsed';
+  var sb = document.querySelector('.sidebar.snb');
+  if (!sb) return;
+  var burger = document.querySelector('.gnb-burger');
+  var collapseBtn = sb.querySelector('.side-collapse');
+  // 접힘 상태에서 아이콘 위에 메뉴명 툴팁 표시
+  sb.querySelectorAll('.side-nav a').forEach(function (a) { a.title = a.textContent.trim(); });
+  function apply(collapsed) {
+    sb.classList.toggle('collapsed', collapsed);
+    collapseBtn.textContent = collapsed ? '☰' : '⇤';
+    collapseBtn.title = collapsed ? '펼치기' : '접기';
+    localStorage.setItem(KEY, collapsed ? '1' : '');
+  }
+  apply(localStorage.getItem(KEY) === '1');
+  [burger, collapseBtn].forEach(function (b) {
+    if (b) b.addEventListener('click', function () { sb.classList.add('anim'); apply(!sb.classList.contains('collapsed')); });
+  });
+})();
+</script>
+</body>
+</html>

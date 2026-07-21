@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리자 대시보드 | HPC Portal</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body class="scp">
+    <header class="topbar gnb">
+      <a class="gnb-logo" href="dashboard.html">Digital Twin Platform</a>
+      <div class="gnb-search">🔍 <input type="text" placeholder="사용자, Job ID, 노드 및 문서를 검색하세요."><span class="kbd">[Alt+s]</span></div>
+      <!-- 공통 상단 우측 컨트롤: 알림 / 도움말 / 계정 -->
+      <div class="tb-item">
+        <button class="top-icon" type="button" data-menu title="알림"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+        <div class="tb-menu" style="min-width:320px">
+          <div class="tb-menu-head">알림</div>
+          <a class="tb-noti" href="nodes.html"><span class="n-ico err">!</span><div><b>노드 g013 DOWN (NodeHealthCheck)</b><small>seoul-hpc · 12분 전</small></div></a>
+          <a class="tb-noti" href="jobs.html"><span class="n-ico warn">⏱</span><div><b>gpu 파티션 대기 Job 15건 초과</b><small>seoul-hpc · 40분 전</small></div></a>
+          <a class="tb-noti" href="users.html"><span class="n-ico ok">✓</span><div><b>계정 신청 승인 대기 2건</b><small>1시간 전</small></div></a>
+          <div class="tb-menu-foot"><a href="#">알림 전체 보기 →</a></div>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="top-icon tb-help" type="button" data-menu title="도움말"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-2.9 2.4-2.9 4"/><path d="M12 17.5h.01"/></svg></button>
+        <div class="tb-menu" style="min-width:220px">
+          <a class="tb-mi" href="#">Support Center</a>
+          <a class="tb-mi" href="#">Documentation</a>
+          <a class="tb-mi" href="../user/notices.html">공지사항</a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-region" type="button" data-menu title="클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">클러스터</span><span class="chev">▾</span></button>
+        <div class="tb-menu" id="clusterMenu" style="min-width:260px">
+          <div class="tb-menu-head">클러스터 선택</div>
+          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="전체 클러스터"><span>전체 클러스터</span><code>all</code></a>
+          <a class="tb-mi tb-cl-opt" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
+          <a class="tb-mi tb-cl-opt" href="#" data-cluster="pangyo-gpu"><span>GPU 특화</span><code>pangyo-gpu</code></a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-profile" type="button" data-menu title="계정"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8.2" r="3.4"/><path d="M4.8 19.6c1.5-3.1 4.1-4.8 7.2-4.8s5.7 1.7 7.2 4.8"/></svg></button>
+        <div class="tb-menu" style="min-width:250px">
+          <div class="tb-menu-user"><span class="avatar" style="background:linear-gradient(135deg,#d3383c,#8f1f22)">OP</span><div><b>운영관리자</b><small>HPC운영팀 · ADMIN · 2FA ✓</small></div></div>
+          <a class="tb-mi" href="../user/cluster.html">↪ 사용자 포털로</a>
+          <div class="tb-sep"></div>
+          <a class="tb-mi" href="../index.html">⏻ 로그아웃</a>
+        </div>
+      </div>
+    </header>
+
+<div class="layout">
+
+  <!-- ===== Sidebar (ADMIN) ===== -->
+  <aside class="sidebar snb snb-admin">
+    <div class="side-logo"><span class="logo-mark">H</span><span>HPC Portal<small>Admin Console</small></span><button class="side-collapse" type="button" title="접기">⇤</button></div>
+    <nav class="side-nav">
+      <div class="nav-group">모니터링</div>
+      <a href="dashboard.html" class="active"><span class="ico">▦</span> 통합 대시보드</a>
+      <div class="nav-group">자원 관리</div>
+      <a href="clusters.html"><span class="ico">🖧</span> 클러스터 관리</a>
+      <a href="nodes.html"><span class="ico">▤</span> 노드 / 파티션</a>
+      <a href="jobs.html"><span class="ico">☰</span> 전체 Job 관리</a>
+      <div class="nav-group">사용자 / 정책</div>
+      <a href="users.html"><span class="ico">👥</span> 사용자 · 계정 · QOS</a>
+      <div class="nav-group">운영</div>
+      <a href="reports.html"><span class="ico">◔</span> 통계 / 리포트</a>
+      <a href="billing.html"><span class="ico">₩</span> 비용 / Billing</a>
+      <a href="license.html"><span class="ico">🗝</span> License 관리</a>
+      <a href="settings.html"><span class="ico">⚙</span> 포털 운영 설정</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+
+    <main class="content">
+      <div class="crumbs">HPC Portal Admin › <b>통합 대시보드</b></div>
+      <div class="page-head">
+        <div>
+          <h1>멀티 클러스터 통합 대시보드</h1>
+          <p class="sub">A-DB-01~05 · 클러스터 2대 연동 (slurmrestd) · 마지막 수집 12초 전</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-outline" href="clusters.html">🖧 클러스터 관리</a>
+          <a class="btn btn-outline" href="reports.html">◔ 리포트</a>
+          <a class="btn btn-primary" href="nodes.html">▤ 노드 관리</a>
+        </div>
+      </div>
+
+      <!-- A-DB-04 장애 알림 -->
+      <div class="notice err" style="margin-bottom:16px">
+        <span>🚨</span>
+        <div><b>장애 알림 (A-DB-04)</b> — <span class="chip cl">seoul-hpc</span> <span class="mono">gpu12</span> NODE_FAIL (13:02, NVML Xid 79), <span class="mono">cn087</span> drain 3일 경과 (IB link flap). <a href="nodes.html">노드 관리에서 조치 →</a></div>
+      </div>
+
+      <!-- 클러스터별 요약 카드 -->
+      <div class="grid grid-2" style="margin-bottom:16px">
+        <div class="cluster-card cl-a">
+          <div class="cc-head">🖧 <b>seoul-hpc</b><span class="chip gray">본원 · 기본</span><span class="badge failed">장애 1</span></div>
+          <div class="cc-desc">Slurm 24.05 · slurmrestd 정상 (34ms) · 노드 100</div>
+          <div class="cc-stats"><span>가동률 <b>83%</b></span><span>Run <b>312</b> · Pend <b>147</b></span><span>Down/Drain <b>2/3</b></span></div>
+        </div>
+        <div class="cluster-card cl-b">
+          <div class="cc-head">🖧 <b>pangyo-gpu</b><span class="chip gray">GPU 특화</span><span class="badge running">정상</span></div>
+          <div class="cc-desc">Slurm 24.05 · slurmrestd 정상 (41ms) · 노드 32</div>
+          <div class="cc-stats"><span>가동률 <b>88%</b></span><span>Run <b>64</b> · Pend <b>11</b></span><span>Down/Drain <b>0/1</b></span></div>
+        </div>
+      </div>
+
+      <!-- 전체 현황 스탯 (전 클러스터 합산) -->
+      <div class="grid grid-5">
+        <div class="stat"><span class="label">전체 노드 (2개 클러스터)</span><span class="value">132</span><span class="delta">seoul 100 · pangyo 32</span></div>
+        <div class="stat acc-fail"><span class="label">Down / Drain</span><span class="value">2 / 4</span><span class="delta down">▲ gpu12 신규 장애</span></div>
+        <div class="stat acc-run"><span class="label">Running Job</span><span class="value">376</span><span class="delta">사용자 87명</span></div>
+        <div class="stat acc-pend"><span class="label">Pending Job</span><span class="value">158</span><span class="delta">평균 대기 30분</span></div>
+        <div class="stat acc-gpu"><span class="label">GPU 사용률 (전체 352장)</span><span class="value">89<small>%</small></span><span class="delta up">313장 할당</span></div>
+      </div>
+
+      <div class="grid grid-3 mt-16">
+        <!-- A-DB-01 노드 상태 맵 -->
+        <div class="card col-span-2">
+          <div class="card-head">
+            <h2>노드 상태 맵 <span class="fid">A-DB-01</span></h2>
+            <select class="select select-sm" style="width:150px;margin-left:auto"><option>seoul-hpc</option><option>pangyo-gpu</option></select>
+            <div class="legend">
+              <span class="lg"><span class="sw" style="background:#bfe8cf"></span>idle</span>
+              <span class="lg"><span class="sw" style="background:#1f6fd6"></span>alloc</span>
+              <span class="lg"><span class="sw" style="background:#8f7ad6"></span>mix</span>
+              <span class="lg"><span class="sw" style="background:#f2c266"></span>drain</span>
+              <span class="lg"><span class="sw" style="background:#e08a8c"></span>down</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div style="font-size:11.5px;color:var(--ink-3);margin-bottom:6px">seoul-hpc · normal — cn001~cn064</div>
+            <div class="nodemap" style="margin-bottom:14px">
+              <span class="node-cell alloc" title="cn001 · alloc"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell mix"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell mix"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell drain" title="cn021 · drain: memtest"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell mix"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell mix"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell down" title="cn044 · down"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell mix"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell drain" title="cn062 · drain: IB flap"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span>
+            </div>
+            <div style="font-size:11.5px;color:var(--ink-3);margin-bottom:6px">seoul-hpc · gpu — gpu01~gpu24 · bigmem — bm01~bm08 · debug — dbg01~dbg04</div>
+            <div class="nodemap">
+              <span class="node-cell alloc" title="gpu01"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell mix"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell mix"></span><span class="node-cell down" title="gpu12 · down: NVML Xid 79"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle" title="bm01"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell alloc"></span><span class="node-cell alloc"></span><span class="node-cell idle"></span><span class="node-cell drain" title="bm08 · drain"></span><span class="node-cell idle" title="dbg01"></span><span class="node-cell idle"></span><span class="node-cell idle"></span><span class="node-cell idle"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- A-DB-03 큐 현황 -->
+        <div class="card">
+          <div class="card-head"><h2>큐 현황 <span class="fid">A-DB-03</span></h2><a class="more" href="jobs.html">Job 관리 →</a></div>
+          <div class="card-body flush table-wrap">
+            <table class="tbl">
+              <thead><tr><th>클러스터</th><th>파티션</th><th class="num">Run</th><th class="num">Pend</th><th class="num">평균 대기</th></tr></thead>
+              <tbody>
+                <tr><td><span class="chip cl">seoul</span></td><td><span class="chip">normal</span></td><td class="num mono">184</td><td class="num mono">42</td><td class="num mono">12분</td></tr>
+                <tr><td><span class="chip cl">seoul</span></td><td><span class="chip">gpu</span></td><td class="num mono">96</td><td class="num mono">98</td><td class="num mono">67분</td></tr>
+                <tr><td><span class="chip cl">seoul</span></td><td><span class="chip">bigmem</span></td><td class="num mono">21</td><td class="num mono">5</td><td class="num mono">8분</td></tr>
+                <tr><td><span class="chip cl-b">pangyo</span></td><td><span class="chip">gpu</span></td><td class="num mono">48</td><td class="num mono">6</td><td class="num mono">6분</td></tr>
+                <tr><td><span class="chip cl-b">pangyo</span></td><td><span class="chip">gpu-large</span></td><td class="num mono">16</td><td class="num mono">5</td><td class="num mono">22분</td></tr>              </tbody>
+            </table>
+          </div>
+          <div class="card-body" style="border-top:1px solid var(--line)">
+            <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>⚠</span><div>seoul-hpc gpu 대기열 급증 — pangyo-gpu 여유분으로 <b>제출 유도 배너</b> 게시 권장</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-3 mt-16">
+        <!-- A-DB-02 부하 시계열 -->
+        <div class="card col-span-2">
+          <div class="card-head"><h2>실시간 부하 (24h) <span class="fid">A-DB-02</span></h2>
+            <div class="legend"><span class="lg"><span class="sw" style="background:var(--brand-600)"></span>CPU</span><span class="lg"><span class="sw" style="background:var(--violet)"></span>GPU</span></div>
+          </div>
+          <div class="card-body">
+            <div class="chart-bars">
+              <div class="cb"><div class="bar-col" style="height:55%"></div><div class="bar-col alt" style="height:70%"></div><span class="cap">00시</span></div>
+              <div class="cb"><div class="bar-col" style="height:48%"></div><div class="bar-col alt" style="height:66%"></div><span class="cap">03시</span></div>
+              <div class="cb"><div class="bar-col" style="height:51%"></div><div class="bar-col alt" style="height:72%"></div><span class="cap">06시</span></div>
+              <div class="cb"><div class="bar-col" style="height:74%"></div><div class="bar-col alt" style="height:85%"></div><span class="cap">09시</span></div>
+              <div class="cb"><div class="bar-col" style="height:82%"></div><div class="bar-col alt" style="height:93%"></div><span class="cap">12시</span></div>
+              <div class="cb"><div class="bar-col" style="height:79%"></div><div class="bar-col alt" style="height:91%"></div><span class="cap">현재</span></div>
+            </div>
+            <div class="chart-line-caption"><span>Prometheus 연동 · node_exporter/dcgm</span><span>전체 클러스터 가중 평균 사용률</span></div>
+          </div>
+        </div>
+
+        <!-- A-DB-05 스토리지 -->
+        <div class="card">
+          <div class="card-head"><h2>스토리지 현황 <span class="fid">A-DB-05</span></h2></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+            <div class="meter"><div class="meter-top"><span class="lbl">/home (NFS · 전 클러스터 공유)</span><span class="val">61%</span></div><div class="bar"><i style="width:61%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">/scratch (Lustre · seoul-hpc)</span><span class="val">87%</span></div><div class="bar"><i class="warn" style="width:87%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">/scratch (WekaFS · pangyo-gpu)</span><span class="val">38%</span></div><div class="bar"><i class="ok" style="width:38%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">/group (GPFS · 전 클러스터 공유)</span><span class="val">44%</span></div><div class="bar"><i class="ok" style="width:44%"></i></div></div>
+            <div style="font-size:12px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:10px">
+              <b style="color:var(--ink-2)">Top 사용자 (scratch)</b><br>
+              <span class="mono">seonsj</span> 68 TB · <span class="mono">jrpark</span> 1.6 TB · <span class="mono">leejh</span> 1.2 TB
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 이벤트 로그 -->
+      <div class="card mt-16">
+        <div class="card-head"><h2>최근 이벤트 <span class="fid">A-DB-04</span></h2><a class="more" href="settings.html">감사 로그 전체 →</a></div>
+        <div class="card-body flush table-wrap">
+          <table class="tbl">
+            <thead><tr><th>시각</th><th>클러스터</th><th>수준</th><th>대상</th><th>내용</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">13:02:11</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge failed">CRIT</span></td><td class="mono">gpu12</td><td>NODE_FAIL — NVML Xid 79 (GPU falling off bus), 실행 중 Job 2건 requeue</td></tr>              <tr><td class="mono">12:47:30</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge pending">WARN</span></td><td class="mono">scratch</td><td>Lustre OST-07 사용률 90% 초과</td></tr>
+              <tr><td class="mono">11:20:04</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge running">INFO</span></td><td class="mono">slurmctld</td><td>백업 컨트롤러 heartbeat 정상 (takeover 테스트 완료)</td></tr>
+              <tr><td class="mono">10:05:40</td><td><span class="chip cl-b">pangyo-gpu</span></td><td><span class="badge running">INFO</span></td><td class="mono">pg-gpu18</td><td>drain 해제 — GPU ECC 점검 완료 후 서비스 복귀</td></tr>
+              <tr><td class="mono">09:12:55</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge pending">WARN</span></td><td class="mono">cn087</td><td>drain 3일 경과 — 사유: IB link flap, 수리 대기</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- 본문 하단 푸터 -->
+    <footer class="portal-foot">
+      <div class="pf-top">
+        <div><a href="#">개인정보처리방침</a> | <a href="#">이용약관</a> | <a href="#">DPA</a> | Copyright SAMSUNG SDS. All rights reserved. | 🌐 한국어</div>
+        <b>SAMSUNG SDS</b>
+      </div>
+      <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
+    </footer>
+  </div>
+</div>
+<script>
+(function () {
+  // 사이드바 접기/펼치기 — 사용자 포털과 동일 동작, 상태 공유(localStorage)
+  var KEY = 'hpc-snb-collapsed';
+  var sb = document.querySelector('.sidebar');
+  if (!sb) return;
+  var collapseBtn = sb.querySelector('.side-collapse');
+  if (!collapseBtn) return;
+  sb.querySelectorAll('.side-nav a').forEach(function (a) { a.title = a.textContent.trim(); });
+  function apply(collapsed) {
+    sb.classList.toggle('collapsed', collapsed);
+    collapseBtn.textContent = collapsed ? '☰' : '⇤';
+    collapseBtn.title = collapsed ? '펼치기' : '접기';
+    localStorage.setItem(KEY, collapsed ? '1' : '');
+  }
+  apply(localStorage.getItem(KEY) === '1');
+  collapseBtn.addEventListener('click', function () {
+    sb.classList.add('anim');
+    apply(!sb.classList.contains('collapsed'));
+  });
+})();
+</script>
+<script>
+(function () {
+  // 상단 우측 드롭다운 공통 토글
+  var items = document.querySelectorAll('.tb-item');
+  document.querySelectorAll('.tb-item > [data-menu]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var item = btn.parentElement;
+      var open = item.classList.contains('open');
+      items.forEach(function (i) { i.classList.remove('open'); });
+      if (!open) item.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function () {
+    items.forEach(function (i) { i.classList.remove('open'); });
+  });
+})();
+</script>
+<script>
+(function () {
+  // 클러스터 선택 (admin) — 선택 표시/유지
+  var KEY = 'hpc-admin-cluster';
+  var opts = Array.prototype.slice.call(document.querySelectorAll('.tb-cl-opt'));
+  function applyCluster(name) {
+    opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.cluster === name); });
+    localStorage.setItem(KEY, name);
+  }
+  var saved = localStorage.getItem(KEY);
+  if (saved) applyCluster(saved);
+  opts.forEach(function (o) {
+    o.addEventListener('click', function (e) {
+      e.preventDefault();
+      applyCluster(o.dataset.cluster);
+    });
+  });
+})();
+</script>
+</body>
+</html>

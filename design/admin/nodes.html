@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>노드 / 파티션 관리 | HPC Portal</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body class="scp">
+    <header class="topbar gnb">
+      <a class="gnb-logo" href="dashboard.html">Digital Twin Platform</a>
+      <div class="gnb-search">🔍 <input type="text" placeholder="사용자, Job ID, 노드 및 문서를 검색하세요."><span class="kbd">[Alt+s]</span></div>
+      <!-- 공통 상단 우측 컨트롤: 알림 / 도움말 / 계정 -->
+      <div class="tb-item">
+        <button class="top-icon" type="button" data-menu title="알림"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+        <div class="tb-menu" style="min-width:320px">
+          <div class="tb-menu-head">알림</div>
+          <a class="tb-noti" href="nodes.html"><span class="n-ico err">!</span><div><b>노드 g013 DOWN (NodeHealthCheck)</b><small>seoul-hpc · 12분 전</small></div></a>
+          <a class="tb-noti" href="jobs.html"><span class="n-ico warn">⏱</span><div><b>gpu 파티션 대기 Job 15건 초과</b><small>seoul-hpc · 40분 전</small></div></a>
+          <a class="tb-noti" href="users.html"><span class="n-ico ok">✓</span><div><b>계정 신청 승인 대기 2건</b><small>1시간 전</small></div></a>
+          <div class="tb-menu-foot"><a href="#">알림 전체 보기 →</a></div>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="top-icon tb-help" type="button" data-menu title="도움말"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-2.9 2.4-2.9 4"/><path d="M12 17.5h.01"/></svg></button>
+        <div class="tb-menu" style="min-width:220px">
+          <a class="tb-mi" href="#">Support Center</a>
+          <a class="tb-mi" href="#">Documentation</a>
+          <a class="tb-mi" href="../user/notices.html">공지사항</a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-region" type="button" data-menu title="클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">클러스터</span><span class="chev">▾</span></button>
+        <div class="tb-menu" id="clusterMenu" style="min-width:260px">
+          <div class="tb-menu-head">클러스터 선택</div>
+          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="전체 클러스터"><span>전체 클러스터</span><code>all</code></a>
+          <a class="tb-mi tb-cl-opt" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
+          <a class="tb-mi tb-cl-opt" href="#" data-cluster="pangyo-gpu"><span>GPU 특화</span><code>pangyo-gpu</code></a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-profile" type="button" data-menu title="계정"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8.2" r="3.4"/><path d="M4.8 19.6c1.5-3.1 4.1-4.8 7.2-4.8s5.7 1.7 7.2 4.8"/></svg></button>
+        <div class="tb-menu" style="min-width:250px">
+          <div class="tb-menu-user"><span class="avatar" style="background:linear-gradient(135deg,#d3383c,#8f1f22)">OP</span><div><b>운영관리자</b><small>HPC운영팀 · ADMIN · 2FA ✓</small></div></div>
+          <a class="tb-mi" href="../user/cluster.html">↪ 사용자 포털로</a>
+          <div class="tb-sep"></div>
+          <a class="tb-mi" href="../index.html">⏻ 로그아웃</a>
+        </div>
+      </div>
+    </header>
+
+<div class="layout">
+
+  <aside class="sidebar snb snb-admin">
+    <div class="side-logo"><span class="logo-mark">H</span><span>HPC Portal<small>Admin Console</small></span><button class="side-collapse" type="button" title="접기">⇤</button></div>
+    <nav class="side-nav">
+      <div class="nav-group">모니터링</div>
+      <a href="dashboard.html"><span class="ico">▦</span> 통합 대시보드</a>
+      <div class="nav-group">자원 관리</div>
+      <a href="clusters.html"><span class="ico">🖧</span> 클러스터 관리</a>
+      <a href="nodes.html" class="active"><span class="ico">▤</span> 노드 / 파티션</a>
+      <a href="jobs.html"><span class="ico">☰</span> 전체 Job 관리</a>
+      <div class="nav-group">사용자 / 정책</div>
+      <a href="users.html"><span class="ico">👥</span> 사용자 · 계정 · QOS</a>
+      <div class="nav-group">운영</div>
+      <a href="reports.html"><span class="ico">◔</span> 통계 / 리포트</a>
+      <a href="billing.html"><span class="ico">₩</span> 비용 / Billing</a>
+      <a href="license.html"><span class="ico">🗝</span> License 관리</a>
+      <a href="settings.html"><span class="ico">⚙</span> 포털 운영 설정</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+
+    <main class="content">
+      <div class="crumbs">HPC Portal Admin › <b>노드 › 파티션 관리</b></div>
+      <div class="page-head">
+        <div>
+          <h1>노드 / 파티션 관리 <span class="chip cl" style="vertical-align:3px">seoul-hpc</span></h1>
+          <p class="sub">선택한 클러스터의 노드 상태 제어 · 파티션 · 예약 · 점검 모드 (A-ND-01~05) · 클러스터 전환은 상단 스위처 사용</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-outline" title="A-ND-05">🔧 점검 모드 시작</button>
+          <button class="btn btn-outline" title="A-ND-04">📅 예약 생성</button>
+          <button class="btn btn-primary" title="A-ND-03">＋ 파티션 생성</button>
+        </div>
+      </div>
+
+      <!-- 노드 목록 + 제어 -->
+      <div class="filterbar">
+        <label>파티션</label>
+        <select class="select select-sm" style="width:120px"><option>전체</option><option>normal</option><option>gpu</option><option>bigmem</option><option>debug</option></select>
+        <label>상태</label>
+        <select class="select select-sm" style="width:120px"><option>전체</option><option>idle</option><option>alloc</option><option>mix</option><option>drain</option><option>down</option></select>
+        <input class="input input-sm" type="text" placeholder="노드명 (예: gpu[01-24])" style="width:190px">
+        <button class="btn btn-sm btn-primary">검색</button>
+        <div class="spacer" style="flex:1"></div>
+        <!-- A-ND-01 일괄 제어 -->
+        <button class="btn btn-sm btn-outline">▶ Resume 선택</button>
+        <button class="btn btn-sm btn-danger">⏸ Drain 선택 (1)</button>
+      </div>
+
+      <div class="grid" style="grid-template-columns: 1.7fr 1fr">
+        <div class="card">
+          <div class="card-head"><h2>노드 목록 <span class="fid">A-ND-01·02</span></h2><span style="font-size:12px;color:var(--ink-3)">scontrol -M seoul-hpc show node</span></div>
+          <div class="card-body flush table-wrap">
+            <table class="tbl">
+              <thead><tr><th style="width:36px"><input type="checkbox"></th><th>노드</th><th>파티션</th><th>상태</th><th>CPU (사용/전체)</th><th>메모리</th><th>GPU</th><th>Job</th><th style="width:170px">제어</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td class="mono"><a class="jobid" href="#">gpu07</a></td><td><span class="chip">gpu</span></td>
+                  <td><span class="badge alloc">ALLOC</span></td>
+                  <td class="mono">64/64</td><td class="mono">498/512G</td><td class="mono">A100 4/4</td><td class="mono">45812</td>
+                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-danger">Drain</button></div></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td class="mono"><a class="jobid" href="#">gpu12</a></td><td><span class="chip">gpu</span></td>
+                  <td><span class="badge down">DOWN</span></td>
+                  <td class="mono">0/64</td><td class="mono">—</td><td class="mono">A100 0/4</td><td class="mono">—</td>
+                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary">Resume</button></div></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td class="mono"><a class="jobid" href="#">cn087</a></td><td><span class="chip">normal</span></td>
+                  <td><span class="badge drain">DRAIN</span> <span style="font-size:11px;color:var(--ink-3)">IB link flap</span></td>
+                  <td class="mono">0/128</td><td class="mono">0/512G</td><td class="mono">—</td><td class="mono">—</td>
+                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary">Resume</button></div></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td class="mono"><a class="jobid" href="#">cn102</a></td><td><span class="chip">normal</span></td>
+                  <td><span class="badge mix">MIX</span></td>
+                  <td class="mono">96/128</td><td class="mono">301/512G</td><td class="mono">—</td><td class="mono">45815 외 2</td>
+                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-danger">Drain</button></div></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td class="mono"><a class="jobid" href="#">bm03</a></td><td><span class="chip">bigmem</span></td>
+                  <td><span class="badge idle">IDLE</span></td>
+                  <td class="mono">0/128</td><td class="mono">0/2048G</td><td class="mono">—</td><td class="mono">—</td>
+                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-danger">Drain</button></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination"><a href="#">‹</a><a class="cur" href="#">1</a><a href="#">2</a><a href="#">…</a><a href="#">10</a><a href="#">›</a></div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <!-- A-ND-01 drain 사유 입력 -->
+          <div class="card">
+            <div class="card-head"><h2>노드 상태 변경 <span class="fid">A-ND-01</span></h2><span class="chip cl">seoul-hpc</span></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+              <div class="field"><label>대상 노드</label><input class="input mono" value="cn087"></div>
+              <div class="field"><label>동작</label>
+                <select class="select"><option>RESUME — 서비스 복귀</option><option>DRAIN — 신규 할당 차단</option><option>DOWN — 즉시 제외</option></select>
+              </div>
+              <div class="field"><label>사유 (Reason) <span class="req">*</span></label><input class="input" value="IB 케이블 교체 완료, 링크 안정 확인"></div>
+              <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>⚠</span><div>제어성 액션은 감사 로그(C-05)에 기록됩니다.</div></div>
+            </div>
+            <div class="card-foot" style="text-align:right"><button class="btn btn-primary">적용 (scontrol update)</button></div>
+          </div>
+
+          <!-- A-ND-02 노드 상세 -->
+          <div class="card">
+            <div class="card-head"><h2>노드 상세 — gpu12 <span class="fid">A-ND-02</span></h2></div>
+            <div class="card-body">
+              <dl class="dl">
+                <dt>상태</dt><dd><span class="badge down">DOWN</span></dd>
+                <dt>사유</dt><dd>NVML Xid 79 (13:02 자동 감지)</dd>
+                <dt>스펙</dt><dd class="mono">64C · 512G · A100×4 · IB HDR</dd>
+                <dt>OS / 커널</dt><dd class="mono">RHEL 9.4 · 5.14.0-427</dd>
+                <dt>마지막 Job</dt><dd class="mono">45733, 45790 (requeue 완료)</dd>
+                <dt>상태 이력</dt><dd>alloc → fail(13:02) → down</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- A-ND-03 파티션 관리 -->
+      <div class="card mt-16">
+        <div class="card-head"><h2>파티션 관리 <span class="fid">A-ND-03</span></h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select class="select select-sm" style="width:150px"><option>전체 클러스터</option><option selected>seoul-hpc</option><option>pangyo-gpu</option></select>
+            <button class="btn btn-sm btn-primary">＋ 파티션 생성</button>
+          </div>
+        </div>
+        <div class="card-body flush table-wrap">
+          <table class="tbl">
+            <thead><tr><th>클러스터</th><th>파티션</th><th>노드 구성</th><th>최대 Walltime</th><th>우선순위</th><th>허용 계정 (A-US-05)</th><th>상태</th><th style="width:130px">액션</th></tr></thead>
+            <tbody>
+              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>normal</b> <span class="chip gray">default</span></td><td class="mono">cn[001-064]</td><td class="mono">3-00:00:00</td><td class="mono">10</td><td>ALL</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
+              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>gpu</b></td><td class="mono">gpu[01-24]</td><td class="mono">2-00:00:00</td><td class="mono">20</td><td class="mono">acct-ai, acct-vision, acct-nlp</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
+              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>bigmem</b></td><td class="mono">bm[01-08]</td><td class="mono">7-00:00:00</td><td class="mono">10</td><td class="mono">acct-bio, acct-chem</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
+              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>debug</b></td><td class="mono">dbg[01-04]</td><td class="mono">0-01:00:00</td><td class="mono">30</td><td>ALL</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
+              <tr><td><span class="chip cl-b">pangyo-gpu</span></td><td><b>gpu</b> <span class="chip gray">default</span></td><td class="mono">pg-gpu[01-24]</td><td class="mono">2-00:00:00</td><td class="mono">20</td><td class="mono">acct-ai, acct-vision</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
+              <tr><td><span class="chip cl-b">pangyo-gpu</span></td><td><b>gpu-large</b></td><td class="mono">pg-gpu[25-32]</td><td class="mono">4-00:00:00</td><td class="mono">30</td><td class="mono">acct-ai (승인제)</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- A-ND-04 예약 / A-ND-05 점검 -->
+      <div class="grid grid-2 mt-16">
+        <div class="card">
+          <div class="card-head"><h2>예약 (Reservation) <span class="fid">A-ND-04</span></h2><div style="display:flex;gap:8px;align-items:center"><span class="chip cl">seoul-hpc</span><button class="btn btn-sm btn-primary">＋ 예약 생성</button></div></div>
+          <div class="card-body flush table-wrap">
+            <table class="tbl">
+              <thead><tr><th>이름</th><th>노드</th><th>기간</th><th>대상</th><th style="width:100px">액션</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">maint-0720</td><td class="mono">gpu[01-24]</td><td class="mono">07-20 02:00 ~ 06:00</td><td>maintenance</td><td><button class="btn btn-sm btn-danger">삭제</button></td></tr>
+                <tr><td class="mono">bio-workshop</td><td class="mono">cn[001-008]</td><td class="mono">07-22 09:00 ~ 18:00</td><td class="mono">acct-bio</td><td><button class="btn btn-sm btn-danger">삭제</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>점검 모드 워크플로 <span class="fid">A-ND-05</span></h2></div>
+          <div class="card-body">
+            <ul class="timeline">
+              <li class="done"><span class="t">1단계 · 완료</span>공지 등록 — "gpu 파티션 정기 점검 (7/20)"</li>
+              <li class="done"><span class="t">2단계 · 완료</span>maint 예약 생성 (gpu[01-24], 07-20 02:00)</li>
+              <li><span class="t">3단계 · 예약됨</span>대상 노드 일괄 drain (07-20 01:30 자동 실행)</li>
+              <li style="color:var(--ink-3)"><span class="t">4단계 · 대기</span>점검 완료 후 resume + 공지 종료</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- 본문 하단 푸터 -->
+    <footer class="portal-foot">
+      <div class="pf-top">
+        <div><a href="#">개인정보처리방침</a> | <a href="#">이용약관</a> | <a href="#">DPA</a> | Copyright SAMSUNG SDS. All rights reserved. | 🌐 한국어</div>
+        <b>SAMSUNG SDS</b>
+      </div>
+      <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
+    </footer>
+  </div>
+</div>
+<script>
+(function () {
+  // 사이드바 접기/펼치기 — 사용자 포털과 동일 동작, 상태 공유(localStorage)
+  var KEY = 'hpc-snb-collapsed';
+  var sb = document.querySelector('.sidebar');
+  if (!sb) return;
+  var collapseBtn = sb.querySelector('.side-collapse');
+  if (!collapseBtn) return;
+  sb.querySelectorAll('.side-nav a').forEach(function (a) { a.title = a.textContent.trim(); });
+  function apply(collapsed) {
+    sb.classList.toggle('collapsed', collapsed);
+    collapseBtn.textContent = collapsed ? '☰' : '⇤';
+    collapseBtn.title = collapsed ? '펼치기' : '접기';
+    localStorage.setItem(KEY, collapsed ? '1' : '');
+  }
+  apply(localStorage.getItem(KEY) === '1');
+  collapseBtn.addEventListener('click', function () {
+    sb.classList.add('anim');
+    apply(!sb.classList.contains('collapsed'));
+  });
+})();
+</script>
+<script>
+(function () {
+  // 상단 우측 드롭다운 공통 토글
+  var items = document.querySelectorAll('.tb-item');
+  document.querySelectorAll('.tb-item > [data-menu]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var item = btn.parentElement;
+      var open = item.classList.contains('open');
+      items.forEach(function (i) { i.classList.remove('open'); });
+      if (!open) item.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function () {
+    items.forEach(function (i) { i.classList.remove('open'); });
+  });
+})();
+</script>
+<script>
+(function () {
+  // 클러스터 선택 (admin) — 선택 표시/유지
+  var KEY = 'hpc-admin-cluster';
+  var opts = Array.prototype.slice.call(document.querySelectorAll('.tb-cl-opt'));
+  function applyCluster(name) {
+    opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.cluster === name); });
+    localStorage.setItem(KEY, name);
+  }
+  var saved = localStorage.getItem(KEY);
+  if (saved) applyCluster(saved);
+  opts.forEach(function (o) {
+    o.addEventListener('click', function (e) {
+      e.preventDefault();
+      applyCluster(o.dataset.cluster);
+    });
+  });
+})();
+</script>
+</body>
+</html>

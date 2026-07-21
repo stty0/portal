@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job 목록 | HPC Portal</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body class="scp">
+    <header class="topbar gnb">
+      <a class="gnb-logo" href="cluster.html">Digital Twin Platform</a>
+      <div class="gnb-search">🔍 <input type="text" placeholder="Job ID, 파일, 앱 및 문서를 검색하세요."><span class="kbd">[Alt+s]</span></div>
+      <!-- 공통 상단 우측 컨트롤: 알림 / 도움말 / 클러스터 / 계정 -->
+      <div class="tb-item">
+        <button class="top-icon" type="button" data-menu title="알림"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+        <div class="tb-menu" style="min-width:320px">
+          <div class="tb-menu-head">알림</div>
+          <a class="tb-noti" href="job-detail.html"><span class="n-ico ok">✓</span><div><b>Job #45788 완료</b><small>preproc-dataset · 10분 전</small></div></a>
+          <a class="tb-noti" href="job-detail.html"><span class="n-ico err">!</span><div><b>Job #45771 실패 (OOM · ExitCode 137)</b><small>train-baseline · 1시간 전</small></div></a>
+          <a class="tb-noti" href="notices.html"><span class="n-ico warn">📢</span><div><b>[점검] gpu 파티션 정기 점검</b><small>7/20(월) 02:00~06:00 · seoul-hpc</small></div></a>
+          <div class="tb-menu-foot"><a href="#">알림 전체 보기 →</a></div>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="top-icon tb-help" type="button" data-menu title="도움말"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-2.9 2.4-2.9 4"/><path d="M12 17.5h.01"/></svg></button>
+        <div class="tb-menu" style="min-width:220px">
+          <a class="tb-mi" href="#">Support Center</a>
+          <a class="tb-mi" href="#">Documentation</a>
+          <a class="tb-mi" href="notices.html">공지사항</a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-region" type="button" data-menu title="작업 클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">클러스터</span><span class="chev">▾</span></button>
+        <div class="tb-menu" id="clusterMenu" style="min-width:260px">
+          <div class="tb-menu-head">작업 클러스터 선택</div>
+          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
+          <a class="tb-mi tb-cl-opt" href="#" data-cluster="pangyo-gpu"><span>GPU 특화</span><code>pangyo-gpu</code></a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-profile" type="button" data-menu title="계정"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8.2" r="3.4"/><path d="M4.8 19.6c1.5-3.1 4.1-4.8 7.2-4.8s5.7 1.7 7.2 4.8"/></svg></button>
+        <div class="tb-menu" style="min-width:250px">
+          <div class="tb-menu-user"><span class="avatar">JP</span><div><b>박정렬</b><small>Digital Twin실행그룹 · USER</small></div></div>
+          <a class="tb-mi" href="usage.html">◔ 내 사용량 / 프로필</a>
+          <a class="tb-mi" href="#">🔑 SSH 키 관리</a>
+          <a class="tb-mi" href="#">🌐 언어: 한국어 (KOR)</a>
+          <a class="tb-mi" href="../admin/dashboard.html">🛡 관리자 포털로</a>
+          <div class="tb-sep"></div>
+          <a class="tb-mi" href="../index.html">⏻ 로그아웃</a>
+        </div>
+      </div>
+    </header>
+
+<div class="layout">
+
+  <aside class="sidebar snb">
+    <div class="side-logo"><span class="logo-mark">H</span><span>HPC Portal<small>Slurm Multi-Cluster</small></span><button class="side-collapse" type="button" title="접기">⇤</button></div>
+    <nav class="side-nav">
+      <div class="nav-group">워크스페이스</div>
+      <a href="cluster.html"><span class="ico">🖧</span> 클러스터</a>
+      <a href="jobs.html" class="active"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.2" cy="6" r="1.1"/><circle cx="4.2" cy="12" r="1.1"/><circle cx="4.2" cy="18" r="1.1"/></svg></span> Job 목록</a>
+      <a href="job-submit.html"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9z"/><path d="M13 3v6h6"/><path d="M8 12h4"/><path d="M8 16.5h4.5m0 0l-1.8-1.8m1.8 1.8l-1.8 1.8"/></svg></span> Job 제출</a>
+      <a href="apps.html"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6"/><path d="M12 16v4"/><path d="M9 11.5l5-5m0 0h-3.3m3.3 0v3.3"/></svg></span> 인터랙티브 앱</a>
+      <div class="nav-group">데이터 &amp; 도구</div>
+      <a href="files.html"><span class="ico">🗀</span> 파일 관리자</a>
+      <a href="terminal.html"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.2"/><path d="M7 9.5l3 2.5-3 2.5"/><path d="M12.5 15h4.5"/></svg></span> 웹 터미널</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <main class="content">
+      <div class="crumbs">HPC Portal › Job › <b>Job 목록</b></div>
+      <div class="page-head">
+        <div>
+          <h1>Job 목록</h1>
+          <p class="sub">전체 클러스터의 내 Job 조회 · 취소 · 재제출 · 이력 (U-JB-04, 07~09 · squeue/sacct -M)</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-outline" href="#">⟳ 새로고침</a>
+        </div>
+      </div>
+
+      <!-- 탭: 활성 / 이력 -->
+      <div class="tabs">
+        <a class="tab active" href="#" id="tabBtnActive">활성 Job (7)</a>
+        <a class="tab" href="#" id="tabBtnHistory">이력 조회 <span class="fid" style="font-size:11px;background:var(--idle-bg);border-radius:4px;padding:1px 5px;color:var(--ink-3)">U-JB-09</span></a>
+      </div>
+
+      <!-- ===== 활성 Job 탭 ===== -->
+      <div id="tabActive">
+
+      <!-- U-JB-04 필터 -->
+      <div class="filterbar">
+        <label>클러스터</label>
+        <select class="select select-sm" style="width:130px"><option>전체</option><option>seoul-hpc</option><option>pangyo-gpu</option></select>
+        <label>상태</label>
+        <select class="select select-sm" style="width:130px"><option>전체</option><option>RUNNING</option><option>PENDING</option><option>COMPLETED</option><option>FAILED</option><option>CANCELLED</option></select>
+        <label>파티션</label>
+        <select class="select select-sm" style="width:120px"><option>전체</option><option>normal</option><option>gpu</option><option>gpu-large</option><option>bigmem</option><option>debug</option></select>
+        <label>기간</label>
+        <input class="input input-sm" type="date" value="2026-07-08" style="width:140px"> ~
+        <input class="input input-sm" type="date" value="2026-07-15" style="width:140px">
+        <div class="sep"></div>
+        <input class="input input-sm" type="text" placeholder="Job ID 또는 이름 검색" style="width:200px">
+        <button class="btn btn-sm btn-primary">검색</button>
+        <div class="spacer" style="flex:1"></div>
+        <!-- U-JB-07 다중 취소 -->
+        <button class="btn btn-sm btn-danger">✕ 선택 취소 (2)</button>
+      </div>
+
+      <div class="card">
+        <div class="card-body flush table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th style="width:36px"><input type="checkbox"></th>
+                <th>Job ID</th><th>이름</th><th>클러스터</th><th>파티션</th><th>계정</th><th>상태</th>
+                <th>자원</th><th>제출 시각</th><th>경과 / 대기 사유</th><th style="width:190px">액션</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><input type="checkbox" checked></td>
+                <td class="mono"><a class="jobid" href="job-detail.html">45812</a></td>
+                <td>llm-finetune-r3</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">gpu</span></td><td class="mono">acct-ai</td>
+                <td><span class="badge running">RUNNING</span></td>
+                <td class="mono">2N·16C·4GPU</td><td class="mono">07-15 10:02</td><td class="mono">03:12:44</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-danger">취소</button></div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" checked></td>
+                <td class="mono"><a class="jobid" href="job-detail.html">45815</a></td>
+                <td>md-gromacs-eq</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">normal</span></td><td class="mono">acct-ai</td>
+                <td><span class="badge running">RUNNING</span></td>
+                <td class="mono">4N·128C</td><td class="mono">07-15 12:08</td><td class="mono">01:07:02</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-danger">취소</button></div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox"></td>
+                <td class="mono"><a class="jobid" href="job-detail.html">2214</a></td>
+                <td>vit-pretrain-s2</td><td><span class="chip cl-b">pangyo-gpu</span></td><td><span class="chip">gpu-large</span></td><td class="mono">acct-ai</td>
+                <td><span class="badge running">RUNNING</span></td>
+                <td class="mono">1N·32C·8GPU</td><td class="mono">07-15 05:34</td><td class="mono">07:40:12</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-danger">취소</button></div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox"></td>
+                <td class="mono"><a class="jobid" href="job-detail.html">45820</a></td>
+                <td>param-sweep-07</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">gpu</span></td><td class="mono">acct-ai</td>
+                <td><span class="badge pending">PENDING</span></td>
+                <td class="mono">1N·8C·2GPU</td><td class="mono">07-15 13:40</td>
+                <td><span class="badge plain pending" title="U-JB-10 대기 사유">Resources</span> <span style="font-size:12px;color:var(--ink-3)">예상 시작 14:25 (U-JB-12)</span></td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-danger">취소</button></div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox"></td>
+                <td class="mono"><a class="jobid" href="job-detail.html">45821</a></td>
+                <td>param-sweep-08</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">gpu</span></td><td class="mono">acct-ai</td>
+                <td><span class="badge pending">PENDING</span></td>
+                <td class="mono">1N·8C·2GPU</td><td class="mono">07-15 13:41</td>
+                <td><span class="badge plain pending">QOSMaxGRESPerUser</span></td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-danger">취소</button></div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox"></td>
+                <td class="mono"><a class="jobid" href="job-detail.html">45788</a></td>
+                <td>preproc-dataset</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">normal</span></td><td class="mono">acct-ai</td>
+                <td><span class="badge completed">COMPLETED</span></td>
+                <td class="mono">1N·32C</td><td class="mono">07-15 08:11</td><td class="mono">00:48:19 · Exit 0</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline" title="U-JB-08 재제출">재제출</button></div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox"></td>
+                <td class="mono"><a class="jobid" href="job-detail.html">45771</a></td>
+                <td>train-baseline</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">gpu</span></td><td class="mono">acct-ai</td>
+                <td><span class="badge failed">FAILED</span></td>
+                <td class="mono">1N·8C·1GPU</td><td class="mono">07-14 22:30</td><td class="mono">00:17:03 · Exit 137 (OOM)</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox"></td>
+                <td class="mono"><a class="jobid" href="job-detail.html">45750</a></td>
+                <td>jupyter-session</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">gpu</span></td><td class="mono">acct-ai</td>
+                <td><span class="badge cancelled">CANCELLED</span></td>
+                <td class="mono">1N·4C·1GPU</td><td class="mono">07-14 15:02</td><td class="mono">04:00:00 · 사용자 종료</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <a href="#">‹</a><a class="cur" href="#">1</a><a href="#">2</a><a href="#">3</a><a href="#">…</a><a href="#">12</a><a href="#">›</a>
+        </div>
+      </div>
+
+      </div><!-- /tabActive -->
+
+      <!-- ===== 이력 조회 탭 (U-JB-09 · sacct 기반) ===== -->
+      <div id="tabHistory" style="display:none">
+
+      <!-- U-JB-09 이력 요약 -->
+      <div class="grid grid-3" style="margin-bottom:14px">
+        <div class="stat"><span class="label">최근 30일 완료 Job (전 클러스터)</span><span class="value">121</span></div>
+        <div class="stat acc-gpu"><span class="label">누적 CPU 시간 (30일)</span><span class="value">17,388 <small>core·h</small></span></div>
+        <div class="stat acc-fail"><span class="label">최대 메모리 Peak</span><span class="value">241 <small>GB (Job 45771)</small></span></div>
+      </div>
+
+      <!-- 이력 필터 -->
+      <div class="filterbar">
+        <label>기간</label>
+        <input class="input input-sm" type="date" value="2026-06-20" style="width:140px"> ~
+        <input class="input input-sm" type="date" value="2026-07-20" style="width:140px">
+        <label>상태</label>
+        <select class="select select-sm" style="width:140px"><option>전체</option><option>COMPLETED</option><option>FAILED</option><option>CANCELLED</option><option>TIMEOUT</option></select>
+        <label>파티션</label>
+        <select class="select select-sm" style="width:120px"><option>전체</option><option>normal</option><option>gpu</option><option>gpu-large</option><option>bigmem</option><option>debug</option></select>
+        <div class="sep"></div>
+        <input class="input input-sm" type="text" placeholder="Job ID 또는 이름 검색" style="width:200px">
+        <button class="btn btn-sm btn-primary">검색</button>
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn btn-sm btn-outline">⬇ CSV 내보내기</button>
+      </div>
+
+      <div class="card">
+        <div class="card-body flush table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Job ID</th><th>이름</th><th>클러스터</th><th>파티션</th><th>상태</th>
+                <th>자원</th><th>시작</th><th>종료</th><th>경과</th><th class="num">MaxRSS</th><th>Exit</th><th style="width:150px">액션</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono"><a class="jobid" href="job-detail.html">45788</a></td>
+                <td>preproc-dataset</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">normal</span></td>
+                <td><span class="badge completed">COMPLETED</span></td>
+                <td class="mono">1N·32C</td><td class="mono">07-15 08:11</td><td class="mono">07-15 09:00</td><td class="mono">00:48:19</td><td class="num mono">18.2 GB</td><td class="mono">0:0</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><a class="jobid" href="job-detail.html">45771</a></td>
+                <td>train-baseline</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">gpu</span></td>
+                <td><span class="badge failed">FAILED</span></td>
+                <td class="mono">1N·8C·1GPU</td><td class="mono">07-14 22:30</td><td class="mono">07-14 22:47</td><td class="mono">00:17:03</td><td class="num mono">241.0 GB</td><td class="mono">137:0 (OOM)</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><a class="jobid" href="job-detail.html">45750</a></td>
+                <td>jupyter-session</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">gpu</span></td>
+                <td><span class="badge cancelled">CANCELLED</span></td>
+                <td class="mono">1N·4C·1GPU</td><td class="mono">07-14 15:02</td><td class="mono">07-14 19:02</td><td class="mono">04:00:00</td><td class="num mono">9.4 GB</td><td class="mono">0:0</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><a class="jobid" href="job-detail.html">45702</a></td>
+                <td>param-sweep-06</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">gpu</span></td>
+                <td><span class="badge completed">COMPLETED</span></td>
+                <td class="mono">1N·8C·2GPU</td><td class="mono">07-13 11:20</td><td class="mono">07-13 18:44</td><td class="mono">07:24:11</td><td class="num mono">42.7 GB</td><td class="mono">0:0</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><a class="jobid" href="job-detail.html">45688</a></td>
+                <td>md-gromacs-prod</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">normal</span></td>
+                <td><span class="badge completed">COMPLETED</span></td>
+                <td class="mono">4N·128C</td><td class="mono">07-12 21:05</td><td class="mono">07-13 09:31</td><td class="mono">12:26:40</td><td class="num mono">88.1 GB</td><td class="mono">0:0</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><a class="jobid" href="job-detail.html">45645</a></td>
+                <td>llm-finetune-r2</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">gpu</span></td>
+                <td><span class="badge pending">TIMEOUT</span></td>
+                <td class="mono">2N·16C·4GPU</td><td class="mono">07-11 09:14</td><td class="mono">07-13 09:14</td><td class="mono">2-00:00:00</td><td class="num mono">156.3 GB</td><td class="mono">0:1</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><a class="jobid" href="job-detail.html">2201</a></td>
+                <td>vit-pretrain-s1</td><td><span class="chip cl-b">pangyo-gpu</span></td><td><span class="chip">gpu-large</span></td>
+                <td><span class="badge completed">COMPLETED</span></td>
+                <td class="mono">1N·32C·8GPU</td><td class="mono">07-10 07:50</td><td class="mono">07-11 16:22</td><td class="mono">1-08:32:04</td><td class="num mono">412.6 GB</td><td class="mono">0:0</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><a class="jobid" href="job-detail.html">2188</a></td>
+                <td>data-shard-prep</td><td><span class="chip cl-b">pangyo-gpu</span></td><td><span class="chip">gpu</span></td>
+                <td><span class="badge completed">COMPLETED</span></td>
+                <td class="mono">1N·64C</td><td class="mono">07-09 14:12</td><td class="mono">07-09 17:40</td><td class="mono">03:28:31</td><td class="num mono">203.9 GB</td><td class="mono">0:0</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><a class="jobid" href="job-detail.html">45601</a></td>
+                <td>preproc-augment</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">normal</span></td>
+                <td><span class="badge completed">COMPLETED</span></td>
+                <td class="mono">1N·32C</td><td class="mono">07-08 10:03</td><td class="mono">07-08 11:57</td><td class="mono">01:54:22</td><td class="num mono">27.5 GB</td><td class="mono">0:0</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+              <tr>
+                <td class="mono"><a class="jobid" href="job-detail.html">45580</a></td>
+                <td>hpo-optuna-04</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="chip">gpu</span></td>
+                <td><span class="badge failed">FAILED</span></td>
+                <td class="mono">1N·8C·1GPU</td><td class="mono">07-07 16:44</td><td class="mono">07-07 16:45</td><td class="mono">00:01:12</td><td class="num mono">0.8 GB</td><td class="mono">1:0</td>
+                <td><div class="row-actions"><a class="btn btn-sm btn-outline" href="job-detail.html">상세</a><button class="btn btn-sm btn-outline">재제출</button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <a href="#">‹</a><a class="cur" href="#">1</a><a href="#">2</a><a href="#">3</a><a href="#">…</a><a href="#">8</a><a href="#">›</a>
+        </div>
+      </div>
+
+      </div><!-- /tabHistory -->
+
+    </main>
+
+    <!-- 하단 고정 푸터 (.content가 flex:1로 늘어나 항상 페이지 최하단) -->
+    <footer class="portal-foot">
+      <div class="pf-top">
+        <div><a href="#">개인정보처리방침</a> | <a href="#">이용약관</a> | <a href="#">DPA</a> | Copyright SAMSUNG SDS. All rights reserved. | 🌐 한국어</div>
+        <b>SAMSUNG SDS</b>
+      </div>
+      <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
+    </footer>
+  </div>
+</div>
+
+
+<!-- 공통 공지 팝업 — 전 페이지 공통 frame 영역 (U-CL-03) -->
+<div class="modal-backdrop hidden" id="noticeModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
+    <div class="modal-head">
+      <span class="m-ico">📢</span>
+      <h3 id="noticeTitle">[점검 공지] gpu 파티션 정기 점검</h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      7/20(월) 02:00~06:00 <span class="chip cl">seoul-hpc</span> gpu 파티션 정기 점검이 예정되어 있습니다.<br>
+      해당 시간대에 걸치는 walltime의 Job은 대기 처리됩니다. <a href="notices.html">자세히</a>
+    </div>
+    <div class="modal-foot">
+      <label class="m-today"><input type="checkbox" id="noticeToday"> 오늘 하루 보지 않기</label>
+      <button class="btn btn-primary btn-sm" type="button" id="noticeOk">확인</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var HIDE_KEY = 'hpc-notice-hide-until'; // 오늘 하루 보지 않기
+  var SEEN_KEY = 'hpc-notice-seen';       // 세션 내 재표시 방지
+  var modal = document.getElementById('noticeModal');
+  var today = new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem(HIDE_KEY) !== today && !sessionStorage.getItem(SEEN_KEY)) {
+    modal.classList.remove('hidden');
+  }
+  function closeNotice() {
+    if (document.getElementById('noticeToday').checked) localStorage.setItem(HIDE_KEY, today);
+    sessionStorage.setItem(SEEN_KEY, '1');
+    modal.classList.add('hidden');
+  }
+  modal.querySelector('.m-close').addEventListener('click', closeNotice);
+  document.getElementById('noticeOk').addEventListener('click', closeNotice);
+  modal.addEventListener('click', function (e) { if (e.target === modal) closeNotice(); });
+})();
+</script>
+<script>
+(function () {
+  // 상단 우측 드롭다운 공통 토글
+  var items = document.querySelectorAll('.tb-item');
+  document.querySelectorAll('.tb-item > [data-menu]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var item = btn.parentElement;
+      var open = item.classList.contains('open');
+      items.forEach(function (i) { i.classList.remove('open'); });
+      if (!open) item.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function () {
+    items.forEach(function (i) { i.classList.remove('open'); });
+  });
+  // 클러스터 단일 선택 — 선택된 클러스터의 데이터만 표시, localStorage로 페이지 간 유지
+  var CLUSTER_KEY = 'hpc-cluster';
+  var opts = Array.prototype.slice.call(document.querySelectorAll('.tb-cl-opt'));
+  function clusterOf(el) {
+    if (el.dataset && el.dataset.cluster) return el.dataset.cluster;
+    if (el.querySelector('.chip.cl-b')) return 'pangyo-gpu';
+    if (el.querySelector('.chip.cl')) return 'seoul-hpc';
+    return null;
+  }
+  function applyCluster(name) {
+    opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.cluster === name); });
+    // 클러스터 칩이 붙은 테이블 행 필터링 (칩 없는 행은 항상 표시)
+    document.querySelectorAll('.content table tbody tr').forEach(function (tr) {
+      var c = clusterOf(tr);
+      tr.style.display = (c && c !== name) ? 'none' : '';
+    });
+    // 클러스터 현황 카드 필터링
+    document.querySelectorAll('.cluster-card').forEach(function (card) {
+      var c = card.classList.contains('cl-b') ? 'pangyo-gpu' : 'seoul-hpc';
+      card.style.display = (c !== name) ? 'none' : '';
+    });
+    // 필터 결과가 비면 테이블 중앙에 빈 상태 표시
+    document.querySelectorAll('.content table tbody').forEach(function (tb) {
+      var rows = Array.prototype.slice.call(tb.querySelectorAll('tr'));
+      var visible = rows.filter(function (r) {
+        return !r.classList.contains('empty-row') && r.style.display !== 'none';
+      }).length;
+      var er = tb.querySelector('.empty-row');
+      if (!visible) {
+        if (!er) {
+          er = document.createElement('tr');
+          er.className = 'empty-row';
+          er.innerHTML = '<td colspan="99"><div class="tbl-empty"><span>🗎</span>데이터가 없습니다.</div></td>';
+          tb.appendChild(er);
+        }
+        er.style.display = '';
+      } else if (er) {
+        er.style.display = 'none';
+      }
+    });
+    localStorage.setItem(CLUSTER_KEY, name);
+  }
+  applyCluster(localStorage.getItem(CLUSTER_KEY) === 'pangyo-gpu' ? 'pangyo-gpu' : 'seoul-hpc');
+  opts.forEach(function (o) {
+    o.addEventListener('click', function (e) {
+      e.preventDefault();
+      applyCluster(o.dataset.cluster);
+    });
+  });
+})();
+</script>
+<script>
+(function () {
+  // Job 목록 탭 전환 (활성 Job / 이력 조회)
+  var btnA = document.getElementById('tabBtnActive');
+  var btnH = document.getElementById('tabBtnHistory');
+  var panA = document.getElementById('tabActive');
+  var panH = document.getElementById('tabHistory');
+  function show(history) {
+    btnA.classList.toggle('active', !history);
+    btnH.classList.toggle('active', history);
+    panA.style.display = history ? 'none' : '';
+    panH.style.display = history ? '' : 'none';
+  }
+  btnA.addEventListener('click', function (e) { e.preventDefault(); show(false); });
+  btnH.addEventListener('click', function (e) { e.preventDefault(); show(true); });
+})();
+</script>
+<script>
+(function () {
+  // 사이드바 접기/펼치기 — GNB ☰ 버튼과 사이드바 ⇤ 버튼이 토글 쌍, 상태는 localStorage 유지
+  var KEY = 'hpc-snb-collapsed';
+  var sb = document.querySelector('.sidebar.snb');
+  if (!sb) return;
+  var burger = document.querySelector('.gnb-burger');
+  var collapseBtn = sb.querySelector('.side-collapse');
+  // 접힘 상태에서 아이콘 위에 메뉴명 툴팁 표시
+  sb.querySelectorAll('.side-nav a').forEach(function (a) { a.title = a.textContent.trim(); });
+  function apply(collapsed) {
+    sb.classList.toggle('collapsed', collapsed);
+    collapseBtn.textContent = collapsed ? '☰' : '⇤';
+    collapseBtn.title = collapsed ? '펼치기' : '접기';
+    localStorage.setItem(KEY, collapsed ? '1' : '');
+  }
+  apply(localStorage.getItem(KEY) === '1');
+  [burger, collapseBtn].forEach(function (b) {
+    if (b) b.addEventListener('click', function () { sb.classList.add('anim'); apply(!sb.classList.contains('collapsed')); });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통계 / 리포트 | HPC Portal</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body class="scp">
+    <header class="topbar gnb">
+      <a class="gnb-logo" href="dashboard.html">Digital Twin Platform</a>
+      <div class="gnb-search">🔍 <input type="text" placeholder="사용자, Job ID, 노드 및 문서를 검색하세요."><span class="kbd">[Alt+s]</span></div>
+      <!-- 공통 상단 우측 컨트롤: 알림 / 도움말 / 계정 -->
+      <div class="tb-item">
+        <button class="top-icon" type="button" data-menu title="알림"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+        <div class="tb-menu" style="min-width:320px">
+          <div class="tb-menu-head">알림</div>
+          <a class="tb-noti" href="nodes.html"><span class="n-ico err">!</span><div><b>노드 g013 DOWN (NodeHealthCheck)</b><small>seoul-hpc · 12분 전</small></div></a>
+          <a class="tb-noti" href="jobs.html"><span class="n-ico warn">⏱</span><div><b>gpu 파티션 대기 Job 15건 초과</b><small>seoul-hpc · 40분 전</small></div></a>
+          <a class="tb-noti" href="users.html"><span class="n-ico ok">✓</span><div><b>계정 신청 승인 대기 2건</b><small>1시간 전</small></div></a>
+          <div class="tb-menu-foot"><a href="#">알림 전체 보기 →</a></div>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="top-icon tb-help" type="button" data-menu title="도움말"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-2.9 2.4-2.9 4"/><path d="M12 17.5h.01"/></svg></button>
+        <div class="tb-menu" style="min-width:220px">
+          <a class="tb-mi" href="#">Support Center</a>
+          <a class="tb-mi" href="#">Documentation</a>
+          <a class="tb-mi" href="../user/notices.html">공지사항</a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-region" type="button" data-menu title="클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">클러스터</span><span class="chev">▾</span></button>
+        <div class="tb-menu" id="clusterMenu" style="min-width:260px">
+          <div class="tb-menu-head">클러스터 선택</div>
+          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="전체 클러스터"><span>전체 클러스터</span><code>all</code></a>
+          <a class="tb-mi tb-cl-opt" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
+          <a class="tb-mi tb-cl-opt" href="#" data-cluster="pangyo-gpu"><span>GPU 특화</span><code>pangyo-gpu</code></a>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-profile" type="button" data-menu title="계정"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8.2" r="3.4"/><path d="M4.8 19.6c1.5-3.1 4.1-4.8 7.2-4.8s5.7 1.7 7.2 4.8"/></svg></button>
+        <div class="tb-menu" style="min-width:250px">
+          <div class="tb-menu-user"><span class="avatar" style="background:linear-gradient(135deg,#d3383c,#8f1f22)">OP</span><div><b>운영관리자</b><small>HPC운영팀 · ADMIN · 2FA ✓</small></div></div>
+          <a class="tb-mi" href="../user/cluster.html">↪ 사용자 포털로</a>
+          <div class="tb-sep"></div>
+          <a class="tb-mi" href="../index.html">⏻ 로그아웃</a>
+        </div>
+      </div>
+    </header>
+
+<div class="layout">
+
+  <aside class="sidebar snb snb-admin">
+    <div class="side-logo"><span class="logo-mark">H</span><span>HPC Portal<small>Admin Console</small></span><button class="side-collapse" type="button" title="접기">⇤</button></div>
+    <nav class="side-nav">
+      <div class="nav-group">모니터링</div>
+      <a href="dashboard.html"><span class="ico">▦</span> 통합 대시보드</a>
+      <div class="nav-group">자원 관리</div>
+      <a href="clusters.html"><span class="ico">🖧</span> 클러스터 관리</a>
+      <a href="nodes.html"><span class="ico">▤</span> 노드 / 파티션</a>
+      <a href="jobs.html"><span class="ico">☰</span> 전체 Job 관리</a>
+      <div class="nav-group">사용자 / 정책</div>
+      <a href="users.html"><span class="ico">👥</span> 사용자 · 계정 · QOS</a>
+      <div class="nav-group">운영</div>
+      <a href="reports.html" class="active"><span class="ico">◔</span> 통계 / 리포트</a>
+      <a href="billing.html"><span class="ico">₩</span> 비용 / Billing</a>
+      <a href="license.html"><span class="ico">🗝</span> License 관리</a>
+      <a href="settings.html"><span class="ico">⚙</span> 포털 운영 설정</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+
+    <main class="content">
+      <div class="crumbs">HPC Portal Admin › <b>통계 › 리포트</b></div>
+      <div class="page-head">
+        <div>
+          <h1>통계 / 리포트</h1>
+          <p class="sub">sreport -M 기반 클러스터별·사용자별 사용량·가동률·대기시간 분석 (A-RP-01~05)</p>
+        </div>
+        <div class="page-actions">
+          <select class="select select-sm" style="width:150px"><option>전체 클러스터</option><option>seoul-hpc</option><option>pangyo-gpu</option></select>
+          <select class="select select-sm" style="width:150px"><option>2026년 2분기</option><option>최근 30일</option><option>최근 90일</option><option>사용자 지정</option></select>
+          <!-- A-RP-04 -->
+          <button class="btn btn-outline">⇩ CSV</button>
+          <button class="btn btn-outline">⇩ Excel</button>
+          <button class="btn btn-outline">⇩ PDF</button>
+          <button class="btn btn-primary">✉ 정기 리포트 설정</button>
+        </div>
+      </div>
+
+      <!-- A-RP-02 요약 -->
+      <div class="grid grid-4">
+        <div class="stat"><span class="label">전체 가동률 (분기 · 2클러스터)</span><span class="value">83.2<small>%</small></span><span class="delta up">▲ 4.1%p vs 전분기</span></div>
+        <div class="stat acc-gpu"><span class="label">GPU 가동률 (352장)</span><span class="value">91.7<small>%</small></span><span class="delta up">▲ 8.9%p — 증설 검토 필요</span></div>
+        <div class="stat acc-done"><span class="label">총 CPU 사용 (분기)</span><span class="value">14.2<small>M core·h</small></span><span class="delta">Job 41,208건</span></div>
+        <div class="stat acc-pend"><span class="label">평균 대기시간 (분기)</span><span class="value">27<small>분</small></span><span class="delta down">▲ gpu 파티션 67분</span></div>
+      </div>
+
+      <div class="grid grid-3 mt-16">
+        <!-- A-RP-02 사용률 추이 -->
+        <div class="card col-span-2">
+          <div class="card-head"><h2>클러스터별 사용률 추이 <span class="fid">A-RP-02</span></h2>
+            <div class="legend"><span class="lg"><span class="sw" style="background:var(--brand-600)"></span>seoul-hpc</span><span class="lg"><span class="sw" style="background:var(--violet)"></span>pangyo-gpu</span></div>
+          </div>
+          <div class="card-body">
+            <div class="chart-bars">
+              <div class="cb"><div class="bar-col" style="height:61%"></div><div class="bar-col alt" style="height:74%"></div><span class="cap">4월</span></div>
+              <div class="cb"><div class="bar-col" style="height:66%"></div><div class="bar-col alt" style="height:79%"></div><span class="cap">5월</span></div>
+              <div class="cb"><div class="bar-col" style="height:71%"></div><div class="bar-col alt" style="height:86%"></div><span class="cap">6월</span></div>
+              <div class="cb"><div class="bar-col" style="height:74%"></div><div class="bar-col alt" style="height:92%"></div><span class="cap">7월(진행)</span></div>
+            </div>
+            <div class="chart-line-caption"><span>sreport -M all cluster utilization</span><span>월 평균 할당률 %</span></div>
+          </div>
+        </div>
+
+        <!-- A-RP-03 대기시간 -->
+        <div class="card">
+          <div class="card-head"><h2>대기시간 분석 <span class="fid">A-RP-03</span></h2></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:13px">
+            <div class="meter"><div class="meter-top"><span class="lbl">seoul-hpc · gpu / normal QOS</span><span class="val">67분</span></div><div class="bar"><i class="err" style="width:90%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">seoul-hpc · gpu / high QOS</span><span class="val">9분</span></div><div class="bar"><i class="ok" style="width:14%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">seoul-hpc · normal</span><span class="val">12분</span></div><div class="bar"><i style="width:18%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">pangyo-gpu · gpu</span><span class="val">6분</span></div><div class="bar"><i class="ok" style="width:9%"></i></div></div>            <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>📈</span><div>seoul-hpc gpu/normal 대기 전분기 대비 <b>+38%</b>. pangyo-gpu 분산 유도 또는 QOS 한도 하향 검토 권고.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- A-RP-01 사용량 리포트 -->
+      <div class="grid grid-3 mt-16">
+        <div class="card col-span-2">
+          <div class="card-head">
+            <h2>계정별 사용량 <span class="fid">A-RP-01</span></h2>
+            <select class="select select-sm" style="width:160px"><option>계정별</option><option>사용자별</option><option>파티션별</option><option>클러스터별</option></select>
+          </div>
+          <div class="card-body flush table-wrap">
+            <table class="tbl">
+              <thead><tr><th>계정</th><th class="num">CPU core·h</th><th class="num">GPU gpu·h</th><th class="num">Job 수</th><th class="num">점유율</th><th class="num">전분기 대비</th></tr></thead>
+              <tbody>
+                <tr><td class="mono"><b>acct-ai</b></td><td class="num mono">4,102,331</td><td class="num mono">61,240</td><td class="num mono">12,204</td><td class="num mono">28.9%</td><td class="num" style="color:var(--err)">▲ 21%</td></tr>
+                <tr><td class="mono"><b>acct-bio</b></td><td class="num mono">3,882,190</td><td class="num mono">8,102</td><td class="num mono">9,872</td><td class="num mono">27.3%</td><td class="num" style="color:var(--ok)">▼ 4%</td></tr>
+                <tr><td class="mono"><b>acct-met</b></td><td class="num mono">2,904,554</td><td class="num mono">—</td><td class="num mono">3,120</td><td class="num mono">20.4%</td><td class="num" style="color:var(--ink-3)">± 0%</td></tr>
+                <tr><td class="mono"><b>acct-vision</b></td><td class="num mono">1,720,082</td><td class="num mono">38,551</td><td class="num mono">11,930</td><td class="num mono">12.1%</td><td class="num" style="color:var(--err)">▲ 12%</td></tr>
+                <tr><td class="mono">기타 (4계정)</td><td class="num mono">1,591,201</td><td class="num mono">2,204</td><td class="num mono">4,082</td><td class="num mono">11.3%</td><td class="num" style="color:var(--ink-3)">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- A-RP-05 과금 -->
+        <div class="card">
+          <div class="card-head"><h2>과금 연계 <span class="fid">A-RP-05</span></h2><span class="chip gray">선택 기능</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+            <dl class="dl" style="grid-template-columns:110px 1fr">
+              <dt>요율 (CPU)</dt><dd class="mono">12원 / core·h</dd>
+              <dt>요율 (GPU)</dt><dd class="mono">950원 / gpu·h</dd>
+              <dt>분기 청구 합계</dt><dd><b style="font-size:16px">2.74억 원</b></dd>
+            </dl>
+            <div class="meter"><div class="meter-top"><span class="lbl">acct-ai</span><span class="val">1.07억</span></div><div class="bar"><i style="width:39%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">acct-vision</span><span class="val">0.57억</span></div><div class="bar"><i class="violet" style="width:21%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">acct-bio</span><span class="val">0.54억</span></div><div class="bar"><i class="ok" style="width:20%"></i></div></div>
+            <button class="btn btn-outline" style="justify-content:center">과금 데이터 산출 (sreport × 요율)</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- 본문 하단 푸터 -->
+    <footer class="portal-foot">
+      <div class="pf-top">
+        <div><a href="#">개인정보처리방침</a> | <a href="#">이용약관</a> | <a href="#">DPA</a> | Copyright SAMSUNG SDS. All rights reserved. | 🌐 한국어</div>
+        <b>SAMSUNG SDS</b>
+      </div>
+      <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
+    </footer>
+  </div>
+</div>
+<script>
+(function () {
+  // 사이드바 접기/펼치기 — 사용자 포털과 동일 동작, 상태 공유(localStorage)
+  var KEY = 'hpc-snb-collapsed';
+  var sb = document.querySelector('.sidebar');
+  if (!sb) return;
+  var collapseBtn = sb.querySelector('.side-collapse');
+  if (!collapseBtn) return;
+  sb.querySelectorAll('.side-nav a').forEach(function (a) { a.title = a.textContent.trim(); });
+  function apply(collapsed) {
+    sb.classList.toggle('collapsed', collapsed);
+    collapseBtn.textContent = collapsed ? '☰' : '⇤';
+    collapseBtn.title = collapsed ? '펼치기' : '접기';
+    localStorage.setItem(KEY, collapsed ? '1' : '');
+  }
+  apply(localStorage.getItem(KEY) === '1');
+  collapseBtn.addEventListener('click', function () {
+    sb.classList.add('anim');
+    apply(!sb.classList.contains('collapsed'));
+  });
+})();
+</script>
+<script>
+(function () {
+  // 상단 우측 드롭다운 공통 토글
+  var items = document.querySelectorAll('.tb-item');
+  document.querySelectorAll('.tb-item > [data-menu]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var item = btn.parentElement;
+      var open = item.classList.contains('open');
+      items.forEach(function (i) { i.classList.remove('open'); });
+      if (!open) item.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function () {
+    items.forEach(function (i) { i.classList.remove('open'); });
+  });
+})();
+</script>
+<script>
+(function () {
+  // 클러스터 선택 (admin) — 선택 표시/유지
+  var KEY = 'hpc-admin-cluster';
+  var opts = Array.prototype.slice.call(document.querySelectorAll('.tb-cl-opt'));
+  function applyCluster(name) {
+    opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.cluster === name); });
+    localStorage.setItem(KEY, name);
+  }
+  var saved = localStorage.getItem(KEY);
+  if (saved) applyCluster(saved);
+  opts.forEach(function (o) {
+    o.addEventListener('click', function (e) {
+      e.preventDefault();
+      applyCluster(o.dataset.cluster);
+    });
+  });
+})();
+</script>
+</body>
+</html>
