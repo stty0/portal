@@ -57,6 +57,13 @@
 - 검증: 12개 admin 파일 균형·링크·트리거·id OK, mappings.html 잔여 참조 0.
 - **참고(범위 밖)**: 사용자 포털 U-AC-02(계정별 fairshare 조회)·usage.html는 이번에 미변경 — fairshare 완전 제거 시 함께 정리 필요.
 
+## 후속: Fairshare·매핑 원복 (Slurm 네이티브 확인)
+- 판단: QOS·Fairshare·계정↔클러스터 매핑(association) 모두 Slurm 네이티브 기능 → QOS 유지, Fairshare/매핑도 원복.
+- mappings.html 복원(계정·클러스터 매핑·Fairshare), 탭 5개로 통일: 사용자·AD 연결·계정·QOS·클러스터 매핑.
+- accounts 트리 share 표기·매핑 안내 링크 복원.
+- 정의서: A-US-04(Fairshare) 재추가, **A-US-07(계정·클러스터 매핑) 신규 명시**(기존 UI-only 갭 해소), SCR-13 = A-US-01~07·화면명 갱신.
+- 검증: 13개 admin 파일 균형·링크·트리거·id OK.
+
 ## 미해결 / 참고
 - 정적 프로토타입이므로 수정(edit) 시 실제 값 프리필은 미구현(대표 예시값). 실데이터 바인딩(C-03) 도입 시 처리.
 - 점검 모드 시작(A-ND-05)은 이번 범위 제외(버튼 유지).
