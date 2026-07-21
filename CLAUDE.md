@@ -14,7 +14,7 @@ Claude가 이 프로젝트에서 세션마다 읽는 기본 컨텍스트 파일�
 - 디자인 토큰은 [design/css/style.css](design/css/style.css) 상단 `:root`에 정의 (Samsung SDS Cloud 포털 look & feel).
   - 브랜드 블루 `--brand-700: #1428A0`, 배경 `#f4f6fa`, 사이드바 네이비 `#131a3a`.
 - 각 UI 요소는 기능 정의서 ID를 `<span class="fid">U-XX-00</span>` 칩 또는 HTML 주석으로 매핑 (리뷰/추적용).
-- 현재 JS 없음, 한국어 하드코딩. i18n(C-06)·데이터 바인딩(slurmrestd v0.0.41, C-03)은 미도입.
+- 바닐라 JS만 사용(프레임워크·빌드도구 없음): 페이지별 사이드바 접기·톱바 드롭다운·클러스터 선택 스크립트, 등록/수정 **모달 open/close**(`.modal-backdrop.hidden` 토글, `data-open-modal` 트리거). 한국어 하드코딩. i18n(C-06)·데이터 바인딩(slurmrestd v0.0.41, C-03)은 미도입.
 
 ---
 

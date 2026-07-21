@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>사용자 · 계정 · QOS | HPC Portal</title>
+<title>사용자 | HPC Portal</title>
 <link rel="stylesheet" href="../css/style.css">
 </head>
 <body class="scp">
@@ -17,7 +17,7 @@
           <div class="tb-menu-head">알림</div>
           <a class="tb-noti" href="nodes.html"><span class="n-ico err">!</span><div><b>노드 g013 DOWN (NodeHealthCheck)</b><small>seoul-hpc · 12분 전</small></div></a>
           <a class="tb-noti" href="jobs.html"><span class="n-ico warn">⏱</span><div><b>gpu 파티션 대기 Job 15건 초과</b><small>seoul-hpc · 40분 전</small></div></a>
-          <a class="tb-noti" href="users.html"><span class="n-ico ok">✓</span><div><b>계정 신청 승인 대기 2건</b><small>1시간 전</small></div></a>
+          <a class="tb-noti" href="users.html"><span class="n-ico ok">✓</span><div><b>AD 동기화 완료 — 신규 사용자 1명 자동 등록</b><small>1시간 전</small></div></a>
           <div class="tb-menu-foot"><a href="#">알림 전체 보기 →</a></div>
         </div>
       </div>
@@ -73,39 +73,39 @@
   <div class="main">
 
     <main class="content">
-      <div class="crumbs">HPC Portal Admin › <b>사용자 · 계정 · QOS</b></div>
+      <div class="crumbs">HPC Portal Admin › 사용자 · 계정 · QOS › <b>사용자</b></div>
       <div class="page-head">
         <div>
-          <h1>사용자 · 계정 · QOS 관리</h1>
-          <p class="sub">Active Directory 연동(단일 AD) · 계정-클러스터 매핑 · Fairshare · 승인 워크플로 (A-US-01~07) · 사용자/계정 생성은 AD에서, 포털은 조회·매핑만 담당</p>
+          <h1>사용자</h1>
+          <p class="sub">Active Directory 연동(단일 AD) · 사용자는 AD에서 동기화, 포털은 역할·계정 매핑만 담당 (A-US-01)</p>
         </div>
         <div class="page-actions">
           <span style="font-size:12px;color:var(--ink-3);align-self:center">마지막 동기화 13:20 · 다음 자동 14:20</span>
           <button class="btn btn-outline">⇅ AD 수동 동기화</button>
-          <button class="btn btn-primary">🔗 AD 연결 설정</button>
+          <button class="btn btn-primary" data-open-modal="adConnModal" data-modal-title="AD 연결 설정">🔗 AD 연결 설정</button>
         </div>
       </div>
 
-      <!-- A-US-06 승인 대기 -->
+      <!-- AD 자동 프로비저닝 (승인 절차 없음) -->
       <div class="notice info" style="margin-bottom:16px">
-        <span>📝</span>
-        <div><b>승인 대기 (A-US-06)</b> — AD 동기화로 유입된 신규 사용자 <b>3건</b>(계정 미배정), GPU 증설 신청 <b>1건</b>이 승인을 기다리고 있습니다. <a href="#">승인 처리 →</a></div>
+        <span>ℹ</span>
+        <div><b>AD 자동 프로비저닝</b> — 허용 그룹(HPC-Users) 소속 사용자는 AD 동기화 시 <b>자동으로 활성 사용자로 등록</b>됩니다. 별도 관리자 승인 절차는 없습니다.</div>
       </div>
 
       <div class="tabs">
-        <a class="tab active" href="#sec-users">사용자 (A-US-01)</a>
-        <a class="tab" href="#sec-accounts">계정/Account (A-US-02)</a>
-        <a class="tab" href="#sec-qos">QOS (A-US-03)</a>
-        <a class="tab" href="#sec-mapping">클러스터 매핑 · Fairshare (A-US-07·04)</a>
+        <a class="tab active" href="users.html">사용자 (A-US-01)</a>
+        <a class="tab" href="accounts.html">계정/Account (A-US-02)</a>
+        <a class="tab" href="qos.html">QOS (A-US-03)</a>
+        <a class="tab" href="mappings.html">클러스터 매핑 · Fairshare (A-US-07·04)</a>
       </div>
 
       <!-- A-US-01 사용자 -->
-      <div class="filterbar" id="sec-users">
+      <div class="filterbar">
         <input class="input input-sm" type="text" placeholder="이름/ID/이메일 검색" style="width:220px">
         <label>계정</label>
         <select class="select select-sm" style="width:140px"><option>전체</option><option>acct-ai</option><option>acct-bio</option></select>
         <label>상태</label>
-        <select class="select select-sm" style="width:120px"><option>전체</option><option>활성</option><option>비활성</option><option>승인 대기</option></select>
+        <select class="select select-sm" style="width:120px"><option>전체</option><option>활성</option><option>비활성</option></select>
         <button class="btn btn-sm btn-primary">검색</button>
       </div>
 
@@ -133,10 +133,10 @@
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
               <tr>
-                <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#8a93a8,#5a6377)">SK</span><b>강세윤</b> <span class="mono" style="color:var(--ink-3)">sykang</span> <span class="chip gray" title="13:20 AD 동기화로 유입">AD 신규</span></div></td>
-                <td class="mono">seyun.kang@…</td><td><span class="chip gray">USER</span></td><td class="mono">(미배정)</td><td class="mono">—</td><td class="mono">—</td>
-                <td><span class="badge pending">승인 대기</span></td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-primary">승인</button><button class="btn btn-sm btn-danger">반려</button></div></td>
+                <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#8a93a8,#5a6377)">SK</span><b>강세윤</b> <span class="mono" style="color:var(--ink-3)">sykang</span> <span class="chip gray" title="13:20 AD 동기화로 자동 등록">AD 자동 등록</span></div></td>
+                <td class="mono">seyun.kang@…</td><td><span class="chip gray">USER</span></td><td class="mono">acct-vision</td><td class="mono">normal</td><td class="mono">방금 전</td>
+                <td><span class="badge completed">활성</span></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
             </tbody>
           </table>
@@ -152,41 +152,20 @@
             <span class="badge completed">연결됨 · dc1.corp.example.com · TLS ✓</span>
           </div>
           <div class="card-body">
-            <div class="notice info" style="margin-bottom:16px;font-size:12px;padding:9px 12px">
-              <span>ℹ</span>
-              <div>포털은 <b>하나의 AD</b>에만 연결됩니다. 사용자는 AD에서 주기적으로 읽어와 동기화되며, 포털에서 직접 생성하지 않습니다. 역할(USER/ADMIN)·계정(Account) 매핑은 포털에서 관리합니다.</div>
-            </div>
-            <div class="form-grid">
-              <div class="field"><label>LDAPS 서버 주소 <span class="req">*</span> <span class="chip gray" title="저장 위치">CR spec</span></label>
-                <input class="input mono" value="ldaps://dc1.corp.example.com:636">
-              </div>
-              <div class="field"><label>Base DN (검색 시작점) <span class="req">*</span> <span class="chip gray">CR spec</span></label>
-                <input class="input mono" value="DC=corp,DC=example,DC=com">
-              </div>
-              <div class="field"><label>Bind 계정 <span class="req">*</span> <span class="chip gray">CR spec</span></label>
-                <input class="input mono" value="svc-sse@corp.example.com">
-              </div>
-              <div class="field"><label>Bind 암호 <span class="req">*</span> <span class="chip gray">Secret</span></label>
-                <input class="input mono" type="password" value="••••••••••">
-                <span class="hint">암호는 Secret에 별도 저장되며 화면에 표시되지 않습니다</span>
-              </div>
-              <div class="field full"><label>허용 그룹 (권장) <span class="chip gray">CR spec</span></label>
-                <input class="input mono" value="CN=HPC-Users,OU=Groups,DC=corp,DC=example,DC=com">
-                <span class="hint">지정 시 이 그룹 소속 사용자만 동기화 대상이 됩니다 (memberOf 기준)</span>
-              </div>
-              <div class="field"><label>사용자 식별 속성</label>
-                <select class="select"><option>cn</option><option selected>uid</option><option>sAMAccountName</option></select>
-                <span class="hint">포털/Slurm 사용자명으로 사용할 AD 속성</span>
-              </div>
-              <div class="field"><label>자동 동기화 주기</label>
-                <select class="select"><option>15분</option><option selected>1시간</option><option>6시간</option><option>24시간</option></select>
-              </div>
-            </div>
+            <dl class="dl" style="grid-template-columns:150px 1fr">
+              <dt>LDAPS 서버 주소</dt><dd class="mono">ldaps://dc1.corp.example.com:636</dd>
+              <dt>Base DN</dt><dd class="mono">DC=corp,DC=example,DC=com</dd>
+              <dt>Bind 계정</dt><dd class="mono">svc-sse@corp.example.com</dd>
+              <dt>Bind 암호</dt><dd class="mono">•••••••••• <span style="font-size:11px;color:var(--ink-3)">(Secret 저장)</span></dd>
+              <dt>허용 그룹</dt><dd class="mono">CN=HPC-Users,OU=Groups,DC=corp,DC=example,DC=com</dd>
+              <dt>사용자 식별 속성</dt><dd class="mono">uid</dd>
+              <dt>자동 동기화 주기</dt><dd class="mono">1시간</dd>
+            </dl>
           </div>
           <div class="card-foot" style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
             <span style="margin-right:auto;font-size:12px;color:var(--ink-3)">변경 사항은 감사 로그(C-05)에 기록됩니다</span>
-            <button class="btn btn-outline">연결 테스트</button>
-            <button class="btn btn-primary">저장</button>
+            <button class="btn btn-outline" data-open-modal="adConnModal" data-modal-title="AD 연결 수정">수정</button>
+            <button class="btn btn-danger">삭제</button>
           </div>
         </div>
 
@@ -207,119 +186,13 @@
             <div class="card-head"><h2>동기화 이력</h2></div>
             <div class="card-body">
               <ul class="timeline">
-                <li class="done"><span class="t">13:20</span>자동 동기화 — 신규 1명 (sykang, 계정 미배정 → 승인 대기)</li>
+                <li class="done"><span class="t">13:20</span>자동 동기화 — 신규 1명 (sykang) 자동 등록 · 활성</li>
                 <li class="done"><span class="t">12:20</span>자동 동기화 — 변경 없음</li>
                 <li class="err"><span class="t">11:20</span>동기화 실패 — LDAPS 응답 시간 초과 (재시도 성공)</li>
                 <li class="done"><span class="t">10:41</span>수동 동기화 (opadmin) — 비활성 2명 처리</li>
               </ul>
             </div>
           </div>
-        </div>
-      </div>
-
-      <div class="grid grid-2 mt-16">
-        <!-- A-US-02 계정 트리 -->
-        <div class="card" id="sec-accounts">
-          <div class="card-head"><h2>계정(Account) 구조 <span class="fid">A-US-02</span></h2><div style="display:flex;gap:8px;align-items:center"><span class="chip gray" title="공유 slurmdbd — 계정 트리는 전 클러스터 공통">전 클러스터 공통</span><span class="chip gray" title="계정 생성/삭제는 포털에서 수행하지 않습니다">조회 전용</span></div></div>
-          <div class="card-body">
-            <ul class="ftree">
-              <li><b>root</b></li>
-              <ul>
-                <li class="sel">🏷 acct-ai — AI연구팀 <span style="margin-left:auto;font-size:11px;color:var(--ink-3)">사용자 12 · share 100</span></li>
-                <ul>
-                  <li>👤 jrpark · leejh · minsk 외 9</li>
-                </ul>
-                <li>🏷 acct-bio — 바이오연구소 <span style="margin-left:auto;font-size:11px;color:var(--ink-3)">사용자 18 · share 80</span></li>
-                <li>🏷 acct-vision — 비전랩 <span style="margin-left:auto;font-size:11px;color:var(--ink-3)">사용자 7 · share 60</span></li>
-                <li>🏷 acct-met — 기상모델링 <span style="margin-left:auto;font-size:11px;color:var(--ink-3)">사용자 5 · share 60</span></li>
-              </ul>
-            </ul>
-            <!-- A-US-04 -->
-            <div class="notice info mt-16" style="font-size:12px;padding:9px 12px">
-              <span>ℹ</span>
-              <div>계정(Account)은 <b>AD 그룹 동기화로 생성·관리</b>되며 포털에서는 만들지 않습니다. 포털에서는 아래 <b>계정 · 클러스터 매핑</b>에서 사용 가능 클러스터와 fairshare만 관리합니다.</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- A-US-03 QOS -->
-        <div class="card" id="sec-qos">
-          <div class="card-head"><h2>QOS 정책 <span class="fid">A-US-03</span></h2><div style="display:flex;gap:8px;align-items:center"><span class="chip gray" title="공유 slurmdbd — QOS 정의는 전 클러스터 공통">전 클러스터 공통</span><button class="btn btn-sm btn-primary">＋ QOS 생성</button></div></div>
-          <div class="card-body flush table-wrap">
-            <table class="tbl">
-              <thead><tr><th>QOS</th><th class="num">우선순위</th><th>최대 Job/사용자</th><th>자원 한도</th><th style="width:110px">액션</th></tr></thead>
-              <tbody>
-                <tr><td><b>normal</b></td><td class="num mono">10</td><td class="mono">20</td><td class="mono">gpu≤12, cpu≤512</td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
-                <tr><td><b>high</b> <span class="chip gray">승인제</span></td><td class="num mono">50</td><td class="mono">5</td><td class="mono">gpu≤24, preempt</td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
-                <tr><td><b>debug</b></td><td class="num mono">30</td><td class="mono">2</td><td class="mono">walltime≤1h</td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
-                <tr><td><b>long</b></td><td class="num mono">5</td><td class="mono">3</td><td class="mono">walltime≤14d, cpu≤256</td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="card-body" style="border-top:1px solid var(--line)">
-            <!-- A-US-05 -->
-            <div class="form-grid">
-              <div class="field"><label>파티션 접근 제어 (A-US-05) — 대상</label>
-                <select class="select"><option>seoul-hpc / gpu</option><option>seoul-hpc / bigmem</option><option>pangyo-gpu / gpu-large</option></select>
-              </div>
-              <div class="field"><label>AllowAccounts</label>
-                <input class="input mono" value="acct-ai, acct-vision, acct-nlp">
-                <span class="hint">해당 클러스터 slurm.conf 반영 · 적용 시 slurmctld reconfigure 수행</span>
-              </div>
-            </div>
-            <div style="text-align:right;margin-top:10px"><button class="btn btn-primary">적용</button></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- A-US-07 계정 · 클러스터 매핑 -->
-      <div class="card mt-16" id="sec-mapping">
-        <div class="card-head">
-          <h2>계정 · 클러스터 매핑 <span class="fid">A-US-07 · A-US-04</span></h2>
-          <span style="font-size:12px;color:var(--ink-3)">sacctmgr add/remove account … cluster= (association 단위) · fairshare 포함</span>
-        </div>
-        <div class="card-body flush table-wrap">
-          <table class="tbl">
-            <thead>
-              <tr>
-                <th>계정</th><th>설명</th>
-                <th><span class="chip cl">seoul-hpc</span> 허용 / share</th>
-                <th><span class="chip cl-b">pangyo-gpu</span> 허용 / share</th>
-                <th style="width:110px">액션</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="mono"><b>acct-ai</b></td><td>AI연구팀</td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="100" style="width:64px"></td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="100" style="width:64px"></td>
-                <td><button class="btn btn-sm btn-primary">저장</button></td>
-              </tr>
-              <tr>
-                <td class="mono"><b>acct-bio</b></td><td>바이오연구소</td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="80" style="width:64px"></td>
-                <td><label class="switch"><input type="checkbox"><span class="knob"></span></label> <input class="input input-sm mono" value="—" style="width:64px" disabled></td>
-                <td><button class="btn btn-sm btn-outline">저장</button></td>
-              </tr>
-              <tr>
-                <td class="mono"><b>acct-vision</b></td><td>비전랩</td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="60" style="width:64px"></td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="60" style="width:64px"></td>
-                <td><button class="btn btn-sm btn-outline">저장</button></td>
-              </tr>
-              <tr>
-                <td class="mono"><b>acct-met</b></td><td>기상모델링</td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="60" style="width:64px"></td>
-                <td><label class="switch"><input type="checkbox"><span class="knob"></span></label> <input class="input input-sm mono" value="—" style="width:64px" disabled></td>
-                <td><button class="btn btn-sm btn-outline">저장</button></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="card-foot" style="display:flex;gap:14px;flex-wrap:wrap">
-          <span>매핑 해제 시 해당 클러스터로의 <b>신규 Job 제출이 차단</b>되며 실행 중 Job은 유지됩니다.</span>
-          <span>사용자는 소속 계정의 매핑을 상속합니다 (Job 제출 화면의 클러스터 목록에 반영).</span>
-          <span style="margin-left:auto">모든 매핑 변경은 감사 로그(C-05)에 기록</span>
         </div>
       </div>
 
@@ -333,6 +206,53 @@
       </div>
       <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
     </footer>
+  </div>
+</div>
+<!-- AD 연결 설정 모달 (A-US-01) — 단일 AD 서버 -->
+<div class="modal-backdrop hidden" id="adConnModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adTitle" style="max-width:680px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">🔗</span>
+      <h3 id="adTitle" style="flex:1"><span class="m-title-text">AD 연결 설정</span> <span class="fid">A-US-01</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:72vh;overflow:auto">
+      <div class="notice info" style="margin-bottom:16px;font-size:12px;padding:9px 12px">
+        <span>ℹ</span>
+        <div>포털은 <b>하나의 AD</b>에만 연결됩니다. 사용자는 AD에서 주기적으로 읽어와 동기화되며, 포털에서 직접 생성하지 않습니다. 역할(USER/ADMIN)·계정(Account) 매핑은 포털에서 관리합니다.</div>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>LDAPS 서버 주소 <span class="req">*</span> <span class="chip gray" title="저장 위치">CR spec</span></label>
+          <input class="input mono" value="ldaps://dc1.corp.example.com:636">
+        </div>
+        <div class="field"><label>Base DN (검색 시작점) <span class="req">*</span> <span class="chip gray">CR spec</span></label>
+          <input class="input mono" value="DC=corp,DC=example,DC=com">
+        </div>
+        <div class="field"><label>Bind 계정 <span class="req">*</span> <span class="chip gray">CR spec</span></label>
+          <input class="input mono" value="svc-sse@corp.example.com">
+        </div>
+        <div class="field"><label>Bind 암호 <span class="req">*</span> <span class="chip gray">Secret</span></label>
+          <input class="input mono" type="password" value="••••••••••">
+          <span class="hint">암호는 Secret에 별도 저장되며 화면에 표시되지 않습니다</span>
+        </div>
+        <div class="field full"><label>허용 그룹 (권장) <span class="chip gray">CR spec</span></label>
+          <input class="input mono" value="CN=HPC-Users,OU=Groups,DC=corp,DC=example,DC=com">
+          <span class="hint">지정 시 이 그룹 소속 사용자만 동기화 대상이 됩니다 (memberOf 기준)</span>
+        </div>
+        <div class="field"><label>사용자 식별 속성</label>
+          <select class="select"><option>cn</option><option selected>uid</option><option>sAMAccountName</option></select>
+          <span class="hint">포털/Slurm 사용자명으로 사용할 AD 속성</span>
+        </div>
+        <div class="field"><label>자동 동기화 주기</label>
+          <select class="select"><option>15분</option><option selected>1시간</option><option>6시간</option><option>24시간</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-outline btn-sm" type="button">연결 테스트</button>
+      <button class="btn btn-primary btn-sm" type="button">저장</button>
+    </div>
   </div>
 </div>
 <script>
@@ -391,6 +311,32 @@
       e.preventDefault();
       applyCluster(o.dataset.cluster);
     });
+  });
+})();
+</script>
+<script>
+(function () {
+  // 등록/수정 모달 공통 open/close (기존 .modal 패턴 재사용)
+  function closeModal(m) { m.classList.add('hidden'); }
+  document.querySelectorAll('[data-open-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var m = document.getElementById(btn.getAttribute('data-open-modal'));
+      if (!m) return;
+      var t = btn.getAttribute('data-modal-title');
+      var lbl = m.querySelector('.m-title-text');
+      if (t && lbl) lbl.textContent = t;
+      m.classList.remove('hidden');
+    });
+  });
+  document.querySelectorAll('.modal-backdrop').forEach(function (m) {
+    m.addEventListener('click', function (e) { if (e.target === m) closeModal(m); });
+    m.querySelectorAll('.m-close, [data-close]').forEach(function (b) {
+      b.addEventListener('click', function () { closeModal(m); });
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(closeModal);
   });
 })();
 </script>

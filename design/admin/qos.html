@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>클러스터 관리 | HPC Portal</title>
+<title>QOS 정책 | HPC Portal</title>
 <link rel="stylesheet" href="../css/style.css">
 </head>
 <body class="scp">
@@ -57,11 +57,11 @@
       <div class="nav-group">모니터링</div>
       <a href="dashboard.html"><span class="ico">▦</span> 통합 대시보드</a>
       <div class="nav-group">자원 관리</div>
-      <a href="clusters.html" class="active"><span class="ico">🖧</span> 클러스터 관리</a>
+      <a href="clusters.html"><span class="ico">🖧</span> 클러스터 관리</a>
       <a href="nodes.html"><span class="ico">▤</span> 노드 / 파티션</a>
       <a href="jobs.html"><span class="ico">☰</span> 전체 Job 관리</a>
       <div class="nav-group">사용자 / 정책</div>
-      <a href="users.html"><span class="ico">👥</span> 사용자 · 계정 · QOS</a>
+      <a href="users.html" class="active"><span class="ico">👥</span> 사용자 · 계정 · QOS</a>
       <div class="nav-group">운영</div>
       <a href="reports.html"><span class="ico">◔</span> 통계 / 리포트</a>
       <a href="billing.html"><span class="ico">₩</span> 비용 / Billing</a>
@@ -73,91 +73,39 @@
   <div class="main">
 
     <main class="content">
-      <div class="crumbs">HPC Portal Admin › <b>클러스터 관리</b></div>
+      <div class="crumbs">HPC Portal Admin › 사용자 · 계정 · QOS › <b>QOS 정책</b></div>
       <div class="page-head">
         <div>
-          <h1>클러스터 관리</h1>
-          <p class="sub">Slurm 클러스터 등록 · 연결 상태 · 엔드포인트 관리 (A-CL-01~04) · 포털은 Slurm 스케줄러 전용, 단일 테넌트</p>
+          <h1>QOS 정책</h1>
+          <p class="sub">QOS 정의는 공유 slurmdbd로 전 클러스터 공통 · 파티션 접근 제어 포함 (A-US-03 · A-US-05)</p>
         </div>
         <div class="page-actions">
-          <button class="btn btn-outline">⟳ 전체 헬스체크</button>
-          <button class="btn btn-primary" data-open-modal="clusterModal" data-modal-title="클러스터 등록">＋ 클러스터 등록</button>
+          <button class="btn btn-outline" data-open-modal="partitionAclModal" data-modal-title="파티션 접근 제어">파티션 접근 제어</button>
+          <button class="btn btn-primary" data-open-modal="qosModal" data-modal-title="QOS 생성">＋ QOS 생성</button>
         </div>
       </div>
 
-      <!-- 단일 테넌트 / 공유 slurmdbd 안내 -->
-      <div class="notice info" style="margin-bottom:16px">
-        <span>ℹ</span>
-        <div><b>단일 테넌트 · 공유 slurmdbd 구성</b> — 모든 클러스터는 하나의 <span class="mono">slurmdbd</span>를 공유합니다. 사용자·계정(Account)·QOS는 전 클러스터에 공통 적용되며, 파티션·노드·예약은 클러스터별로 관리됩니다. (<span class="mono">sacctmgr add cluster</span> 기반 멀티 클러스터)</div>
+      <div class="tabs">
+        <a class="tab" href="users.html">사용자 (A-US-01)</a>
+        <a class="tab" href="accounts.html">계정/Account (A-US-02)</a>
+        <a class="tab active" href="qos.html">QOS (A-US-03)</a>
+        <a class="tab" href="mappings.html">클러스터 매핑 · Fairshare (A-US-07·04)</a>
       </div>
 
-      <!-- 요약 스탯 -->
-      <div class="grid grid-4">
-        <div class="stat"><span class="label">등록 클러스터</span><span class="value">2</span><span class="delta">활성 2 · 비활성 0</span></div>
-        <div class="stat acc-done"><span class="label">연결 정상</span><span class="value">2</span><span class="delta up">seoul-hpc · pangyo-gpu</span></div>
-        <div class="stat acc-pend"><span class="label">응답 지연</span><span class="value">0</span><span class="delta">p95 41ms · 임계 2s</span></div>
-        <div class="stat acc-run"><span class="label">연동 방식</span><span class="value" style="font-size:18px">slurmrestd</span><span class="delta">v0.0.41 · CLI 폴백 (C-03)</span></div>
-      </div>
-
-      <!-- A-CL-01 클러스터 목록 -->
-      <div class="card mt-16">
-        <div class="card-head"><h2>등록된 클러스터 <span class="fid">A-CL-01</span></h2><span style="font-size:12px;color:var(--ink-3)">sacctmgr show cluster · 헬스체크 30초 주기</span></div>
+      <!-- A-US-03 QOS -->
+      <div class="card">
+        <div class="card-head"><h2>QOS 정책 <span class="fid">A-US-03</span></h2><span class="chip gray" title="공유 slurmdbd — QOS 정의는 전 클러스터 공통">전 클러스터 공통</span></div>
         <div class="card-body flush table-wrap">
           <table class="tbl">
-            <thead><tr><th>클러스터</th><th>설명 / 위치</th><th>Slurm 버전</th><th>slurmrestd 엔드포인트</th><th class="num">노드</th><th>헬스</th><th>기본</th><th style="width:210px">액션</th></tr></thead>
+            <thead><tr><th>QOS</th><th class="num">우선순위</th><th>최대 Job/사용자</th><th>자원 한도</th><th style="width:110px">액션</th></tr></thead>
             <tbody>
-              <tr>
-                <td><span class="chip cl">seoul-hpc</span></td>
-                <td>본원 메인 클러스터 (서울)</td>
-                <td class="mono">24.05.3</td>
-                <td class="mono">https://restd.seoul.hpc:6820</td>
-                <td class="num mono">100</td>
-                <td><span class="badge completed">정상 · 34ms</span></td>
-                <td><span class="badge plain running">기본</span></td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="clusterModal" data-modal-title="클러스터 수정">수정</button><button class="btn btn-sm btn-outline">헬스체크</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
-              </tr>
-              <tr>
-                <td><span class="chip cl-b">pangyo-gpu</span></td>
-                <td>GPU 특화 클러스터 (판교 · H100)</td>
-                <td class="mono">24.05.3</td>
-                <td class="mono">https://restd.pangyo.hpc:6820</td>
-                <td class="num mono">32</td>
-                <td><span class="badge completed">정상 · 41ms</span></td>
-                <td class="mono">—</td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="clusterModal" data-modal-title="클러스터 수정">수정</button><button class="btn btn-sm btn-outline">헬스체크</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
-              </tr>            </tbody>
+              <tr><td><b>normal</b></td><td class="num mono">10</td><td class="mono">20</td><td class="mono">gpu≤12, cpu≤512</td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="qosModal" data-modal-title="QOS 수정">수정</button></div></td></tr>
+              <tr><td><b>high</b> <span class="chip gray">승인제</span></td><td class="num mono">50</td><td class="mono">5</td><td class="mono">gpu≤24, preempt</td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="qosModal" data-modal-title="QOS 수정">수정</button></div></td></tr>
+              <tr><td><b>debug</b></td><td class="num mono">30</td><td class="mono">2</td><td class="mono">walltime≤1h</td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="qosModal" data-modal-title="QOS 수정">수정</button></div></td></tr>
+              <tr><td><b>long</b></td><td class="num mono">5</td><td class="mono">3</td><td class="mono">walltime≤14d, cpu≤256</td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="qosModal" data-modal-title="QOS 수정">수정</button></div></td></tr>
+            </tbody>
           </table>
         </div>
-        <div class="card-foot">클러스터 비활성 시 신규 Job 제출이 차단되며 실행 중 Job은 유지됩니다. 모든 등록/변경은 감사 로그(C-05)에 기록됩니다.</div>
-      </div>
-
-      <div class="grid grid-2 mt-16">
-          <!-- A-CL-03 헬스 이벤트 -->
-          <div class="card">
-            <div class="card-head"><h2>연결 상태 이력 <span class="fid">A-CL-03</span></h2></div>
-            <div class="card-body">
-              <ul class="timeline">                <li class="done"><span class="t">10:05:12</span>pangyo-gpu — 헬스체크 정상 복귀 (재시작 후)</li>
-                <li class="done"><span class="t">09:40:03</span>pangyo-gpu — slurmrestd 계획 재시작 (버전 패치)</li>
-                <li class="done"><span class="t">어제 22:10</span>seoul-hpc — 백업 slurmctld takeover 테스트 정상</li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- A-CL-04 폴링/페일오버 정책 -->
-          <div class="card">
-            <div class="card-head"><h2>수집 / 장애 정책 <span class="fid">A-CL-04</span></h2></div>
-            <div class="card-body">
-              <div class="form-grid">
-                <div class="field"><label>상태 폴링 주기 (C-04)</label><select class="select"><option>15초</option><option selected>30초 (최대 허용)</option></select></div>
-                <div class="field"><label>응답 지연 임계값</label><select class="select"><option>1초</option><option selected>2초</option><option>5초</option></select></div>
-                <div class="field full"><label>연결 실패 시 동작</label>
-                  <select class="select"><option>해당 클러스터 제출 차단 + 관리자 알림 (권장)</option><option>CLI(ssh) 폴백 후 재시도</option><option>표시만 하고 유지</option></select>
-                </div>
-              </div>
-              <div class="notice warn mt-16" style="font-size:12px;padding:9px 12px"><span>⚠</span><div>클러스터 연결이 끊겨도 다른 클러스터의 조회·제출에는 영향을 주지 않습니다 (클러스터별 독립 커넥터).</div></div>
-            </div>
-            <div class="card-foot" style="text-align:right"><button class="btn btn-primary">정책 저장</button></div>
-          </div>
       </div>
 
     </main>
@@ -172,37 +120,53 @@
     </footer>
   </div>
 </div>
-<!-- 클러스터 등록/수정 모달 (A-CL-02) -->
-<div class="modal-backdrop hidden" id="clusterModal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="clTitle" style="max-width:640px">
+<!-- QOS 생성/수정 모달 (A-US-03) -->
+<div class="modal-backdrop hidden" id="qosModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="qosTitle" style="max-width:560px">
     <div class="modal-head" style="background:var(--surface)">
-      <span class="m-ico">🖧</span>
-      <h3 id="clTitle" style="flex:1"><span class="m-title-text">클러스터 등록</span> <span class="fid">A-CL-02</span></h3>
+      <span class="m-ico">👥</span>
+      <h3 id="qosTitle" style="flex:1"><span class="m-title-text">QOS 생성</span> <span class="fid">A-US-03</span></h3>
       <button class="m-close" type="button" aria-label="닫기">✕</button>
     </div>
     <div class="modal-body" style="max-height:70vh;overflow:auto">
       <div class="form-grid">
-        <div class="form-section-title">기본 정보</div>
-        <div class="field"><label>클러스터 이름 <span class="req">*</span></label><input class="input mono" placeholder="예: daejeon-hpc"><span class="hint">slurm.conf ClusterName과 일치해야 합니다</span></div>
-        <div class="field"><label>설명 / 위치</label><input class="input" placeholder="예: 대전 분원 CPU 클러스터"></div>
-        <div class="form-section-title">연동 (C-03)</div>
-        <div class="field"><label>slurmrestd URL <span class="req">*</span></label><input class="input mono" placeholder="https://restd.example:6820"></div>
-        <div class="field"><label>API 버전</label><select class="select"><option>v0.0.41 (자동 감지)</option><option>v0.0.40</option><option>v0.0.39</option></select></div>
-        <div class="field"><label>인증 방식</label><select class="select"><option>JWT (auth/jwt)</option><option>munge 프록시</option></select></div>
-        <div class="field"><label>JWT 서명 키</label><input class="input mono" type="password" placeholder="••••••••" ></div>
-        <div class="form-section-title">접속 노드</div>
-        <div class="field"><label>로그인 노드 (웹 터미널)</label><input class="input mono" placeholder="login01.example"></div>
-        <div class="field"><label>DTN (대용량 전송)</label><input class="input mono" placeholder="dtn01.example"></div>
-        <div class="field full"><label>스크래치 마운트 경로</label><input class="input mono" placeholder="/scratch"><span class="hint">/home·/group은 전 클러스터 공유 스토리지로 자동 연결됩니다</span></div>
-        <div class="field full">
-          <label class="checkline"><input type="checkbox"> 기본 클러스터로 지정 (신규 Job 제출 기본값)</label>
+        <div class="field"><label>QOS명 <span class="req">*</span></label><input class="input mono" placeholder="예: high"></div>
+        <div class="field"><label>우선순위</label><input class="input mono" placeholder="50"></div>
+        <div class="field"><label>최대 Job/사용자</label><input class="input mono" placeholder="5"></div>
+        <div class="field"><label>최대 Walltime</label><input class="input mono" placeholder="예: 14-00:00:00"></div>
+        <div class="field full"><label>자원 한도</label><input class="input mono" placeholder="예: gpu≤24, cpu≤512"><span class="hint">공유 slurmdbd — 전 클러스터 공통 적용</span></div>
+        <div class="field full"><label class="checkline"><input type="checkbox"> 승인제 (신청 후 관리자 승인)</label></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-primary btn-sm" type="button">저장 (sacctmgr)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 파티션 접근 제어 모달 (A-US-05) -->
+<div class="modal-backdrop hidden" id="partitionAclModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="paclTitle" style="max-width:520px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">👥</span>
+      <h3 id="paclTitle" style="flex:1"><span class="m-title-text">파티션 접근 제어</span> <span class="fid">A-US-05</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>대상</label>
+          <select class="select"><option>seoul-hpc / gpu</option><option>seoul-hpc / bigmem</option><option>pangyo-gpu / gpu-large</option></select>
+        </div>
+        <div class="field"><label>AllowAccounts</label>
+          <input class="input mono" value="acct-ai, acct-vision, acct-nlp">
+          <span class="hint">해당 클러스터 slurm.conf 반영 · 적용 시 slurmctld reconfigure 수행</span>
         </div>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
-      <button class="btn btn-outline btn-sm" type="button">연결 테스트</button>
-      <button class="btn btn-primary btn-sm" type="button">저장 (sacctmgr add cluster)</button>
+      <button class="btn btn-primary btn-sm" type="button">적용</button>
     </div>
   </div>
 </div>

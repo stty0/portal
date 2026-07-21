@@ -17,7 +17,7 @@
           <div class="tb-menu-head">알림</div>
           <a class="tb-noti" href="nodes.html"><span class="n-ico err">!</span><div><b>노드 g013 DOWN (NodeHealthCheck)</b><small>seoul-hpc · 12분 전</small></div></a>
           <a class="tb-noti" href="jobs.html"><span class="n-ico warn">⏱</span><div><b>gpu 파티션 대기 Job 15건 초과</b><small>seoul-hpc · 40분 전</small></div></a>
-          <a class="tb-noti" href="users.html"><span class="n-ico ok">✓</span><div><b>계정 신청 승인 대기 2건</b><small>1시간 전</small></div></a>
+          <a class="tb-noti" href="users.html"><span class="n-ico ok">✓</span><div><b>AD 동기화 완료 — 신규 사용자 1명 자동 등록</b><small>1시간 전</small></div></a>
           <div class="tb-menu-foot"><a href="#">알림 전체 보기 →</a></div>
         </div>
       </div>
@@ -118,35 +118,35 @@
                 <td class="mono"><a class="jobid" href="#">44102</a></td><td>interactive-bash</td><td><span class="chip cl">seoul-hpc</span></td><td class="mono">seonsj</td><td class="mono">acct-bio</td>
                 <td><span class="chip">bigmem</span></td><td><span class="badge running">RUNNING</span> <span class="badge plain pending" style="font-size:10px">유휴 의심</span></td>
                 <td class="mono">1N·128C·2T</td><td class="num mono">8,120</td><td class="mono">2-14:22:08</td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-outline">Hold</button><button class="btn btn-sm btn-danger">취소</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-outline" data-open-modal="jobPriorityModal">Hold</button><button class="btn btn-sm btn-danger">취소</button></div></td>
               </tr>
               <tr>
                 <td><input type="checkbox"></td>
                 <td class="mono"><a class="jobid" href="#">45812</a></td><td>llm-finetune-r3</td><td><span class="chip cl">seoul-hpc</span></td><td class="mono">jrpark</td><td class="mono">acct-ai</td>
                 <td><span class="chip">gpu</span></td><td><span class="badge running">RUNNING</span></td>
                 <td class="mono">2N·32C·8GPU</td><td class="num mono">12,480</td><td class="mono">03:12:44</td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-outline">Hold</button><button class="btn btn-sm btn-danger">취소</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-outline" data-open-modal="jobPriorityModal">Hold</button><button class="btn btn-sm btn-danger">취소</button></div></td>
               </tr>
               <tr>
                 <td><input type="checkbox"></td>
                 <td class="mono"><a class="jobid" href="#">45830</a></td><td>urgent-covid-sim</td><td><span class="chip cl">seoul-hpc</span></td><td class="mono">leejh</td><td class="mono">acct-bio</td>
                 <td><span class="chip">normal</span></td><td><span class="badge pending">PENDING</span> <span style="font-size:11px;color:var(--ink-3)">Priority</span></td>
                 <td class="mono">8N·1024C</td><td class="num mono">9,340</td><td class="mono">대기 01:12</td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary" title="A-JB-03 우선순위 top 처리">⇧ Top</button><button class="btn btn-sm btn-danger">취소</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary" title="A-JB-03 우선순위 top 처리" data-open-modal="jobPriorityModal">⇧ Top</button><button class="btn btn-sm btn-danger">취소</button></div></td>
               </tr>
               <tr>
                 <td><input type="checkbox"></td>
                 <td class="mono"><a class="jobid" href="#">45711</a></td><td>batch-array[1-500]</td><td><span class="chip cl-b">pangyo-gpu</span></td><td class="mono">choiyj</td><td class="mono">acct-vision</td>
                 <td><span class="chip">gpu</span></td><td><span class="badge cancelled">HELD</span> <span style="font-size:11px;color:var(--ink-3)">admin hold</span></td>
                 <td class="mono">1N·8C·1GPU ×500</td><td class="num mono">—</td><td class="mono">대기 05:40</td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary">Release</button><button class="btn btn-sm btn-danger">취소</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary" data-open-modal="jobPriorityModal">Release</button><button class="btn btn-sm btn-danger">취소</button></div></td>
               </tr>
               <tr>
                 <td><input type="checkbox"></td>
                 <td class="mono"><a class="jobid" href="#">45825</a></td><td>wrf-forecast-12z</td><td><span class="chip cl">seoul-hpc</span></td><td class="mono">parksh</td><td class="mono">acct-met</td>
                 <td><span class="chip">normal</span></td><td><span class="badge pending">PENDING</span> <span style="font-size:11px;color:var(--ink-3)">AssocGrpCPUMinutes</span></td>
                 <td class="mono">16N·2048C</td><td class="num mono">7,912</td><td class="mono">대기 02:30</td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-outline">Hold</button><button class="btn btn-sm btn-danger">취소</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-outline" data-open-modal="jobPriorityModal">Hold</button><button class="btn btn-sm btn-danger">취소</button></div></td>
               </tr>
             </tbody>
           </table>
@@ -154,23 +154,7 @@
         <div class="pagination"><a href="#">‹</a><a class="cur" href="#">1</a><a href="#">2</a><a href="#">3</a><a href="#">…</a><a href="#">31</a><a href="#">›</a></div>
       </div>
 
-      <!-- A-JB-03 우선순위 조정 -->
-      <div class="grid grid-2 mt-16">
-        <div class="card">
-          <div class="card-head"><h2>우선순위 조정 <span class="fid">A-JB-03</span></h2></div>
-          <div class="card-body">
-            <div class="form-grid">
-              <div class="field"><label>클러스터</label><select class="select"><option>seoul-hpc</option><option>pangyo-gpu</option></select></div>
-              <div class="field"><label>Job ID</label><input class="input mono" value="45830"></div>
-              <div class="field"><label>처리 방식</label>
-                <select class="select"><option>Top — 대기열 최상위로</option><option>Nice 값 직접 지정</option><option>Hold</option><option>Release</option></select>
-              </div>
-              <div class="field full"><label>사유 (감사 로그 기록) <span class="req">*</span></label><input class="input" placeholder="예: 긴급 연구과제 (승인번호 R-2026-114)"></div>
-            </div>
-          </div>
-          <div class="card-foot" style="text-align:right"><button class="btn btn-primary">적용 (scontrol update job)</button></div>
-        </div>
-
+      <div class="mt-16">
         <div class="card">
           <div class="card-head"><h2>제어 이력 (최근)</h2><span style="font-size:11px;color:var(--ink-3)">C-05 감사 로그 연동</span></div>
           <div class="card-body flush table-wrap">
@@ -196,6 +180,30 @@
       </div>
       <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
     </footer>
+  </div>
+</div>
+<!-- 우선순위 조정 모달 (A-JB-03) -->
+<div class="modal-backdrop hidden" id="jobPriorityModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="jpTitle" style="max-width:520px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">⇧</span>
+      <h3 id="jpTitle" style="flex:1"><span class="m-title-text">우선순위 조정</span> <span class="fid">A-JB-03</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>클러스터</label><select class="select"><option>seoul-hpc</option><option>pangyo-gpu</option></select></div>
+        <div class="field"><label>Job ID</label><input class="input mono" value="45830"></div>
+        <div class="field"><label>처리 방식</label>
+          <select class="select"><option>Top — 대기열 최상위로</option><option>Nice 값 직접 지정</option><option>Hold</option><option>Release</option></select>
+        </div>
+        <div class="field full"><label>사유 (감사 로그 기록) <span class="req">*</span></label><input class="input" placeholder="예: 긴급 연구과제 (승인번호 R-2026-114)"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-primary btn-sm" type="button">적용 (scontrol update job)</button>
+    </div>
   </div>
 </div>
 <script>
@@ -254,6 +262,32 @@
       e.preventDefault();
       applyCluster(o.dataset.cluster);
     });
+  });
+})();
+</script>
+<script>
+(function () {
+  // 등록/수정 모달 공통 open/close (기존 .modal 패턴 재사용)
+  function closeModal(m) { m.classList.add('hidden'); }
+  document.querySelectorAll('[data-open-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var m = document.getElementById(btn.getAttribute('data-open-modal'));
+      if (!m) return;
+      var t = btn.getAttribute('data-modal-title');
+      var lbl = m.querySelector('.m-title-text');
+      if (t && lbl) lbl.textContent = t;
+      m.classList.remove('hidden');
+    });
+  });
+  document.querySelectorAll('.modal-backdrop').forEach(function (m) {
+    m.addEventListener('click', function (e) { if (e.target === m) closeModal(m); });
+    m.querySelectorAll('.m-close, [data-close]').forEach(function (b) {
+      b.addEventListener('click', function () { closeModal(m); });
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(closeModal);
   });
 })();
 </script>

@@ -17,7 +17,7 @@
           <div class="tb-menu-head">알림</div>
           <a class="tb-noti" href="nodes.html"><span class="n-ico err">!</span><div><b>노드 g013 DOWN (NodeHealthCheck)</b><small>seoul-hpc · 12분 전</small></div></a>
           <a class="tb-noti" href="jobs.html"><span class="n-ico warn">⏱</span><div><b>gpu 파티션 대기 Job 15건 초과</b><small>seoul-hpc · 40분 전</small></div></a>
-          <a class="tb-noti" href="users.html"><span class="n-ico ok">✓</span><div><b>계정 신청 승인 대기 2건</b><small>1시간 전</small></div></a>
+          <a class="tb-noti" href="users.html"><span class="n-ico ok">✓</span><div><b>AD 동기화 완료 — 신규 사용자 1명 자동 등록</b><small>1시간 전</small></div></a>
           <div class="tb-menu-foot"><a href="#">알림 전체 보기 →</a></div>
         </div>
       </div>
@@ -81,8 +81,8 @@
         </div>
         <div class="page-actions">
           <button class="btn btn-outline" title="A-ND-05">🔧 점검 모드 시작</button>
-          <button class="btn btn-outline" title="A-ND-04">📅 예약 생성</button>
-          <button class="btn btn-primary" title="A-ND-03">＋ 파티션 생성</button>
+          <button class="btn btn-outline" title="A-ND-04" data-open-modal="reservationModal" data-modal-title="예약 생성">📅 예약 생성</button>
+          <button class="btn btn-primary" title="A-ND-03" data-open-modal="partitionModal" data-modal-title="파티션 생성">＋ 파티션 생성</button>
         </div>
       </div>
 
@@ -112,35 +112,35 @@
                   <td class="mono"><a class="jobid" href="#">gpu07</a></td><td><span class="chip">gpu</span></td>
                   <td><span class="badge alloc">ALLOC</span></td>
                   <td class="mono">64/64</td><td class="mono">498/512G</td><td class="mono">A100 4/4</td><td class="mono">45812</td>
-                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-danger">Drain</button></div></td>
+                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-danger" data-open-modal="nodeStateModal">Drain</button></div></td>
                 </tr>
                 <tr>
                   <td><input type="checkbox"></td>
                   <td class="mono"><a class="jobid" href="#">gpu12</a></td><td><span class="chip">gpu</span></td>
                   <td><span class="badge down">DOWN</span></td>
                   <td class="mono">0/64</td><td class="mono">—</td><td class="mono">A100 0/4</td><td class="mono">—</td>
-                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary">Resume</button></div></td>
+                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary" data-open-modal="nodeStateModal">Resume</button></div></td>
                 </tr>
                 <tr>
                   <td><input type="checkbox" checked></td>
                   <td class="mono"><a class="jobid" href="#">cn087</a></td><td><span class="chip">normal</span></td>
                   <td><span class="badge drain">DRAIN</span> <span style="font-size:11px;color:var(--ink-3)">IB link flap</span></td>
                   <td class="mono">0/128</td><td class="mono">0/512G</td><td class="mono">—</td><td class="mono">—</td>
-                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary">Resume</button></div></td>
+                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary" data-open-modal="nodeStateModal">Resume</button></div></td>
                 </tr>
                 <tr>
                   <td><input type="checkbox"></td>
                   <td class="mono"><a class="jobid" href="#">cn102</a></td><td><span class="chip">normal</span></td>
                   <td><span class="badge mix">MIX</span></td>
                   <td class="mono">96/128</td><td class="mono">301/512G</td><td class="mono">—</td><td class="mono">45815 외 2</td>
-                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-danger">Drain</button></div></td>
+                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-danger" data-open-modal="nodeStateModal">Drain</button></div></td>
                 </tr>
                 <tr>
                   <td><input type="checkbox"></td>
                   <td class="mono"><a class="jobid" href="#">bm03</a></td><td><span class="chip">bigmem</span></td>
                   <td><span class="badge idle">IDLE</span></td>
                   <td class="mono">0/128</td><td class="mono">0/2048G</td><td class="mono">—</td><td class="mono">—</td>
-                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-danger">Drain</button></div></td>
+                  <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-danger" data-open-modal="nodeStateModal">Drain</button></div></td>
                 </tr>
               </tbody>
             </table>
@@ -149,20 +149,6 @@
         </div>
 
         <div style="display:flex;flex-direction:column;gap:16px">
-          <!-- A-ND-01 drain 사유 입력 -->
-          <div class="card">
-            <div class="card-head"><h2>노드 상태 변경 <span class="fid">A-ND-01</span></h2><span class="chip cl">seoul-hpc</span></div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
-              <div class="field"><label>대상 노드</label><input class="input mono" value="cn087"></div>
-              <div class="field"><label>동작</label>
-                <select class="select"><option>RESUME — 서비스 복귀</option><option>DRAIN — 신규 할당 차단</option><option>DOWN — 즉시 제외</option></select>
-              </div>
-              <div class="field"><label>사유 (Reason) <span class="req">*</span></label><input class="input" value="IB 케이블 교체 완료, 링크 안정 확인"></div>
-              <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>⚠</span><div>제어성 액션은 감사 로그(C-05)에 기록됩니다.</div></div>
-            </div>
-            <div class="card-foot" style="text-align:right"><button class="btn btn-primary">적용 (scontrol update)</button></div>
-          </div>
-
           <!-- A-ND-02 노드 상세 -->
           <div class="card">
             <div class="card-head"><h2>노드 상세 — gpu12 <span class="fid">A-ND-02</span></h2></div>
@@ -185,19 +171,19 @@
         <div class="card-head"><h2>파티션 관리 <span class="fid">A-ND-03</span></h2>
           <div style="display:flex;gap:8px;align-items:center">
             <select class="select select-sm" style="width:150px"><option>전체 클러스터</option><option selected>seoul-hpc</option><option>pangyo-gpu</option></select>
-            <button class="btn btn-sm btn-primary">＋ 파티션 생성</button>
+            <button class="btn btn-sm btn-primary" data-open-modal="partitionModal" data-modal-title="파티션 생성">＋ 파티션 생성</button>
           </div>
         </div>
         <div class="card-body flush table-wrap">
           <table class="tbl">
             <thead><tr><th>클러스터</th><th>파티션</th><th>노드 구성</th><th>최대 Walltime</th><th>우선순위</th><th>허용 계정 (A-US-05)</th><th>상태</th><th style="width:130px">액션</th></tr></thead>
             <tbody>
-              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>normal</b> <span class="chip gray">default</span></td><td class="mono">cn[001-064]</td><td class="mono">3-00:00:00</td><td class="mono">10</td><td>ALL</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
-              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>gpu</b></td><td class="mono">gpu[01-24]</td><td class="mono">2-00:00:00</td><td class="mono">20</td><td class="mono">acct-ai, acct-vision, acct-nlp</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
-              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>bigmem</b></td><td class="mono">bm[01-08]</td><td class="mono">7-00:00:00</td><td class="mono">10</td><td class="mono">acct-bio, acct-chem</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
-              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>debug</b></td><td class="mono">dbg[01-04]</td><td class="mono">0-01:00:00</td><td class="mono">30</td><td>ALL</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
-              <tr><td><span class="chip cl-b">pangyo-gpu</span></td><td><b>gpu</b> <span class="chip gray">default</span></td><td class="mono">pg-gpu[01-24]</td><td class="mono">2-00:00:00</td><td class="mono">20</td><td class="mono">acct-ai, acct-vision</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>
-              <tr><td><span class="chip cl-b">pangyo-gpu</span></td><td><b>gpu-large</b></td><td class="mono">pg-gpu[25-32]</td><td class="mono">4-00:00:00</td><td class="mono">30</td><td class="mono">acct-ai (승인제)</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button></div></td></tr>            </tbody>
+              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>normal</b> <span class="chip gray">default</span></td><td class="mono">cn[001-064]</td><td class="mono">3-00:00:00</td><td class="mono">10</td><td>ALL</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
+              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>gpu</b></td><td class="mono">gpu[01-24]</td><td class="mono">2-00:00:00</td><td class="mono">20</td><td class="mono">acct-ai, acct-vision, acct-nlp</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
+              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>bigmem</b></td><td class="mono">bm[01-08]</td><td class="mono">7-00:00:00</td><td class="mono">10</td><td class="mono">acct-bio, acct-chem</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
+              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>debug</b></td><td class="mono">dbg[01-04]</td><td class="mono">0-01:00:00</td><td class="mono">30</td><td>ALL</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
+              <tr><td><span class="chip cl-b">pangyo-gpu</span></td><td><b>gpu</b> <span class="chip gray">default</span></td><td class="mono">pg-gpu[01-24]</td><td class="mono">2-00:00:00</td><td class="mono">20</td><td class="mono">acct-ai, acct-vision</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
+              <tr><td><span class="chip cl-b">pangyo-gpu</span></td><td><b>gpu-large</b></td><td class="mono">pg-gpu[25-32]</td><td class="mono">4-00:00:00</td><td class="mono">30</td><td class="mono">acct-ai (승인제)</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>            </tbody>
           </table>
         </div>
       </div>
@@ -205,7 +191,7 @@
       <!-- A-ND-04 예약 / A-ND-05 점검 -->
       <div class="grid grid-2 mt-16">
         <div class="card">
-          <div class="card-head"><h2>예약 (Reservation) <span class="fid">A-ND-04</span></h2><div style="display:flex;gap:8px;align-items:center"><span class="chip cl">seoul-hpc</span><button class="btn btn-sm btn-primary">＋ 예약 생성</button></div></div>
+          <div class="card-head"><h2>예약 (Reservation) <span class="fid">A-ND-04</span></h2><div style="display:flex;gap:8px;align-items:center"><span class="chip cl">seoul-hpc</span><button class="btn btn-sm btn-primary" data-open-modal="reservationModal" data-modal-title="예약 생성">＋ 예약 생성</button></div></div>
           <div class="card-body flush table-wrap">
             <table class="tbl">
               <thead><tr><th>이름</th><th>노드</th><th>기간</th><th>대상</th><th style="width:100px">액션</th></tr></thead>
@@ -239,6 +225,81 @@
       </div>
       <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
     </footer>
+  </div>
+</div>
+<!-- 노드 상태 변경 모달 (A-ND-01) -->
+<div class="modal-backdrop hidden" id="nodeStateModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nsTitle" style="max-width:520px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">▤</span>
+      <h3 id="nsTitle" style="flex:1"><span class="m-title-text">노드 상태 변경</span> <span class="fid">A-ND-01</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div class="field"><label>대상 노드</label><input class="input mono" value="cn087"></div>
+      <div class="field"><label>동작</label>
+        <select class="select"><option>RESUME — 서비스 복귀</option><option>DRAIN — 신규 할당 차단</option><option>DOWN — 즉시 제외</option></select>
+      </div>
+      <div class="field"><label>사유 (Reason) <span class="req">*</span></label><input class="input" value="IB 케이블 교체 완료, 링크 안정 확인"></div>
+      <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>⚠</span><div>제어성 액션은 감사 로그(C-05)에 기록됩니다.</div></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-primary btn-sm" type="button">적용 (scontrol update)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 파티션 생성/수정 모달 (A-ND-03) -->
+<div class="modal-backdrop hidden" id="partitionModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ptTitle" style="max-width:560px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">▤</span>
+      <h3 id="ptTitle" style="flex:1"><span class="m-title-text">파티션 생성</span> <span class="fid">A-ND-03</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:70vh;overflow:auto">
+      <div class="form-grid">
+        <div class="field"><label>클러스터</label><select class="select"><option>seoul-hpc</option><option>pangyo-gpu</option></select></div>
+        <div class="field"><label>파티션명 <span class="req">*</span></label><input class="input mono" placeholder="예: normal"></div>
+        <div class="field full"><label>노드 구성</label><input class="input mono" placeholder="예: cn[001-064]"></div>
+        <div class="field"><label>최대 Walltime</label><input class="input mono" placeholder="3-00:00:00"></div>
+        <div class="field"><label>우선순위</label><input class="input mono" placeholder="10"></div>
+        <div class="field full"><label>허용 계정 (A-US-05)</label><input class="input mono" placeholder="ALL 또는 acct-ai, acct-vision"></div>
+        <div class="field"><label>상태</label><select class="select"><option>UP</option><option>DOWN</option></select></div>
+        <div class="field full"><label class="checkline"><input type="checkbox"> 기본 파티션으로 지정</label></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-primary btn-sm" type="button">저장 (scontrol / slurm.conf)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 예약 생성 모달 (A-ND-04) -->
+<div class="modal-backdrop hidden" id="reservationModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rvTitle" style="max-width:560px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">📅</span>
+      <h3 id="rvTitle" style="flex:1"><span class="m-title-text">예약 생성</span> <span class="fid">A-ND-04</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:70vh;overflow:auto">
+      <div class="form-grid">
+        <div class="field"><label>예약명 <span class="req">*</span></label><input class="input mono" placeholder="예: maint-0725"></div>
+        <div class="field"><label>클러스터</label><select class="select"><option>seoul-hpc</option><option>pangyo-gpu</option></select></div>
+        <div class="field full"><label>대상 노드</label><input class="input mono" placeholder="예: gpu[01-24]"></div>
+        <div class="field"><label>시작</label><input class="input mono" placeholder="2026-07-25 02:00"></div>
+        <div class="field"><label>종료</label><input class="input mono" placeholder="2026-07-25 06:00"></div>
+        <div class="field full"><label>대상 (계정 / maintenance)</label><input class="input mono" placeholder="maintenance 또는 acct-bio"></div>
+        <div class="field full"><label>사유</label><input class="input" placeholder="예: GPU 펌웨어 정기 점검"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-primary btn-sm" type="button">저장 (scontrol create reservation)</button>
+    </div>
   </div>
 </div>
 <script>
@@ -297,6 +358,32 @@
       e.preventDefault();
       applyCluster(o.dataset.cluster);
     });
+  });
+})();
+</script>
+<script>
+(function () {
+  // 등록/수정 모달 공통 open/close (기존 .modal 패턴 재사용)
+  function closeModal(m) { m.classList.add('hidden'); }
+  document.querySelectorAll('[data-open-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var m = document.getElementById(btn.getAttribute('data-open-modal'));
+      if (!m) return;
+      var t = btn.getAttribute('data-modal-title');
+      var lbl = m.querySelector('.m-title-text');
+      if (t && lbl) lbl.textContent = t;
+      m.classList.remove('hidden');
+    });
+  });
+  document.querySelectorAll('.modal-backdrop').forEach(function (m) {
+    m.addEventListener('click', function (e) { if (e.target === m) closeModal(m); });
+    m.querySelectorAll('.m-close, [data-close]').forEach(function (b) {
+      b.addEventListener('click', function () { closeModal(m); });
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(closeModal);
   });
 })();
 </script>
