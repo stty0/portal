@@ -79,7 +79,7 @@
       <div class="page-head">
         <div>
           <h1>사용자</h1>
-          <p class="sub">AD 동기화로 자동 등록된 사용자 조회 · 역할 부여 · 비활성화 (A-US-01) · AD 연결/동기화는 <a href="ad.html">AD 연결</a> 탭</p>
+          <p class="sub">선택한 클러스터에 등록된(AD 동기화) 사용자 조회 · 역할 부여 · 비활성화 (A-US-01) · AD 연결/동기화는 <a href="ad.html">AD 연결</a> 탭</p>
         </div>
       </div>
 
@@ -96,6 +96,8 @@
 
       <!-- A-US-01 사용자 -->
       <div class="filterbar">
+        <label>클러스터</label>
+        <select class="select select-sm" style="width:180px"><option>seoul-hpc</option><option>pangyo-gpu</option></select>
         <input class="input input-sm" type="text" placeholder="이름/ID/이메일 검색" style="width:220px">
         <label>계정</label>
         <select class="select select-sm" style="width:140px"><option>전체</option><option>acct-ai</option><option>acct-bio</option></select>

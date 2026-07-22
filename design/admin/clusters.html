@@ -87,10 +87,10 @@
         </div>
       </div>
 
-      <!-- 단일 테넌트 / 공유 slurmdbd 안내 -->
+      <!-- 클러스터별 독립 slurmdbd 안내 -->
       <div class="notice info" style="margin-bottom:16px">
         <span>ℹ</span>
-        <div><b>단일 테넌트 · 공유 slurmdbd 구성</b> — 모든 클러스터는 하나의 <span class="mono">slurmdbd</span>를 공유합니다. 사용자·계정(Account)·QOS는 전 클러스터에 공통 적용되며, 파티션·노드·예약은 클러스터별로 관리됩니다. (<span class="mono">sacctmgr add cluster</span> 기반 멀티 클러스터)</div>
+        <div><b>클러스터별 독립 slurmdbd 구성</b> — 각 클러스터는 자체 <span class="mono">slurmdbd</span>를 운영합니다. 계정(Account)·QOS·Fairshare·사용자 association은 <b>클러스터마다 독립</b>이며, 사용자 identity만 단일 AD에서 동기화됩니다. 파티션·노드·예약도 클러스터별로 관리됩니다.</div>
       </div>
 
       <!-- 요약 스탯 -->

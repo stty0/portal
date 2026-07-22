@@ -86,42 +86,44 @@
         </div>
       </div>
 
-      <div class="tabs">
-        <a class="tab active" href="accounts.html">계정 관리 (A-US-02)</a>
-        <a class="tab" href="mappings.html">클러스터 매핑 · Fairshare (A-US-07·04)</a>
+      <!-- 관리 대상 클러스터 선택 (클러스터별 독립 slurmdbd) -->
+      <div class="filterbar" style="margin-bottom:16px">
+        <label>관리 대상 클러스터</label>
+        <select class="select select-sm" style="width:220px"><option>seoul-hpc (본원)</option><option>pangyo-gpu (GPU 특화)</option></select>
+        <span style="font-size:12px;color:var(--ink-3)">클러스터별 독립 slurmdbd — 계정·QOS는 선택한 클러스터에만 속합니다</span>
       </div>
 
       <!-- A-US-02 계정 목록 -->
       <div class="card">
-        <div class="card-head"><h2>계정 목록 <span class="fid">A-US-02</span></h2><span class="chip gray" title="공유 slurmdbd — 계정은 전 클러스터 공통">전 클러스터 공통</span></div>
+        <div class="card-head"><h2>계정 목록 <span class="fid">A-US-02</span></h2><span class="chip cl">seoul-hpc</span></div>
         <div class="card-body flush table-wrap">
           <table class="tbl">
-            <thead><tr><th>계정</th><th>설명</th><th>상위</th><th class="num">구성원</th><th>QOS (기본/허용)</th><th style="width:230px">액션</th></tr></thead>
+            <thead><tr><th>계정</th><th>설명</th><th>상위</th><th class="num">구성원</th><th>QOS (기본/허용)</th><th class="num">Fairshare</th><th style="width:230px">액션</th></tr></thead>
             <tbody>
               <tr>
-                <td class="mono"><b>acct-ai</b></td><td>AI연구팀</td><td class="mono">root</td><td class="num mono">12</td><td class="mono">normal(기본), high</td>
+                <td class="mono"><b>acct-ai</b></td><td>AI연구팀</td><td class="mono">root</td><td class="num mono">12</td><td class="mono">normal(기본), high</td><td class="num mono">100</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-ai 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
               </tr>
               <tr>
-                <td class="mono"><b>acct-bio</b></td><td>바이오연구소</td><td class="mono">root</td><td class="num mono">18</td><td class="mono">normal(기본), debug</td>
+                <td class="mono"><b>acct-bio</b></td><td>바이오연구소</td><td class="mono">root</td><td class="num mono">18</td><td class="mono">normal(기본), debug</td><td class="num mono">80</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-bio 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
               </tr>
               <tr>
-                <td class="mono"><b>acct-vision</b></td><td>비전랩</td><td class="mono">root</td><td class="num mono">7</td><td class="mono">normal(기본)</td>
+                <td class="mono"><b>acct-vision</b></td><td>비전랩</td><td class="mono">root</td><td class="num mono">7</td><td class="mono">normal(기본)</td><td class="num mono">60</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-vision 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
               </tr>
               <tr>
-                <td class="mono"><b>acct-met</b></td><td>기상모델링</td><td class="mono">root</td><td class="num mono">5</td><td class="mono">normal(기본), long</td>
+                <td class="mono"><b>acct-met</b></td><td>기상모델링</td><td class="mono">root</td><td class="num mono">5</td><td class="mono">normal(기본), long</td><td class="num mono">60</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-met 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
               </tr>
               <tr>
-                <td class="mono"><b>acct-ops</b></td><td>HPC운영팀</td><td class="mono">root</td><td class="num mono">3</td><td class="mono">normal(기본), high</td>
+                <td class="mono"><b>acct-ops</b></td><td>HPC운영팀</td><td class="mono">root</td><td class="num mono">3</td><td class="mono">normal(기본), high</td><td class="num mono">50</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="memberModal" data-modal-title="acct-ops 구성원 관리">구성원</button><button class="btn btn-sm btn-outline" data-open-modal="accountModal" data-modal-title="계정 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td>
               </tr>
             </tbody>
           </table>
         </div>
-        <div class="card-foot" style="font-size:12px;color:var(--ink-3)">계정(Account)은 Slurm 프로젝트/그룹 단위입니다. AD 사용자를 계정에 <b>매핑(join)</b>하면 계정의 클러스터 접근·정책을 상속합니다 — 한 사용자가 여러 계정에 속할 수 있습니다(N:M). 클러스터 접근·fairshare는 <a href="mappings.html">클러스터 매핑</a> 탭에서 관리하며, 모든 변경은 감사 로그(C-05)에 기록됩니다.</div>
+        <div class="card-foot" style="font-size:12px;color:var(--ink-3)">계정(Account)은 <b>선택한 클러스터</b>의 Slurm 프로젝트/그룹입니다(클러스터별 독립 slurmdbd). AD 사용자를 계정에 <b>매핑(join)</b>하면 계정 정책을 상속합니다 — 한 사용자가 여러 계정에 속할 수 있습니다(N:M). 허용/기본 QOS·Fairshare share는 계정 수정에서 설정하며, 모든 변경은 감사 로그(C-05)에 기록됩니다.</div>
       </div>
 
     </main>
@@ -146,7 +148,7 @@
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="field"><label>계정명 <span class="req">*</span></label><input class="input mono" placeholder="예: acct-ai"><span class="hint">sacctmgr Account 이름 (전 클러스터 공통)</span></div>
+        <div class="field"><label>계정명 <span class="req">*</span></label><input class="input mono" placeholder="예: acct-ai"><span class="hint">선택한 클러스터의 sacctmgr Account 이름</span></div>
         <div class="field"><label>상위 계정</label><select class="select"><option>root</option><option>acct-ai</option><option>acct-bio</option></select></div>
         <div class="field full"><label>설명</label><input class="input" placeholder="예: AI연구팀"></div>
         <div class="field full"><label>조직 (Organization)</label><input class="input" placeholder="예: 연구개발본부"></div>
@@ -160,6 +162,7 @@
           <span class="hint">소속 사용자가 Job 제출 시 선택 가능한 QOS 집합 (sacctmgr … set qos=)</span>
         </div>
         <div class="field"><label>기본 QOS</label><select class="select"><option>normal</option><option>debug</option><option>high</option><option>long</option></select><span class="hint">--qos 미지정 시 적용 (DefaultQOS)</span></div>
+        <div class="field"><label>Fairshare share <span class="fid">A-US-04</span></label><input class="input mono" placeholder="예: 100"><span class="hint">이 클러스터 내 계정 간 우선순위 가중치 (sacctmgr … set fairshare=)</span></div>
       </div>
     </div>
     <div class="modal-foot">

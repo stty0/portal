@@ -79,7 +79,7 @@
       <div class="page-head">
         <div>
           <h1>QOS 정책</h1>
-          <p class="sub">QOS 정의는 공유 slurmdbd로 전 클러스터 공통 · 파티션 접근 제어 포함 (A-US-03 · A-US-05)</p>
+          <p class="sub">선택한 클러스터의 QOS 정책 정의 · 파티션 접근 제어 (A-US-03 · A-US-05) · 클러스터별 독립 slurmdbd</p>
         </div>
         <div class="page-actions">
           <button class="btn btn-outline" data-open-modal="partitionAclModal" data-modal-title="파티션 접근 제어">파티션 접근 제어</button>
@@ -87,9 +87,16 @@
         </div>
       </div>
 
+      <!-- 관리 대상 클러스터 선택 (클러스터별 독립 slurmdbd) -->
+      <div class="filterbar" style="margin-bottom:16px">
+        <label>관리 대상 클러스터</label>
+        <select class="select select-sm" style="width:220px"><option>seoul-hpc (본원)</option><option>pangyo-gpu (GPU 특화)</option></select>
+        <span style="font-size:12px;color:var(--ink-3)">클러스터별 독립 slurmdbd — QOS는 선택한 클러스터에만 속합니다</span>
+      </div>
+
       <!-- A-US-03 QOS -->
       <div class="card">
-        <div class="card-head"><h2>QOS 정책 <span class="fid">A-US-03</span></h2><span class="chip gray" title="공유 slurmdbd — QOS 정의는 전 클러스터 공통">전 클러스터 공통</span></div>
+        <div class="card-head"><h2>QOS 정책 <span class="fid">A-US-03</span></h2><span class="chip cl">seoul-hpc</span></div>
         <div class="card-body flush table-wrap">
           <table class="tbl">
             <thead><tr><th>QOS</th><th class="num">우선순위</th><th>최대 Job/사용자</th><th>자원 한도</th><th style="width:110px">액션</th></tr></thead>
@@ -129,7 +136,7 @@
         <div class="field"><label>우선순위</label><input class="input mono" placeholder="50"></div>
         <div class="field"><label>최대 Job/사용자</label><input class="input mono" placeholder="5"></div>
         <div class="field"><label>최대 Walltime</label><input class="input mono" placeholder="예: 14-00:00:00"></div>
-        <div class="field full"><label>자원 한도</label><input class="input mono" placeholder="예: gpu≤24, cpu≤512"><span class="hint">공유 slurmdbd — 전 클러스터 공통 적용</span></div>
+        <div class="field full"><label>자원 한도</label><input class="input mono" placeholder="예: gpu≤24, cpu≤512"><span class="hint">선택한 클러스터에 적용</span></div>
         <div class="field full"><label class="checkline"><input type="checkbox"> 승인제 (신청 후 관리자 승인)</label></div>
       </div>
     </div>
