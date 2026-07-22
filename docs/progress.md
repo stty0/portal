@@ -166,6 +166,12 @@
 - terminal.html: '접속 대상' select의 optgroup 2개(seoul-hpc/pangyo-gpu 전 클러스터 노드) → 각 optgroup에 data-cluster 부여, applyCluster에서 선택 클러스터 optgroup만 표시(hidden 토글) + 선택 항목이 숨겨지면 첫 표시 노드로 리셋. select에 id=termTarget.
 - 결과: 웹 터미널이 선택 클러스터의 로그인/Job 노드만 노출(전 클러스터 노드 목록 미표시).
 
+## 후속: 대시보드 스토리지 현황 FS타입 제거 + 선택 클러스터 스코프
+- dashboard.html A-DB-05 스토리지 카드: 파일시스템 타입(Lustre/WekaFS/GPFS/NFS) 라벨 제거(NFS만 사용 예정). /home·/group은 전 클러스터 공유(항상 표시), /scratch 2개는 `data-cluster` 부여.
+- admin applyCluster(dashboard)에 `.meter[data-cluster]` 필터 추가 + 로드 시 `applyCluster(saved||'seoul-hpc')` 호출 → 선택 클러스터의 /scratch만 표시(전 클러스터 스토리지 미표시).
+- 이벤트 로그 'Lustre OST-07 사용률…' → 'scratch 볼륨 사용률…'로 일반화. design 전체 FS타입 언급 0.
+- 참고: 'Top 사용자 (scratch)' 라인은 기본 seoul-hpc 사용자 기준(정적) — 필요 시 동적화.
+
 ## 미해결 / 참고
 - 정적 프로토타입이므로 수정(edit) 시 실제 값 프리필은 미구현(대표 예시값). 실데이터 바인딩(C-03) 도입 시 처리.
 - 점검 모드 시작(A-ND-05)은 이번 범위 제외(버튼 유지).

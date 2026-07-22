@@ -186,10 +186,10 @@
         <div class="card">
           <div class="card-head"><h2>스토리지 현황 <span class="fid">A-DB-05</span></h2></div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
-            <div class="meter"><div class="meter-top"><span class="lbl">/home (NFS · 전 클러스터 공유)</span><span class="val">61%</span></div><div class="bar"><i style="width:61%"></i></div></div>
-            <div class="meter"><div class="meter-top"><span class="lbl">/scratch (Lustre · seoul-hpc)</span><span class="val">87%</span></div><div class="bar"><i class="warn" style="width:87%"></i></div></div>
-            <div class="meter"><div class="meter-top"><span class="lbl">/scratch (WekaFS · pangyo-gpu)</span><span class="val">38%</span></div><div class="bar"><i class="ok" style="width:38%"></i></div></div>
-            <div class="meter"><div class="meter-top"><span class="lbl">/group (GPFS · 전 클러스터 공유)</span><span class="val">44%</span></div><div class="bar"><i class="ok" style="width:44%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">/home (전 클러스터 공유)</span><span class="val">61%</span></div><div class="bar"><i style="width:61%"></i></div></div>
+            <div class="meter" data-cluster="seoul-hpc"><div class="meter-top"><span class="lbl">/scratch (seoul-hpc)</span><span class="val">87%</span></div><div class="bar"><i class="warn" style="width:87%"></i></div></div>
+            <div class="meter" data-cluster="pangyo-gpu"><div class="meter-top"><span class="lbl">/scratch (pangyo-gpu)</span><span class="val">38%</span></div><div class="bar"><i class="ok" style="width:38%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">/group (전 클러스터 공유)</span><span class="val">44%</span></div><div class="bar"><i class="ok" style="width:44%"></i></div></div>
             <div style="font-size:12px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:10px">
               <b style="color:var(--ink-2)">Top 사용자 (scratch)</b><br>
               <span class="mono">seonsj</span> 68 TB · <span class="mono">jrpark</span> 1.6 TB · <span class="mono">leejh</span> 1.2 TB
@@ -205,7 +205,7 @@
           <table class="tbl">
             <thead><tr><th>시각</th><th>클러스터</th><th>수준</th><th>대상</th><th>내용</th></tr></thead>
             <tbody>
-              <tr><td class="mono">13:02:11</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge failed">CRIT</span></td><td class="mono">gpu12</td><td>NODE_FAIL — NVML Xid 79 (GPU falling off bus), 실행 중 Job 2건 requeue</td></tr>              <tr><td class="mono">12:47:30</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge pending">WARN</span></td><td class="mono">scratch</td><td>Lustre OST-07 사용률 90% 초과</td></tr>
+              <tr><td class="mono">13:02:11</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge failed">CRIT</span></td><td class="mono">gpu12</td><td>NODE_FAIL — NVML Xid 79 (GPU falling off bus), 실행 중 Job 2건 requeue</td></tr>              <tr><td class="mono">12:47:30</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge pending">WARN</span></td><td class="mono">scratch</td><td>scratch 볼륨 사용률 90% 초과</td></tr>
               <tr><td class="mono">11:20:04</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge running">INFO</span></td><td class="mono">slurmctld</td><td>백업 컨트롤러 heartbeat 정상 (takeover 테스트 완료)</td></tr>
               <tr><td class="mono">10:05:40</td><td><span class="chip cl-b">pangyo-gpu</span></td><td><span class="badge running">INFO</span></td><td class="mono">pg-gpu18</td><td>drain 해제 — GPU ECC 점검 완료 후 서비스 복귀</td></tr>
               <tr><td class="mono">09:12:55</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge pending">WARN</span></td><td class="mono">cn087</td><td>drain 3일 경과 — 사유: IB link flap, 수리 대기</td></tr>
@@ -275,9 +275,10 @@
     opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.cluster === name); });
     localStorage.setItem(KEY, name);
     var lbl = document.getElementById('clusterLabel'); if (lbl) lbl.textContent = name;
+    document.querySelectorAll('.meter[data-cluster]').forEach(function (m) { m.style.display = (m.dataset.cluster !== name) ? 'none' : ''; });
   }
   var saved = localStorage.getItem(KEY);
-  if (saved) applyCluster(saved);
+  applyCluster(saved || 'seoul-hpc');
   opts.forEach(function (o) {
     o.addEventListener('click', function (e) {
       e.preventDefault();
