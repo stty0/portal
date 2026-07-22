@@ -148,19 +148,7 @@
           <div class="card-head"><h2>시스템 설정 <span class="fid">A-OP-04</span></h2></div>
           <div class="card-body">
             <div class="form-grid">
-              <div class="form-section-title">인증 (C-01)</div>
-              <div class="field"><label>인증 방식</label><select class="select"><option>Active Directory (LDAPS)</option><option>OIDC — sso.company.com</option><option>SAML</option></select><span class="hint">AD 연결(단일)·동기화 설정은 <a href="ad.html">사용자 › AD 연결</a>에서</span></div>
-              <div class="field"><label>관리자 2FA</label>
-                <div style="padding-top:8px"><label class="checkline"><span class="switch"><input type="checkbox" checked><span class="knob"></span></span> TOTP 필수</label></div>
-              </div>
-              <div class="form-section-title">연동 (C-03)</div>
-              <div class="field"><label>Slurm 클러스터 엔드포인트</label>
-                <a class="btn btn-outline" href="clusters.html" style="justify-content:center">🖧 클러스터 관리에서 설정 (3대 등록됨)</a>
-                <span class="hint">slurmrestd URL·인증은 클러스터별로 관리됩니다</span>
-              </div>
-              <div class="field"><label>CLI 래핑 폴백</label>
-                <div style="padding-top:8px"><label class="checkline"><span class="switch"><input type="checkbox" checked><span class="knob"></span></span> 미지원 기능 CLI 사용</label></div>
-              </div>
+              <div class="field full"><span class="hint">인증(AD)은 <a href="ad.html">사용자 › AD 연결</a>, Slurm 엔드포인트는 <a href="clusters.html">클러스터 관리</a>에서 설정합니다. 2FA(MFA)는 AD/IdP에서 처리합니다.</span></div>
               <div class="form-section-title">실시간성 (C-04) / 세션</div>
               <div class="field"><label>상태 폴링 주기</label><select class="select"><option>15초</option><option selected>30초 (최대 허용)</option></select></div>
               <div class="field"><label>웹 세션 타임아웃</label><select class="select"><option>30분</option><option>60분</option><option>120분</option></select></div>
