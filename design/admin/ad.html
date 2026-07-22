@@ -196,6 +196,21 @@
           <select class="select"><option>15분</option><option selected>1시간</option><option>6시간</option><option>24시간</option></select>
         </div>
       </div>
+      <!-- 최초 실행(user_role 비어있음) 시에만 표시 — 부트스트랩 seed admin -->
+      <div class="notice warn" style="margin:16px 0 10px;font-size:12px;padding:9px 12px">
+        <span>⚙</span>
+        <div><b>최초 실행 전용</b> — 아직 관리자가 없을 때만 아래 항목이 표시됩니다. 연결 테스트로 검증된 AD 사용자 1명을 첫 관리자(seed ADMIN)로 지정하며, 완료 후 이 영역은 다시 표시되지 않습니다.</div>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>최초 관리자 지정 (seed ADMIN) <span class="req">*</span> <span class="chip gray" title="최초 1회만">최초 1회</span></label>
+          <input class="input mono" placeholder="AD 사용자명 (예: jrpark)">
+          <span class="hint">연결 테스트로 검증된 AD 사용자를 user_role에 첫 ADMIN으로 seed. 이후 역할은 사용자 화면에서 관리</span>
+        </div>
+        <div class="field"><label>Setup 토큰 <span class="req">*</span> <span class="chip gray">1회용</span></label>
+          <input class="input mono" placeholder="서버 로그에 출력된 토큰">
+          <span class="hint">최초 접속 보호 — 설치 시 서버 콘솔/로그에 출력된 1회용 토큰 입력</span>
+        </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>

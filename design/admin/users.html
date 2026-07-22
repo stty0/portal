@@ -115,25 +115,25 @@
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px">JP</span><b>박정렬</b> <span class="mono" style="color:var(--ink-3)">jrpark</span></div></td>
                 <td class="mono">jungryul0515.park@…</td><td><span class="chip gray">USER</span></td><td><span class="chip">acct-ai</span> <span class="chip">acct-bio</span></td><td class="mono">normal</td><td class="mono">10분 전</td>
                 <td><span class="badge completed">활성</span></td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline" data-open-modal="userRoleModal" data-modal-title="역할 변경">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
               <tr>
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#17994f,#0d6635)">SS</span><b>선상준</b> <span class="mono" style="color:var(--ink-3)">seonsj</span></div></td>
                 <td class="mono">sangjun.seon@…</td><td><span class="chip gray">USER</span></td><td><span class="chip">acct-bio</span></td><td class="mono">normal</td><td class="mono">2시간 전</td>
                 <td><span class="badge completed">활성</span></td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline" data-open-modal="userRoleModal" data-modal-title="역할 변경">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
               <tr>
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#d3383c,#8f1f22)">JL</span><b>이주영</b> <span class="mono" style="color:var(--ink-3)">jylee</span></div></td>
                 <td class="mono">juyoung.lee@…</td><td><span class="chip">ADMIN</span></td><td><span class="chip">acct-ops</span> <span class="chip">acct-ai</span></td><td class="mono">—</td><td class="mono">40분 전</td>
                 <td><span class="badge completed">활성 · 2FA</span></td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline" data-open-modal="userRoleModal" data-modal-title="역할 변경">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
               <tr>
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#8a93a8,#5a6377)">SK</span><b>강세윤</b> <span class="mono" style="color:var(--ink-3)">sykang</span> <span class="chip gray" title="13:20 AD 동기화로 자동 등록">AD 자동 등록</span></div></td>
                 <td class="mono">seyun.kang@…</td><td><span class="chip gray">USER</span></td><td><span class="chip">acct-vision</span></td><td class="mono">normal</td><td class="mono">방금 전</td>
                 <td><span class="badge completed">활성</span></td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline" data-open-modal="userRoleModal" data-modal-title="역할 변경">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
             </tbody>
           </table>
@@ -180,6 +180,33 @@
     <div class="modal-foot">
       <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
       <button class="btn btn-primary btn-sm" type="button">저장 (sacctmgr modify user)</button>
+    </div>
+  </div>
+</div>
+<!-- 사용자 역할 변경 모달 (A-US-01 · C-02) — 인증은 AD, 역할은 포털 authZ 테이블에서 관리 -->
+<div class="modal-backdrop hidden" id="userRoleModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="urTitle" style="max-width:520px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">🔑</span>
+      <h3 id="urTitle" style="flex:1"><span class="m-title-text">역할 변경</span> <span class="fid">A-US-01</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="notice info" style="margin-bottom:14px;font-size:12px;padding:9px 12px"><span>ℹ</span><div>로그인 인증은 <b>AD</b>가 처리하고, 역할(role)은 <b>포털에서 관리</b>합니다 — AD 그룹/스키마를 변경하지 않고 포털 authZ 테이블에 저장합니다. 최초 관리자는 최초 실행 setup 단계에서 AD 연결 후 지정 계정 1건으로 부여됩니다.</div></div>
+      <div class="form-grid">
+        <div class="field full"><label>사용자</label><div class="mono">박정렬 · jrpark <span class="chip gray">현재 USER</span></div></div>
+        <div class="field full"><label>역할</label>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;padding-top:4px">
+            <label class="checkline"><input type="radio" name="urole" checked> USER — Job 제출/조회, 본인 자원 관리</label>
+            <label class="checkline"><input type="radio" name="urole"> ADMIN — 클러스터·사용자·정책 관리, 통계/감사</label>
+          </div>
+          <span class="hint">USER/ADMIN 2단계 (C-02 RBAC) · 포털 authZ 테이블에 저장 (AD 미변경)</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-primary btn-sm" type="button">저장</button>
     </div>
   </div>
 </div>
