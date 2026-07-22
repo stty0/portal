@@ -176,6 +176,11 @@
 - 문제: userQosModal·accountModal '허용 QOS'가 가로 나열 체크박스(4개 하드코딩) → QOS 늘면 레이아웃 깨짐. QOS 개수 제한은 비권장(Slurm 네이티브).
 - 개편: 가로 flex-wrap → **검색 입력 + 세로 체크박스 목록 + 고정 높이(132px) 스크롤 컨테이너**(border 토큰). 개수 무관하게 모달 높이 일정. users.html·accounts.html 두 모달 동일 적용. 새 CSS 없음(인라인+토큰).
 
+## 후속: 사용자 수정 모달 신설 (dead-end 해소)
+- users.html 사용자 행 '수정' 버튼(dead-end) 4개 → `userEditModal` 배선.
+- 모달 구성: AD 동기화 값(이름·uid·이메일)은 `readonly`(AD 칩), 포털 편집 항목만 — 소속 계정(N:M, 검색+스크롤 체크박스), 기본 계정(DefaultAccount select). 역할/QOS는 각 전용 버튼 안내.
+- 검증(portal-verifier): 태그 균형·트리거→id(userEditModal/userQosModal/userRoleModal)·수정 버튼 4개 배선·id 유일 PASS.
+
 ## 미해결 / 참고
 - 정적 프로토타입이므로 수정(edit) 시 실제 값 프리필은 미구현(대표 예시값). 실데이터 바인딩(C-03) 도입 시 처리.
 - 점검 모드 시작(A-ND-05)은 이번 범위 제외(버튼 유지).
