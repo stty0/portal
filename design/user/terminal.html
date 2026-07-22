@@ -77,13 +77,13 @@
         </div>
         <div class="page-actions">
           <label style="font-size:13.5px;color:var(--ink-3)">접속 대상</label>
-          <select class="select select-sm" style="width:290px" title="U-SH-02 노드 접속 · 클러스터별 그룹">
-            <optgroup label="seoul-hpc (본원)">
+          <select id="termTarget" class="select select-sm" style="width:290px" title="U-SH-01~02 접속 · 선택 클러스터">
+            <optgroup label="seoul-hpc (본원)" data-cluster="seoul-hpc">
               <option>login01 (로그인 노드) — U-SH-01</option>
               <option>gpu07 — Job #45812 실행 중</option>
               <option>gpu08 — Job #45812 실행 중</option>
             </optgroup>
-            <optgroup label="pangyo-gpu (GPU 특화)">
+            <optgroup label="pangyo-gpu (GPU 특화)" data-cluster="pangyo-gpu">
               <option>pg-login01 (로그인 노드)</option>
               <option>pg-cn12 — Job #45801 (VS Code) 실행 중</option>
             </optgroup>          </select>
@@ -225,6 +225,20 @@ gpu up 1 drain
       var c = card.classList.contains('cl-b') ? 'pangyo-gpu' : 'seoul-hpc';
       card.style.display = (c !== name) ? 'none' : '';
     });
+    // 접속 대상 — 선택 클러스터 노드 그룹만 표시
+    document.querySelectorAll('optgroup[data-cluster]').forEach(function (g) {
+      g.hidden = (g.dataset.cluster !== name);
+    });
+    var tsel = document.getElementById('termTarget');
+    if (tsel) {
+      var cur = tsel.options[tsel.selectedIndex];
+      if (cur && cur.parentElement && cur.parentElement.hidden) {
+        for (var i = 0; i < tsel.options.length; i++) {
+          var pg = tsel.options[i].parentElement;
+          if (!pg || !pg.hidden) { tsel.selectedIndex = i; break; }
+        }
+      }
+    }
     // 필터 결과가 비면 테이블 중앙에 빈 상태 표시
     document.querySelectorAll('.content table tbody').forEach(function (tb) {
       var rows = Array.prototype.slice.call(tb.querySelectorAll('tr'));

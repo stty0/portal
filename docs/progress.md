@@ -162,6 +162,10 @@
 - 결과: 파일 관리자가 선택 클러스터의 파일시스템 정보만 노출(전 클러스터 quota 미표시). /home 공유 안내 문구는 유지.
 - user 톱바 클러스터 라벨(앞 커밋 cb2ed55)과 함께 동작.
 
+## 후속: user 웹 터미널 접속 대상 선택 클러스터 스코프
+- terminal.html: '접속 대상' select의 optgroup 2개(seoul-hpc/pangyo-gpu 전 클러스터 노드) → 각 optgroup에 data-cluster 부여, applyCluster에서 선택 클러스터 optgroup만 표시(hidden 토글) + 선택 항목이 숨겨지면 첫 표시 노드로 리셋. select에 id=termTarget.
+- 결과: 웹 터미널이 선택 클러스터의 로그인/Job 노드만 노출(전 클러스터 노드 목록 미표시).
+
 ## 미해결 / 참고
 - 정적 프로토타입이므로 수정(edit) 시 실제 값 프리필은 미구현(대표 예시값). 실데이터 바인딩(C-03) 도입 시 처리.
 - 점검 모드 시작(A-ND-05)은 이번 범위 제외(버튼 유지).
