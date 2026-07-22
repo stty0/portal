@@ -30,7 +30,7 @@
         </div>
       </div>
       <div class="tb-item">
-        <button class="tb-region" type="button" data-menu title="작업 클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">클러스터</span><span class="chev">▾</span></button>
+        <button class="tb-region" type="button" data-menu title="작업 클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">seoul-hpc</span><span class="chev">▾</span></button>
         <div class="tb-menu" id="clusterMenu" style="min-width:260px">
           <div class="tb-menu-head">작업 클러스터 선택</div>
           <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
@@ -410,6 +410,7 @@
       }
     });
     localStorage.setItem(CLUSTER_KEY, name);
+    var lbl = document.getElementById('clusterLabel'); if (lbl) lbl.textContent = name;
   }
   applyCluster(localStorage.getItem(CLUSTER_KEY) === 'pangyo-gpu' ? 'pangyo-gpu' : 'seoul-hpc');
   opts.forEach(function (o) {
