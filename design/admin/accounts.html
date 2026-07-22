@@ -148,13 +148,14 @@
         <div class="field full"><label>설명</label><input class="input" placeholder="예: AI연구팀"></div>
         <div class="field full"><label>조직 (Organization)</label><input class="input" placeholder="예: 연구개발본부"></div>
         <div class="field full"><label>허용 QOS <span class="fid">A-US-03</span></label>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;padding-top:4px">
+          <input class="input input-sm" type="text" placeholder="QOS 검색" style="margin:4px 0 6px">
+          <div style="max-height:132px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:7px">
             <label class="checkline"><input type="checkbox" checked> normal</label>
             <label class="checkline"><input type="checkbox"> high</label>
             <label class="checkline"><input type="checkbox" checked> debug</label>
             <label class="checkline"><input type="checkbox"> long</label>
           </div>
-          <span class="hint">소속 사용자가 Job 제출 시 선택 가능한 QOS 집합 (sacctmgr … set qos=)</span>
+          <span class="hint">소속 사용자가 Job 제출 시 선택 가능한 QOS 집합 (sacctmgr … set qos=) · 목록이 길면 검색·스크롤</span>
         </div>
         <div class="field"><label>기본 QOS</label><select class="select"><option>normal</option><option>debug</option><option>high</option><option>long</option></select><span class="hint">--qos 미지정 시 적용 (DefaultQOS)</span></div>
         <div class="field"><label>Fairshare share <span class="fid">A-US-04</span></label><input class="input mono" placeholder="예: 100"><span class="hint">이 클러스터 내 계정 간 우선순위 가중치 (sacctmgr … set fairshare=)</span></div>

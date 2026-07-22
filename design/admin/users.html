@@ -163,13 +163,14 @@
       <div class="form-grid">
         <div class="field full"><label class="checkline"><input type="checkbox" checked> 소속 계정 QOS 상속 (개별 override 안 함)</label></div>
         <div class="field full"><label>허용 QOS (override)</label>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;padding-top:4px">
+          <input class="input input-sm" type="text" placeholder="QOS 검색" style="margin:4px 0 6px">
+          <div style="max-height:132px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:7px">
             <label class="checkline"><input type="checkbox" checked> normal</label>
             <label class="checkline"><input type="checkbox"> high</label>
             <label class="checkline"><input type="checkbox" checked> debug</label>
             <label class="checkline"><input type="checkbox"> long</label>
           </div>
-          <span class="hint">sacctmgr modify user … set qos=</span>
+          <span class="hint">sacctmgr modify user … set qos= · 목록이 길면 검색·스크롤</span>
         </div>
         <div class="field"><label>기본 QOS</label><select class="select"><option>normal</option><option>debug</option><option>high</option><option>long</option></select><span class="hint">--qos 미지정 시 적용 (DefaultQOS)</span></div>
       </div>
