@@ -185,17 +185,22 @@
     <div class="modal-body" style="max-height:70vh;overflow:auto">
       <div class="form-grid">
         <div class="form-section-title">기본 정보</div>
-        <div class="field"><label>클러스터 이름 <span class="req">*</span></label><input class="input mono" placeholder="예: daejeon-hpc"><span class="hint">slurm.conf ClusterName과 일치해야 합니다</span></div>
+        <div class="field"><label>클러스터 이름 <span class="req">*</span> <span class="chip gray">자동</span></label><input class="input mono" placeholder="연결 테스트 후 자동 입력" readonly><span class="hint">연결 테스트 시 slurmrestd에서 ClusterName을 자동 조회 (slurm.conf와 자동 일치)</span></div>
         <div class="field"><label>설명 / 위치</label><input class="input" placeholder="예: 대전 분원 CPU 클러스터"></div>
         <div class="form-section-title">연동 (C-03)</div>
         <div class="field"><label>slurmrestd URL <span class="req">*</span></label><input class="input mono" placeholder="https://restd.example:6820"></div>
         <div class="field"><label>API 버전</label><select class="select"><option>v0.0.41 (자동 감지)</option><option>v0.0.40</option><option>v0.0.39</option></select></div>
         <div class="field"><label>인증 방식</label><select class="select"><option>JWT (auth/jwt)</option><option>munge 프록시</option></select></div>
         <div class="field"><label>JWT 서명 키</label><input class="input mono" type="password" placeholder="••••••••" ></div>
-        <div class="form-section-title">접속 노드</div>
-        <div class="field"><label>로그인 노드 (웹 터미널)</label><input class="input mono" placeholder="login01.example"></div>
-        <div class="field"><label>DTN (대용량 전송)</label><input class="input mono" placeholder="dtn01.example"></div>
-        <div class="field full"><label>스크래치 마운트 경로</label><input class="input mono" placeholder="/scratch"><span class="hint">/home·/group은 전 클러스터 공유 스토리지로 자동 연결됩니다</span></div>
+        <div class="form-section-title">접속 노드 (SSH)</div>
+        <div class="field"><label>로그인 노드 <span class="req">*</span></label><input class="input mono" placeholder="login01.example"><span class="hint">웹 터미널·파일 전송(SFTP) 공용 — 별도 DTN 없이 이 노드 사용</span></div>
+        <div class="field"><label>SSH 포트</label><input class="input mono" value="22"><span class="hint">기본 22</span></div>
+        <div class="field"><label>접속 계정 <span class="req">*</span></label><input class="input mono" placeholder="svc-portal"><span class="hint">사용자 명령/파일 작업 대행용 계정 · 전체 root 대신 제한적 sudo 권장</span></div>
+        <div class="field"><label>SSH 개인키 <span class="req">*</span> <span class="chip gray">Secret</span></label><input class="input mono" type="password" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"><span class="hint">Secret에 별도 저장·화면 미표시 · 제한 sudoers로 사용자 impersonation</span></div>
+        <div class="form-section-title">파일 브라우저 바로가기 (U-FM-01)</div>
+        <div class="field full"><span class="hint">홈 디렉토리는 로그인 노드의 SSSD/NSS(getent passwd·$HOME)로 <b>사용자별 자동 인식</b> — 설정 불필요</span></div>
+        <div class="field"><label>그룹 경로</label><input class="input mono" placeholder="/group/{group}"><span class="hint">{group}은 사용자 그룹으로 세션별 자동 치환</span></div>
+        <div class="field"><label>스크래치 경로</label><input class="input mono" placeholder="/scratch/{user}"><span class="hint">{user}은 로그인 사용자로 자동 치환 · 대용량·비백업(자동 삭제)</span></div>
         <div class="field full">
           <label class="checkline"><input type="checkbox"> 기본 클러스터로 지정 (신규 Job 제출 기본값)</label>
         </div>

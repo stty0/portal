@@ -109,6 +109,26 @@
 - 첫 접속 보호: **1회용 setup 토큰**(설치 시 서버 로그 출력) 또는 로컬 접근 제한. seed 영역은 최초 1회만 표시.
 - 반영: ad.html `adConnModal`에 first-run 전용 블록 추가(`notice warn` "최초 실행 전용" + "최초 관리자 지정(seed ADMIN)" 필드 + "Setup 토큰" 필드). 정의서 C-02·A-US-01 문구를 "최초 AD 연결 설정 화면에서 지정"으로 명확화.
 
+## 후속: Slurm 연동 경로 명시 (C-03 하이브리드)
+- 결정: slurmrestd(REST) 주 경로 + SSH/SFTP 보조 경로 하이브리드(순수 SSH-CLI 스크린스크래핑 비채택). 원칙 — 구조화 조회/제어=REST, 파일시스템·PTY·인터랙티브·스트리밍=SSH/SFTP, REST 미지원 op만 CLI 래핑.
+- 정의서: C-03 셀을 하이브리드로 갱신 + **§4.1 연동 경로 매핑** 신설(① REST ② SSH/SFTP ③ Slurm 외 연동, 기능 ID별 분류 + 버전 고정·JWT·비노출 구현 유의).
+- 문서 변경만(코드 무변경).
+
+## 후속: 클러스터 이름 자동 조회 (등록 모달)
+- clusters.html clusterModal(A-CL-02): 클러스터 이름 필드를 자유 입력 → **연결 테스트 시 slurmrestd에서 ClusterName 자동 조회(읽기 전용)** 로 변경. `readonly`·placeholder "연결 테스트 후 자동 입력"·`chip gray 자동`, 힌트 "slurm.conf와 자동 일치". 손 입력 불일치 위험 제거. (API 버전 "자동 감지"와 일관)
+- 관찰(범위 밖, 미조치): ① 정의서에 A-CL 섹션 없음(clusters.html은 A-CL-01~04 fid 사용) — 기존 스펙 갭. ② line 198 "/home·/group 전 클러스터 공유 스토리지" 힌트는 storage 얘기(slurmdbd와 별개)라 유지, per-cluster와 충돌 아님으로 판단.
+
+## 후속: 접속 노드 통합 + SSH 접속 정보 (등록 모달)
+- clusterModal 접속 노드 섹션 개편: DTN 필드 제거(로그인 노드로 통합 — 웹 터미널·SFTP 공용), 섹션명 "접속 노드 (SSH)".
+- 추가 필드: SSH 포트(기본 22), 접속 계정(서비스 계정), SSH 개인키(`Secret` 칩·`type=password`·Secret 저장).
+- 보안 검토 반영: 요청은 "sudo 계정 SSH 키"였으나 **전체 root sudo 지양·제한적 sudo(least privilege)로 사용자 impersonation** 권장을 힌트/정의서에 명시. Slurm 제어는 REST+JWT라 sudo 불필요, SSH sudo는 파일(U-FM)·터미널(U-SH) impersonation 한정.
+- 정의서 §4.1 ② SSH 경로에 접속 방식(서비스 계정+키·Secret·제한 sudo) 1줄 추가.
+
+## 후속: 파일 브라우저 바로가기 경로 (스크래치 필드 개편, 옵션 A)
+- 문제: "스크래치만" 필드 + "/home·/group 전 클러스터 공유" 힌트가 per-cluster 독립 전제와 불일치.
+- 개편(A): clusterModal에 **"파일 브라우저 바로가기 (U-FM-01)"** 섹션 신설 — ① 홈은 SSSD/NSS(`getent passwd`·`$HOME`) 사용자별 자동 인식(필드 없음, 안내만) ② 그룹 경로 템플릿(`/group/{group}`) ③ 스크래치 경로 템플릿(`/scratch/{user}`, 비백업). `{user}`·`{group}` 세션 치환. 잘못된 "전 클러스터 공유" 힌트 제거.
+- 정의서 §4.1 ②에 "경로 인식"(홈=SSSD 자동, 그룹·스크래치=템플릿) 1줄 추가.
+
 ## 미해결 / 참고
 - 정적 프로토타입이므로 수정(edit) 시 실제 값 프리필은 미구현(대표 예시값). 실데이터 바인딩(C-03) 도입 시 처리.
 - 점검 모드 시작(A-ND-05)은 이번 범위 제외(버튼 유지).
