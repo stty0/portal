@@ -79,7 +79,7 @@
       <div class="page-head">
         <div>
           <h1>전체 Job 관리</h1>
-          <p class="sub">전 클러스터의 모든 사용자 Job 조회 · 강제 제어 · 우선순위 조정 (A-JB-01~04 · squeue -M all)</p>
+          <p class="sub">선택한 클러스터(상단 스위처)의 모든 사용자 Job 조회 · 강제 제어 · 우선순위 조정 · 전체 선택 시 전 클러스터 (A-JB-01~04 · squeue)</p>
         </div>
       </div>
 
@@ -91,8 +91,6 @@
 
       <!-- A-JB-01 필터 -->
       <div class="filterbar">
-        <label>클러스터</label>
-        <select class="select select-sm" style="width:130px"><option>전체</option><option>seoul-hpc</option><option>pangyo-gpu</option></select>
         <label>사용자</label>
         <input class="input input-sm" type="text" placeholder="전체" style="width:130px">
         <label>계정</label>
