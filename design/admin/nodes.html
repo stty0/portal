@@ -30,11 +30,10 @@
         </div>
       </div>
       <div class="tb-item">
-        <button class="tb-region" type="button" data-menu title="클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">클러스터</span><span class="chev">▾</span></button>
+        <button class="tb-region" type="button" data-menu title="클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">seoul-hpc</span><span class="chev">▾</span></button>
         <div class="tb-menu" id="clusterMenu" style="min-width:260px">
           <div class="tb-menu-head">클러스터 선택</div>
-          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="전체 클러스터"><span>전체 클러스터</span><code>all</code></a>
-          <a class="tb-mi tb-cl-opt" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
+          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
           <a class="tb-mi tb-cl-opt" href="#" data-cluster="pangyo-gpu"><span>GPU 특화</span><code>pangyo-gpu</code></a>
         </div>
       </div>
@@ -177,14 +176,13 @@
         </div>
         <div class="card-body flush table-wrap">
           <table class="tbl">
-            <thead><tr><th>클러스터</th><th>파티션</th><th>노드 구성</th><th>최대 Walltime</th><th>우선순위</th><th>허용 계정 (A-US-05)</th><th>상태</th><th style="width:130px">액션</th></tr></thead>
+            <thead><tr><th>파티션</th><th>노드 구성</th><th>최대 Walltime</th><th>우선순위</th><th>허용 계정 (A-US-05)</th><th>상태</th><th style="width:130px">액션</th></tr></thead>
             <tbody>
-              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>normal</b> <span class="chip gray">default</span></td><td class="mono">cn[001-064]</td><td class="mono">3-00:00:00</td><td class="mono">10</td><td>ALL</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
-              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>gpu</b></td><td class="mono">gpu[01-24]</td><td class="mono">2-00:00:00</td><td class="mono">20</td><td class="mono">acct-ai, acct-vision, acct-nlp</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
-              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>bigmem</b></td><td class="mono">bm[01-08]</td><td class="mono">7-00:00:00</td><td class="mono">10</td><td class="mono">acct-bio, acct-chem</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
-              <tr><td><span class="chip cl">seoul-hpc</span></td><td><b>debug</b></td><td class="mono">dbg[01-04]</td><td class="mono">0-01:00:00</td><td class="mono">30</td><td>ALL</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
-              <tr><td><span class="chip cl-b">pangyo-gpu</span></td><td><b>gpu</b> <span class="chip gray">default</span></td><td class="mono">pg-gpu[01-24]</td><td class="mono">2-00:00:00</td><td class="mono">20</td><td class="mono">acct-ai, acct-vision</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
-              <tr><td><span class="chip cl-b">pangyo-gpu</span></td><td><b>gpu-large</b></td><td class="mono">pg-gpu[25-32]</td><td class="mono">4-00:00:00</td><td class="mono">30</td><td class="mono">acct-ai (승인제)</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>            </tbody>
+              <tr><td><b>normal</b> <span class="chip gray">default</span></td><td class="mono">cn[001-064]</td><td class="mono">3-00:00:00</td><td class="mono">10</td><td>ALL</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
+              <tr><td><b>gpu</b></td><td class="mono">gpu[01-24]</td><td class="mono">2-00:00:00</td><td class="mono">20</td><td class="mono">acct-ai, acct-vision, acct-nlp</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
+              <tr><td><b>bigmem</b></td><td class="mono">bm[01-08]</td><td class="mono">7-00:00:00</td><td class="mono">10</td><td class="mono">acct-bio, acct-chem</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
+              <tr><td><b>debug</b></td><td class="mono">dbg[01-04]</td><td class="mono">0-01:00:00</td><td class="mono">30</td><td>ALL</td><td><span class="badge idle">UP</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="partitionModal" data-modal-title="파티션 수정">수정</button></div></td></tr>
+            </tbody>
           </table>
         </div>
       </div>
@@ -351,6 +349,7 @@
   function applyCluster(name) {
     opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.cluster === name); });
     localStorage.setItem(KEY, name);
+    var lbl = document.getElementById('clusterLabel'); if (lbl) lbl.textContent = name;
   }
   var saved = localStorage.getItem(KEY);
   if (saved) applyCluster(saved);

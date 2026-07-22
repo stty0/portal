@@ -30,11 +30,10 @@
         </div>
       </div>
       <div class="tb-item">
-        <button class="tb-region" type="button" data-menu title="클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">클러스터</span><span class="chev">▾</span></button>
+        <button class="tb-region" type="button" data-menu title="클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">seoul-hpc</span><span class="chev">▾</span></button>
         <div class="tb-menu" id="clusterMenu" style="min-width:260px">
           <div class="tb-menu-head">클러스터 선택</div>
-          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="전체 클러스터"><span>전체 클러스터</span><code>all</code></a>
-          <a class="tb-mi tb-cl-opt" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
+          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
           <a class="tb-mi tb-cl-opt" href="#" data-cluster="pangyo-gpu"><span>GPU 특화</span><code>pangyo-gpu</code></a>
         </div>
       </div>
@@ -79,14 +78,14 @@
       <div class="page-head">
         <div>
           <h1>전체 Job 관리</h1>
-          <p class="sub">선택한 클러스터(상단 스위처)의 모든 사용자 Job 조회 · 강제 제어 · 우선순위 조정 · 전체 선택 시 전 클러스터 (A-JB-01~04 · squeue)</p>
+          <p class="sub">선택한 클러스터(상단 스위처)의 모든 사용자 Job 조회 · 강제 제어 · 우선순위 조정 (A-JB-01~04 · squeue)</p>
         </div>
       </div>
 
       <!-- A-JB-04 장기 점유 감지 -->
       <div class="notice warn" style="margin-bottom:16px">
         <span>🕒</span>
-        <div><b>장기 점유 감지 (A-JB-04)</b> — CPU 사용률 3% 미만으로 48시간 이상 실행 중인 Job <b>2건</b> 발견: <span class="mono">44102 (seonsj)</span>, <span class="mono">44378 (choiyj)</span>. <a href="#">상세 리포트 →</a></div>
+        <div><b>장기 점유 감지 (A-JB-04)</b> — CPU 사용률 3% 미만으로 48시간 이상 실행 중인 Job <b>1건</b> 발견: <span class="mono">44102 (seonsj)</span>. <a href="#">상세 리포트 →</a></div>
       </div>
 
       <!-- A-JB-01 필터 -->
@@ -108,42 +107,35 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Job 목록 <span class="fid">A-JB-01</span></h2><span style="font-size:12px;color:var(--ink-3)">전 클러스터 Running 376 · Pending 158 · Held 4</span></div>
+        <div class="card-head"><h2>Job 목록 <span class="fid">A-JB-01</span></h2><span style="font-size:12px;color:var(--ink-3)">seoul-hpc · Running 291 · Pending 122 · Held 3</span></div>
         <div class="card-body flush table-wrap">
           <table class="tbl">
-            <thead><tr><th style="width:36px"><input type="checkbox"></th><th>Job ID</th><th>이름</th><th>클러스터</th><th>사용자</th><th>계정</th><th>파티션</th><th>상태</th><th>자원</th><th class="num">우선순위</th><th>경과/사유</th><th style="width:210px">제어</th></tr></thead>
+            <thead><tr><th style="width:36px"><input type="checkbox"></th><th>Job ID</th><th>이름</th><th>사용자</th><th>계정</th><th>파티션</th><th>상태</th><th>자원</th><th class="num">우선순위</th><th>경과/사유</th><th style="width:210px">제어</th></tr></thead>
             <tbody>
               <tr>
                 <td><input type="checkbox"></td>
-                <td class="mono"><a class="jobid" href="#">44102</a></td><td>interactive-bash</td><td><span class="chip cl">seoul-hpc</span></td><td class="mono">seonsj</td><td class="mono">acct-bio</td>
+                <td class="mono"><a class="jobid" href="#">44102</a></td><td>interactive-bash</td><td class="mono">seonsj</td><td class="mono">acct-bio</td>
                 <td><span class="chip">bigmem</span></td><td><span class="badge running">RUNNING</span> <span class="badge plain pending" style="font-size:10px">유휴 의심</span></td>
                 <td class="mono">1N·128C·2T</td><td class="num mono">8,120</td><td class="mono">2-14:22:08</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-outline" data-open-modal="jobPriorityModal">Hold</button><button class="btn btn-sm btn-danger">취소</button></div></td>
               </tr>
               <tr>
                 <td><input type="checkbox"></td>
-                <td class="mono"><a class="jobid" href="#">45812</a></td><td>llm-finetune-r3</td><td><span class="chip cl">seoul-hpc</span></td><td class="mono">jrpark</td><td class="mono">acct-ai</td>
+                <td class="mono"><a class="jobid" href="#">45812</a></td><td>llm-finetune-r3</td><td class="mono">jrpark</td><td class="mono">acct-ai</td>
                 <td><span class="chip">gpu</span></td><td><span class="badge running">RUNNING</span></td>
                 <td class="mono">2N·32C·8GPU</td><td class="num mono">12,480</td><td class="mono">03:12:44</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-outline" data-open-modal="jobPriorityModal">Hold</button><button class="btn btn-sm btn-danger">취소</button></div></td>
               </tr>
               <tr>
                 <td><input type="checkbox"></td>
-                <td class="mono"><a class="jobid" href="#">45830</a></td><td>urgent-covid-sim</td><td><span class="chip cl">seoul-hpc</span></td><td class="mono">leejh</td><td class="mono">acct-bio</td>
+                <td class="mono"><a class="jobid" href="#">45830</a></td><td>urgent-covid-sim</td><td class="mono">leejh</td><td class="mono">acct-bio</td>
                 <td><span class="chip">normal</span></td><td><span class="badge pending">PENDING</span> <span style="font-size:11px;color:var(--ink-3)">Priority</span></td>
                 <td class="mono">8N·1024C</td><td class="num mono">9,340</td><td class="mono">대기 01:12</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary" title="A-JB-03 우선순위 top 처리" data-open-modal="jobPriorityModal">⇧ Top</button><button class="btn btn-sm btn-danger">취소</button></div></td>
               </tr>
               <tr>
                 <td><input type="checkbox"></td>
-                <td class="mono"><a class="jobid" href="#">45711</a></td><td>batch-array[1-500]</td><td><span class="chip cl-b">pangyo-gpu</span></td><td class="mono">choiyj</td><td class="mono">acct-vision</td>
-                <td><span class="chip">gpu</span></td><td><span class="badge cancelled">HELD</span> <span style="font-size:11px;color:var(--ink-3)">admin hold</span></td>
-                <td class="mono">1N·8C·1GPU ×500</td><td class="num mono">—</td><td class="mono">대기 05:40</td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-primary" data-open-modal="jobPriorityModal">Release</button><button class="btn btn-sm btn-danger">취소</button></div></td>
-              </tr>
-              <tr>
-                <td><input type="checkbox"></td>
-                <td class="mono"><a class="jobid" href="#">45825</a></td><td>wrf-forecast-12z</td><td><span class="chip cl">seoul-hpc</span></td><td class="mono">parksh</td><td class="mono">acct-met</td>
+                <td class="mono"><a class="jobid" href="#">45825</a></td><td>wrf-forecast-12z</td><td class="mono">parksh</td><td class="mono">acct-met</td>
                 <td><span class="chip">normal</span></td><td><span class="badge pending">PENDING</span> <span style="font-size:11px;color:var(--ink-3)">AssocGrpCPUMinutes</span></td>
                 <td class="mono">16N·2048C</td><td class="num mono">7,912</td><td class="mono">대기 02:30</td>
                 <td><div class="row-actions"><button class="btn btn-sm btn-outline">상세</button><button class="btn btn-sm btn-outline" data-open-modal="jobPriorityModal">Hold</button><button class="btn btn-sm btn-danger">취소</button></div></td>
@@ -254,6 +246,7 @@
   function applyCluster(name) {
     opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.cluster === name); });
     localStorage.setItem(KEY, name);
+    var lbl = document.getElementById('clusterLabel'); if (lbl) lbl.textContent = name;
   }
   var saved = localStorage.getItem(KEY);
   if (saved) applyCluster(saved);

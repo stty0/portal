@@ -30,11 +30,10 @@
         </div>
       </div>
       <div class="tb-item">
-        <button class="tb-region" type="button" data-menu title="클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">클러스터</span><span class="chev">▾</span></button>
+        <button class="tb-region" type="button" data-menu title="클러스터 선택"><span class="cs-ico">🖧</span><span class="cs-dot"></span><span id="clusterLabel">seoul-hpc</span><span class="chev">▾</span></button>
         <div class="tb-menu" id="clusterMenu" style="min-width:260px">
           <div class="tb-menu-head">클러스터 선택</div>
-          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="전체 클러스터"><span>전체 클러스터</span><code>all</code></a>
-          <a class="tb-mi tb-cl-opt" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
+          <a class="tb-mi tb-cl-opt sel" href="#" data-cluster="seoul-hpc"><span>본원 데이터센터</span><code>seoul-hpc</code></a>
           <a class="tb-mi tb-cl-opt" href="#" data-cluster="pangyo-gpu"><span>GPU 특화</span><code>pangyo-gpu</code></a>
         </div>
       </div>
@@ -275,6 +274,7 @@
   function applyCluster(name) {
     opts.forEach(function (o) { o.classList.toggle('sel', o.dataset.cluster === name); });
     localStorage.setItem(KEY, name);
+    var lbl = document.getElementById('clusterLabel'); if (lbl) lbl.textContent = name;
   }
   var saved = localStorage.getItem(KEY);
   if (saved) applyCluster(saved);
