@@ -181,6 +181,12 @@
 - 모달 구성: AD 동기화 값(이름·uid·이메일)은 `readonly`(AD 칩), 포털 편집 항목만 — 소속 계정(N:M, 검색+스크롤 체크박스), 기본 계정(DefaultAccount select). 역할/QOS는 각 전용 버튼 안내.
 - 검증(portal-verifier): 태그 균형·트리거→id(userEditModal/userQosModal/userRoleModal)·수정 버튼 4개 배선·id 유일 PASS.
 
+## 후속: 대시보드 이름 변경 + 선택 클러스터 스코프
+- '통합 대시보드' → '대시보드'로 개명: 사이드바 nav(12파일), dashboard crumbs·H1('멀티 클러스터 통합 대시보드'→'대시보드')·부제.
+- dashboard 단일 클러스터(seoul-hpc) 스코프: 클러스터 요약 카드 pangyo 제거(seoul만), 현황 스탯 재라벨/seoul 값, 노드맵 페이지 내 클러스터 select 제거, 큐 현황·최근 이벤트 표 '클러스터' 컬럼+pangyo 행 제거, 부하 캡션·큐 경고 seoul화.
+- 예외 유지: 톱바 클러스터 드롭다운, /home·/group(전 클러스터 공유), /scratch(pangyo, data-cluster로 숨김). 노드맵·부하차트가 seoul 전용 시각화라 완전 동적 전환은 C-03 데이터 바인딩 시(현재 기본 seoul-hpc 정적, jobs/nodes와 동일).
+- 검증(portal-verifier): dashboard 태그 균형·표 컬럼 정합(큐 4/이벤트 4)·id 유일·잔여 문자열 0, 12파일 사이드바 '대시보드' 통일·균형 PASS.
+
 ## 미해결 / 참고
 - 정적 프로토타입이므로 수정(edit) 시 실제 값 프리필은 미구현(대표 예시값). 실데이터 바인딩(C-03) 도입 시 처리.
 - 점검 모드 시작(A-ND-05)은 이번 범위 제외(버튼 유지).

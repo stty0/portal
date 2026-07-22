@@ -55,7 +55,7 @@
     <div class="side-logo"><span class="logo-mark">H</span><span>HPC Portal<small>Admin Console</small></span><button class="side-collapse" type="button" title="접기">⇤</button></div>
     <nav class="side-nav">
       <div class="nav-group">모니터링</div>
-      <a href="dashboard.html" class="active"><span class="ico">▦</span> 통합 대시보드</a>
+      <a href="dashboard.html" class="active"><span class="ico">▦</span> 대시보드</a>
       <div class="nav-group">자원 관리</div>
       <a href="clusters.html"><span class="ico">🖧</span> 클러스터 관리</a>
       <a href="nodes.html"><span class="ico">▤</span> 노드 / 파티션</a>
@@ -75,11 +75,11 @@
   <div class="main">
 
     <main class="content">
-      <div class="crumbs">HPC Portal Admin › <b>통합 대시보드</b></div>
+      <div class="crumbs">HPC Portal Admin › <b>대시보드</b></div>
       <div class="page-head">
         <div>
-          <h1>멀티 클러스터 통합 대시보드</h1>
-          <p class="sub">A-DB-01~05 · 클러스터 2대 연동 (slurmrestd) · 마지막 수집 12초 전</p>
+          <h1>대시보드</h1>
+          <p class="sub">A-DB-01~05 · 선택 클러스터 (상단 스위처) · slurmrestd · 마지막 수집 12초 전</p>
         </div>
         <div class="page-actions">
           <a class="btn btn-outline" href="clusters.html">🖧 클러스터 관리</a>
@@ -94,27 +94,22 @@
         <div><b>장애 알림 (A-DB-04)</b> — <span class="chip cl">seoul-hpc</span> <span class="mono">gpu12</span> NODE_FAIL (13:02, NVML Xid 79), <span class="mono">cn087</span> drain 3일 경과 (IB link flap). <a href="nodes.html">노드 관리에서 조치 →</a></div>
       </div>
 
-      <!-- 클러스터별 요약 카드 -->
-      <div class="grid grid-2" style="margin-bottom:16px">
+      <!-- 선택 클러스터 요약 카드 (seoul-hpc) -->
+      <div style="margin-bottom:16px">
         <div class="cluster-card cl-a">
           <div class="cc-head">🖧 <b>seoul-hpc</b><span class="chip gray">본원 · 기본</span><span class="badge failed">장애 1</span></div>
           <div class="cc-desc">Slurm 24.05 · slurmrestd 정상 (34ms) · 노드 100</div>
           <div class="cc-stats"><span>가동률 <b>83%</b></span><span>Run <b>312</b> · Pend <b>147</b></span><span>Down/Drain <b>2/3</b></span></div>
         </div>
-        <div class="cluster-card cl-b">
-          <div class="cc-head">🖧 <b>pangyo-gpu</b><span class="chip gray">GPU 특화</span><span class="badge running">정상</span></div>
-          <div class="cc-desc">Slurm 24.05 · slurmrestd 정상 (41ms) · 노드 32</div>
-          <div class="cc-stats"><span>가동률 <b>88%</b></span><span>Run <b>64</b> · Pend <b>11</b></span><span>Down/Drain <b>0/1</b></span></div>
-        </div>
       </div>
 
-      <!-- 전체 현황 스탯 (전 클러스터 합산) -->
+      <!-- 선택 클러스터 현황 스탯 (seoul-hpc) -->
       <div class="grid grid-5">
-        <div class="stat"><span class="label">전체 노드 (2개 클러스터)</span><span class="value">132</span><span class="delta">seoul 100 · pangyo 32</span></div>
-        <div class="stat acc-fail"><span class="label">Down / Drain</span><span class="value">2 / 4</span><span class="delta down">▲ gpu12 신규 장애</span></div>
-        <div class="stat acc-run"><span class="label">Running Job</span><span class="value">376</span><span class="delta">사용자 87명</span></div>
-        <div class="stat acc-pend"><span class="label">Pending Job</span><span class="value">158</span><span class="delta">평균 대기 30분</span></div>
-        <div class="stat acc-gpu"><span class="label">GPU 사용률 (전체 352장)</span><span class="value">89<small>%</small></span><span class="delta up">313장 할당</span></div>
+        <div class="stat"><span class="label">노드</span><span class="value">100</span><span class="delta">가동률 83%</span></div>
+        <div class="stat acc-fail"><span class="label">Down / Drain</span><span class="value">2 / 3</span><span class="delta down">▲ gpu12 신규 장애</span></div>
+        <div class="stat acc-run"><span class="label">Running Job</span><span class="value">312</span><span class="delta">사용자 68명</span></div>
+        <div class="stat acc-pend"><span class="label">Pending Job</span><span class="value">147</span><span class="delta">평균 대기 34분</span></div>
+        <div class="stat acc-gpu"><span class="label">GPU 사용률 (A100 96장)</span><span class="value">84<small>%</small></span><span class="delta up">81장 할당</span></div>
       </div>
 
       <div class="grid grid-3 mt-16">
@@ -122,8 +117,7 @@
         <div class="card col-span-2">
           <div class="card-head">
             <h2>노드 상태 맵 <span class="fid">A-DB-01</span></h2>
-            <select class="select select-sm" style="width:150px;margin-left:auto"><option>seoul-hpc</option><option>pangyo-gpu</option></select>
-            <div class="legend">
+            <div class="legend" style="margin-left:auto">
               <span class="lg"><span class="sw" style="background:#bfe8cf"></span>idle</span>
               <span class="lg"><span class="sw" style="background:#1f6fd6"></span>alloc</span>
               <span class="lg"><span class="sw" style="background:#8f7ad6"></span>mix</span>
@@ -148,17 +142,15 @@
           <div class="card-head"><h2>큐 현황 <span class="fid">A-DB-03</span></h2><a class="more" href="jobs.html">Job 관리 →</a></div>
           <div class="card-body flush table-wrap">
             <table class="tbl">
-              <thead><tr><th>클러스터</th><th>파티션</th><th class="num">Run</th><th class="num">Pend</th><th class="num">평균 대기</th></tr></thead>
+              <thead><tr><th>파티션</th><th class="num">Run</th><th class="num">Pend</th><th class="num">평균 대기</th></tr></thead>
               <tbody>
-                <tr><td><span class="chip cl">seoul</span></td><td><span class="chip">normal</span></td><td class="num mono">184</td><td class="num mono">42</td><td class="num mono">12분</td></tr>
-                <tr><td><span class="chip cl">seoul</span></td><td><span class="chip">gpu</span></td><td class="num mono">96</td><td class="num mono">98</td><td class="num mono">67분</td></tr>
-                <tr><td><span class="chip cl">seoul</span></td><td><span class="chip">bigmem</span></td><td class="num mono">21</td><td class="num mono">5</td><td class="num mono">8분</td></tr>
-                <tr><td><span class="chip cl-b">pangyo</span></td><td><span class="chip">gpu</span></td><td class="num mono">48</td><td class="num mono">6</td><td class="num mono">6분</td></tr>
-                <tr><td><span class="chip cl-b">pangyo</span></td><td><span class="chip">gpu-large</span></td><td class="num mono">16</td><td class="num mono">5</td><td class="num mono">22분</td></tr>              </tbody>
+                <tr><td><span class="chip">normal</span></td><td class="num mono">184</td><td class="num mono">42</td><td class="num mono">12분</td></tr>
+                <tr><td><span class="chip">gpu</span></td><td class="num mono">96</td><td class="num mono">98</td><td class="num mono">67분</td></tr>
+                <tr><td><span class="chip">bigmem</span></td><td class="num mono">21</td><td class="num mono">5</td><td class="num mono">8분</td></tr>              </tbody>
             </table>
           </div>
           <div class="card-body" style="border-top:1px solid var(--line)">
-            <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>⚠</span><div>seoul-hpc gpu 대기열 급증 — pangyo-gpu 여유분으로 <b>제출 유도 배너</b> 게시 권장</div></div>
+            <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>⚠</span><div>gpu 대기열 급증 (평균 대기 67분) — 사용자 <b>제출 유도/안내 배너</b> 게시 권장</div></div>
           </div>
         </div>
       </div>
@@ -178,7 +170,7 @@
               <div class="cb"><div class="bar-col" style="height:82%"></div><div class="bar-col alt" style="height:93%"></div><span class="cap">12시</span></div>
               <div class="cb"><div class="bar-col" style="height:79%"></div><div class="bar-col alt" style="height:91%"></div><span class="cap">현재</span></div>
             </div>
-            <div class="chart-line-caption"><span>Prometheus 연동 · node_exporter/dcgm</span><span>전체 클러스터 가중 평균 사용률</span></div>
+            <div class="chart-line-caption"><span>Prometheus 연동 · node_exporter/dcgm</span><span>seoul-hpc 평균 사용률</span></div>
           </div>
         </div>
 
@@ -203,12 +195,11 @@
         <div class="card-head"><h2>최근 이벤트 <span class="fid">A-DB-04</span></h2><a class="more" href="settings.html">감사 로그 전체 →</a></div>
         <div class="card-body flush table-wrap">
           <table class="tbl">
-            <thead><tr><th>시각</th><th>클러스터</th><th>수준</th><th>대상</th><th>내용</th></tr></thead>
+            <thead><tr><th>시각</th><th>수준</th><th>대상</th><th>내용</th></tr></thead>
             <tbody>
-              <tr><td class="mono">13:02:11</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge failed">CRIT</span></td><td class="mono">gpu12</td><td>NODE_FAIL — NVML Xid 79 (GPU falling off bus), 실행 중 Job 2건 requeue</td></tr>              <tr><td class="mono">12:47:30</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge pending">WARN</span></td><td class="mono">scratch</td><td>scratch 볼륨 사용률 90% 초과</td></tr>
-              <tr><td class="mono">11:20:04</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge running">INFO</span></td><td class="mono">slurmctld</td><td>백업 컨트롤러 heartbeat 정상 (takeover 테스트 완료)</td></tr>
-              <tr><td class="mono">10:05:40</td><td><span class="chip cl-b">pangyo-gpu</span></td><td><span class="badge running">INFO</span></td><td class="mono">pg-gpu18</td><td>drain 해제 — GPU ECC 점검 완료 후 서비스 복귀</td></tr>
-              <tr><td class="mono">09:12:55</td><td><span class="chip cl">seoul-hpc</span></td><td><span class="badge pending">WARN</span></td><td class="mono">cn087</td><td>drain 3일 경과 — 사유: IB link flap, 수리 대기</td></tr>
+              <tr><td class="mono">13:02:11</td><td><span class="badge failed">CRIT</span></td><td class="mono">gpu12</td><td>NODE_FAIL — NVML Xid 79 (GPU falling off bus), 실행 중 Job 2건 requeue</td></tr>              <tr><td class="mono">12:47:30</td><td><span class="badge pending">WARN</span></td><td class="mono">scratch</td><td>scratch 볼륨 사용률 90% 초과</td></tr>
+              <tr><td class="mono">11:20:04</td><td><span class="badge running">INFO</span></td><td class="mono">slurmctld</td><td>백업 컨트롤러 heartbeat 정상 (takeover 테스트 완료)</td></tr>
+              <tr><td class="mono">09:12:55</td><td><span class="badge pending">WARN</span></td><td class="mono">cn087</td><td>drain 3일 경과 — 사유: IB link flap, 수리 대기</td></tr>
             </tbody>
           </table>
         </div>
