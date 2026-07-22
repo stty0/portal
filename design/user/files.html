@@ -94,7 +94,7 @@
       <div class="grid" style="grid-template-columns: 240px 1fr">
         <!-- 좌측 트리 (U-FM-01) -->
         <div class="card">
-          <div class="card-head"><h2>위치</h2><span class="chip cl">seoul-hpc</span></div>
+          <div class="card-head"><h2>위치</h2><span class="chip cl" id="locCluster">seoul-hpc</span></div>
           <div class="card-body" style="padding:10px">
             <ul class="ftree">
               <li>🏠 /home/jrpark <span style="margin-left:auto;font-size:11.5px;color:var(--ink-3)">공유</span></li>
@@ -107,11 +107,11 @@
               <li>👥 /group/ai-lab</li>
             </ul>
             <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
-              <div class="meter">
+              <div class="meter" data-cluster="seoul-hpc">
                 <div class="meter-top"><span class="lbl">scratch quota (seoul-hpc)</span><span class="val">81%</span></div>
                 <div class="bar"><i class="warn" style="width:81%"></i></div>
               </div>
-              <div class="meter" style="margin-top:8px">
+              <div class="meter" data-cluster="pangyo-gpu" style="margin-top:8px">
                 <div class="meter-top"><span class="lbl">scratch quota (pangyo-gpu)</span><span class="val">12%</span></div>
                 <div class="bar"><i class="ok" style="width:12%"></i></div>
               </div>
@@ -390,6 +390,13 @@
       var c = card.classList.contains('cl-b') ? 'pangyo-gpu' : 'seoul-hpc';
       card.style.display = (c !== name) ? 'none' : '';
     });
+    // 스토리지 quota(클러스터별) — 선택 클러스터만 표시
+    document.querySelectorAll('.meter[data-cluster]').forEach(function (m) {
+      m.style.display = (m.dataset.cluster !== name) ? 'none' : '';
+    });
+    // 위치 패널 클러스터 표시 갱신
+    var loc = document.getElementById('locCluster');
+    if (loc) { loc.textContent = name; loc.className = 'chip ' + (name === 'pangyo-gpu' ? 'cl-b' : 'cl'); }
     // 필터 결과가 비면 테이블 중앙에 빈 상태 표시
     document.querySelectorAll('.content table tbody').forEach(function (tb) {
       var rows = Array.prototype.slice.call(tb.querySelectorAll('tr'));

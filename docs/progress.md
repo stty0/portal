@@ -157,6 +157,11 @@
   - accounts/qos/users: 이미 단일 클러스터 뷰(톱바 기본 seoul-hpc와 일관).
 - 집계 페이지(dashboard 멀티클러스터 통합·reports sreport -M all·billing·license·settings 감사로그): 전 클러스터 유지, 페이지 내 '전체 클러스터' 필터 옵션도 유지(톱바 옵션만 제거). clusters.html 레지스트리도 전체 유지.
 
+## 후속: user 파일 관리자 스토리지 정보 선택 클러스터 스코프
+- files.html: 스크래치 quota 2개(seoul-hpc·pangyo-gpu 전 클러스터 표시) → 각 `.meter`에 `data-cluster` 부여, applyCluster에서 선택 클러스터 것만 표시(나머지 hide). 위치 카드 칩(id=locCluster)도 선택 클러스터 텍스트·색(cl/cl-b) 갱신.
+- 결과: 파일 관리자가 선택 클러스터의 파일시스템 정보만 노출(전 클러스터 quota 미표시). /home 공유 안내 문구는 유지.
+- user 톱바 클러스터 라벨(앞 커밋 cb2ed55)과 함께 동작.
+
 ## 미해결 / 참고
 - 정적 프로토타입이므로 수정(edit) 시 실제 값 프리필은 미구현(대표 예시값). 실데이터 바인딩(C-03) 도입 시 처리.
 - 점검 모드 시작(A-ND-05)은 이번 범위 제외(버튼 유지).
