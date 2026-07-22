@@ -92,42 +92,36 @@
       <div class="card">
         <div class="card-head">
           <h2>계정 · 클러스터 매핑 <span class="fid">A-US-07 · A-US-04</span></h2>
-          <span style="font-size:12px;color:var(--ink-3)">sacctmgr add/remove account … cluster= (association 단위) · fairshare 포함</span>
+          <span style="font-size:12px;color:var(--ink-3)">계정별 사용 가능 클러스터·fairshare (sacctmgr association) · 클러스터 수와 무관하게 계정별 모달에서 관리</span>
         </div>
         <div class="card-body flush table-wrap">
           <table class="tbl">
-            <thead>
-              <tr>
-                <th>계정</th><th>설명</th>
-                <th><span class="chip cl">seoul-hpc</span> 허용 / share</th>
-                <th><span class="chip cl-b">pangyo-gpu</span> 허용 / share</th>
-                <th style="width:110px">액션</th>
-              </tr>
-            </thead>
+            <thead><tr><th>계정</th><th>설명</th><th>매핑된 클러스터 · share</th><th style="width:150px">액션</th></tr></thead>
             <tbody>
               <tr>
                 <td class="mono"><b>acct-ai</b></td><td>AI연구팀</td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="100" style="width:64px"></td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="100" style="width:64px"></td>
-                <td><button class="btn btn-sm btn-primary">저장</button></td>
+                <td><span class="chip cl">seoul-hpc · 100</span> <span class="chip cl-b">pangyo-gpu · 100</span></td>
+                <td><button class="btn btn-sm btn-primary" data-open-modal="clusterMapModal" data-modal-title="acct-ai 클러스터 매핑">매핑 관리</button></td>
               </tr>
               <tr>
                 <td class="mono"><b>acct-bio</b></td><td>바이오연구소</td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="80" style="width:64px"></td>
-                <td><label class="switch"><input type="checkbox"><span class="knob"></span></label> <input class="input input-sm mono" value="—" style="width:64px" disabled></td>
-                <td><button class="btn btn-sm btn-outline">저장</button></td>
+                <td><span class="chip cl">seoul-hpc · 80</span></td>
+                <td><button class="btn btn-sm btn-outline" data-open-modal="clusterMapModal" data-modal-title="acct-bio 클러스터 매핑">매핑 관리</button></td>
               </tr>
               <tr>
                 <td class="mono"><b>acct-vision</b></td><td>비전랩</td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="60" style="width:64px"></td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="60" style="width:64px"></td>
-                <td><button class="btn btn-sm btn-outline">저장</button></td>
+                <td><span class="chip cl">seoul-hpc · 60</span> <span class="chip cl-b">pangyo-gpu · 60</span></td>
+                <td><button class="btn btn-sm btn-outline" data-open-modal="clusterMapModal" data-modal-title="acct-vision 클러스터 매핑">매핑 관리</button></td>
               </tr>
               <tr>
                 <td class="mono"><b>acct-met</b></td><td>기상모델링</td>
-                <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label> <input class="input input-sm mono" value="60" style="width:64px"></td>
-                <td><label class="switch"><input type="checkbox"><span class="knob"></span></label> <input class="input input-sm mono" value="—" style="width:64px" disabled></td>
-                <td><button class="btn btn-sm btn-outline">저장</button></td>
+                <td><span class="chip cl">seoul-hpc · 60</span></td>
+                <td><button class="btn btn-sm btn-outline" data-open-modal="clusterMapModal" data-modal-title="acct-met 클러스터 매핑">매핑 관리</button></td>
+              </tr>
+              <tr>
+                <td class="mono"><b>acct-ops</b></td><td>HPC운영팀</td>
+                <td><span class="chip cl">seoul-hpc · 50</span> <span class="chip cl-b">pangyo-gpu · 50</span></td>
+                <td><button class="btn btn-sm btn-outline" data-open-modal="clusterMapModal" data-modal-title="acct-ops 클러스터 매핑">매핑 관리</button></td>
               </tr>
             </tbody>
           </table>
@@ -151,6 +145,65 @@
     </footer>
   </div>
 </div>
+<!-- 계정별 클러스터 매핑 모달 (A-US-07 · A-US-04) — 클러스터를 세로로 나열해 개수 확장에 대응 -->
+<div class="modal-backdrop hidden" id="clusterMapModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cmTitle" style="max-width:600px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">🖧</span>
+      <h3 id="cmTitle" style="flex:1"><span class="m-title-text">클러스터 매핑</span> <span class="fid">A-US-07 · A-US-04</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:70vh;overflow:auto">
+      <div class="notice info" style="margin-bottom:14px;font-size:12px;padding:9px 12px"><span>ℹ</span><div>등록된 클러스터별로 이 계정의 <b>사용 허용</b>과 <b>fairshare share</b>를 설정합니다. 허용된 클러스터만 Job 제출 대상이 됩니다.</div></div>
+      <table class="tbl">
+        <thead><tr><th>클러스터</th><th>설명</th><th style="width:80px">허용</th><th style="width:110px">share</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="chip cl">seoul-hpc</span></td><td>본원 데이터센터</td>
+            <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label></td>
+            <td><input class="input input-sm mono" value="100" style="width:72px"></td>
+          </tr>
+          <tr>
+            <td><span class="chip cl-b">pangyo-gpu</span></td><td>GPU 특화</td>
+            <td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label></td>
+            <td><input class="input input-sm mono" value="100" style="width:72px"></td>
+          </tr>
+        </tbody>
+      </table>
+      <span class="hint" style="display:block;margin-top:8px">클러스터를 추가 등록하면 이 목록에 자동으로 나타납니다 (많아지면 세로 스크롤).</span>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-primary btn-sm" type="button">저장 (sacctmgr)</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  // 등록/수정 모달 공통 open/close (기존 .modal 패턴 재사용)
+  function closeModal(m) { m.classList.add('hidden'); }
+  document.querySelectorAll('[data-open-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var m = document.getElementById(btn.getAttribute('data-open-modal'));
+      if (!m) return;
+      var t = btn.getAttribute('data-modal-title');
+      var lbl = m.querySelector('.m-title-text');
+      if (t && lbl) lbl.textContent = t;
+      m.classList.remove('hidden');
+    });
+  });
+  document.querySelectorAll('.modal-backdrop').forEach(function (m) {
+    m.addEventListener('click', function (e) { if (e.target === m) closeModal(m); });
+    m.querySelectorAll('.m-close, [data-close]').forEach(function (b) {
+      b.addEventListener('click', function () { closeModal(m); });
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(closeModal);
+  });
+})();
+</script>
 <script>
 (function () {
   // 사이드바 접기/펼치기 — 사용자 포털과 동일 동작, 상태 공유(localStorage)
