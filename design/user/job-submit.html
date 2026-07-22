@@ -98,19 +98,20 @@
                   <div class="form-section-title">기본 정보</div>
                   <div class="field"><label>클러스터 <span class="req">*</span></label>
                     <select class="select"><option>seoul-hpc — 본원 (기본)</option><option>pangyo-gpu — GPU 특화</option></select>
-                    <span class="hint">내 계정(acct-ai)에 매핑된 클러스터만 표시됩니다 · 변경 시 파티션·QOS·GRES 목록 갱신 (sbatch -M)</span>
+                    <span class="hint">내 계정이 있는 클러스터만 표시됩니다 · 변경 시 파티션·QOS·GRES 목록 갱신 (sbatch -M)</span>
                   </div>
                   <div class="field"><label>Job 이름 <span class="req">*</span></label><input class="input" type="text" value="llm-finetune-r4"></div>
                   <div class="field"><label>계정(Account) <span class="req">*</span></label>
                     <select class="select"><option>acct-ai (AI연구팀)</option><option>acct-shared</option></select>
-                    <span class="hint">계정/QOS는 공유 slurmdbd 기준 — 전 클러스터 공통</span>
+                    <span class="hint">선택한 클러스터의 계정 (클러스터별 독립 slurmdbd)</span>
                   </div>
                   <div class="field"><label>파티션 <span class="req">*</span></label>
                     <select class="select"><option>gpu — A100×4/노드, 최대 2일</option><option>normal — CPU 128C/노드, 최대 3일</option><option>bigmem — 2TB RAM, 최대 7일</option><option>debug — 최대 1시간</option></select>
                     <span class="hint">seoul-hpc 파티션 목록</span>
                   </div>
                   <div class="field"><label>QOS</label>
-                    <select class="select"><option>normal</option><option>high (승인 필요)</option><option>debug</option></select>
+                    <select class="select"><option>normal — 기본 QOS · 우선순위 10</option><option>debug — walltime ≤ 1시간 · 우선순위 30</option><option>high — 우선순위 50 · 승인 필요</option></select>
+                    <span class="hint">내 계정·사용자에 허용된 QOS만 표시 · 미선택 시 기본 QOS(normal) 적용</span>
                   </div>
 
                   <div class="form-section-title">자원 요청</div>

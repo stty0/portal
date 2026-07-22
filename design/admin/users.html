@@ -115,25 +115,25 @@
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px">JP</span><b>박정렬</b> <span class="mono" style="color:var(--ink-3)">jrpark</span></div></td>
                 <td class="mono">jungryul0515.park@…</td><td><span class="chip gray">USER</span></td><td><span class="chip">acct-ai</span> <span class="chip">acct-bio</span></td><td class="mono">normal</td><td class="mono">10분 전</td>
                 <td><span class="badge completed">활성</span></td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
               <tr>
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#17994f,#0d6635)">SS</span><b>선상준</b> <span class="mono" style="color:var(--ink-3)">seonsj</span></div></td>
                 <td class="mono">sangjun.seon@…</td><td><span class="chip gray">USER</span></td><td><span class="chip">acct-bio</span></td><td class="mono">normal</td><td class="mono">2시간 전</td>
                 <td><span class="badge completed">활성</span></td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
               <tr>
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#d3383c,#8f1f22)">JL</span><b>이주영</b> <span class="mono" style="color:var(--ink-3)">jylee</span></div></td>
                 <td class="mono">juyoung.lee@…</td><td><span class="chip">ADMIN</span></td><td><span class="chip">acct-ops</span> <span class="chip">acct-ai</span></td><td class="mono">—</td><td class="mono">40분 전</td>
                 <td><span class="badge completed">활성 · 2FA</span></td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
               <tr>
                 <td><div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#8a93a8,#5a6377)">SK</span><b>강세윤</b> <span class="mono" style="color:var(--ink-3)">sykang</span> <span class="chip gray" title="13:20 AD 동기화로 자동 등록">AD 자동 등록</span></div></td>
                 <td class="mono">seyun.kang@…</td><td><span class="chip gray">USER</span></td><td><span class="chip">acct-vision</span></td><td class="mono">normal</td><td class="mono">방금 전</td>
                 <td><span class="badge completed">활성</span></td>
-                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
+                <td><div class="row-actions"><button class="btn btn-sm btn-outline">수정</button><button class="btn btn-sm btn-outline">역할</button><button class="btn btn-sm btn-outline" data-open-modal="userQosModal" data-modal-title="QOS 배정">QOS</button><button class="btn btn-sm btn-danger">비활성</button></div></td>
               </tr>
             </tbody>
           </table>
@@ -153,6 +153,62 @@
     </footer>
   </div>
 </div>
+<!-- 사용자별 QOS 배정 모달 (A-US-03) — 선택 클러스터, 계정 상속 위 override -->
+<div class="modal-backdrop hidden" id="userQosModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="uqTitle" style="max-width:560px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">⚖</span>
+      <h3 id="uqTitle" style="flex:1"><span class="m-title-text">QOS 배정</span> <span class="fid">A-US-03</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="notice info" style="margin-bottom:14px;font-size:12px;padding:9px 12px"><span>ℹ</span><div>선택한 클러스터에서 이 사용자에게 허용할 QOS와 기본 QOS를 지정합니다. 미설정 시 <b>소속 계정의 QOS를 상속</b>합니다(사용자 override).</div></div>
+      <div class="form-grid">
+        <div class="field full"><label class="checkline"><input type="checkbox" checked> 소속 계정 QOS 상속 (개별 override 안 함)</label></div>
+        <div class="field full"><label>허용 QOS (override)</label>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;padding-top:4px">
+            <label class="checkline"><input type="checkbox" checked> normal</label>
+            <label class="checkline"><input type="checkbox"> high</label>
+            <label class="checkline"><input type="checkbox" checked> debug</label>
+            <label class="checkline"><input type="checkbox"> long</label>
+          </div>
+          <span class="hint">sacctmgr modify user … set qos=</span>
+        </div>
+        <div class="field"><label>기본 QOS</label><select class="select"><option>normal</option><option>debug</option><option>high</option><option>long</option></select><span class="hint">--qos 미지정 시 적용 (DefaultQOS)</span></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-primary btn-sm" type="button">저장 (sacctmgr modify user)</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  // 등록/수정 모달 공통 open/close (기존 .modal 패턴 재사용)
+  function closeModal(m) { m.classList.add('hidden'); }
+  document.querySelectorAll('[data-open-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var m = document.getElementById(btn.getAttribute('data-open-modal'));
+      if (!m) return;
+      var t = btn.getAttribute('data-modal-title');
+      var lbl = m.querySelector('.m-title-text');
+      if (t && lbl) lbl.textContent = t;
+      m.classList.remove('hidden');
+    });
+  });
+  document.querySelectorAll('.modal-backdrop').forEach(function (m) {
+    m.addEventListener('click', function (e) { if (e.target === m) closeModal(m); });
+    m.querySelectorAll('.m-close, [data-close]').forEach(function (b) {
+      b.addEventListener('click', function () { closeModal(m); });
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(closeModal);
+  });
+})();
+</script>
 <script>
 (function () {
   // 사이드바 접기/펼치기 — 사용자 포털과 동일 동작, 상태 공유(localStorage)
