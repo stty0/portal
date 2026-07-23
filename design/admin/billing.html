@@ -171,33 +171,19 @@
               <span>🔐</span>
               <div><b>Billing 조회 권한만 가진 전용 키</b>를 사용하세요. Secret Key는 Secret 저장소에 암호화 보관되며 저장 후 다시 표시되지 않습니다.</div>
             </div>
-            <div class="form-grid">
-              <div class="field"><label>API 엔드포인트 <span class="chip gray">CR spec</span></label>
-                <input class="input mono" value="https://billing.api.samsungsdscloud.com">
-              </div>
-              <div class="field"><label>SCP 프로젝트 ID <span class="req">*</span> <span class="chip gray">CR spec</span></label>
-                <input class="input mono" value="PROJECT-a1b2c3d4">
-              </div>
-              <div class="field"><label>Access Key <span class="req">*</span> <span class="chip gray">CR spec</span></label>
-                <input class="input mono" value="SCPAK7F3K2M9Q1XXXX">
-              </div>
-              <div class="field"><label>Secret Key <span class="req">*</span> <span class="chip gray">Secret</span></label>
-                <input class="input mono" type="password" value="••••••••••••••••">
-                <span class="hint">billing 권한이 부여된 키인지 저장 시 자동 검증합니다</span>
-              </div>
-              <div class="field"><label>수집 주기</label>
-                <select class="select"><option selected>일 1회 (06:00)</option><option>6시간</option><option>1시간</option></select>
-              </div>
-              <div class="field"><label>월 비용 상한 알림</label>
-                <input class="input mono" value="4,000,000">
-                <span class="hint">원(KRW) · 80% 도달 시 관리자 알림 발송</span>
-              </div>
-            </div>
+            <dl class="dl" style="grid-template-columns:150px 1fr">
+              <dt>API 엔드포인트</dt><dd class="mono">https://billing.api.samsungsdscloud.com</dd>
+              <dt>SCP 프로젝트 ID</dt><dd class="mono">PROJECT-a1b2c3d4</dd>
+              <dt>Access Key</dt><dd class="mono">SCPAK7F3K2M9Q1XXXX</dd>
+              <dt>Secret Key</dt><dd class="mono">•••••••••••••••• <span style="font-size:11px;color:var(--ink-3)">(Secret 저장소 보관)</span></dd>
+              <dt>수집 주기</dt><dd class="mono">일 1회 (06:00)</dd>
+              <dt>월 비용 상한 알림</dt><dd class="mono">4,000,000 원 <span style="font-size:11px;color:var(--ink-3)">(80% 도달 시 관리자 알림)</span></dd>
+            </dl>
           </div>
           <div class="card-foot" style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
             <span style="margin-right:auto;font-size:12px;color:var(--ink-3)">키 변경은 감사 로그(C-05)에 기록 · 마지막 검증 06:00 성공</span>
             <button class="btn btn-outline">연결 테스트</button>
-            <button class="btn btn-primary">저장</button>
+            <button class="btn btn-outline" data-open-modal="billingApiModal" data-modal-title="SCP Billing API 연동 설정">수정</button>
           </div>
         </div>
 
@@ -235,6 +221,49 @@
       </div>
       <div class="pf-sub">삼성에스디에스(주) 대표이사 이준희 | 주소 : 서울시 송파구 올림픽로 35길 125 삼성SDS (05510) | 대표전화 : [국내] 1661-3311, [해외] +82-70-7010-3000 | 이메일 : cccs@samsung.com</div>
     </footer>
+  </div>
+</div>
+<!-- SCP Billing API 연동 설정 모달 (A-BL-01) -->
+<div class="modal-backdrop hidden" id="billingApiModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="baTitle" style="max-width:680px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">🔐</span>
+      <h3 id="baTitle" style="flex:1"><span class="m-title-text">SCP Billing API 연동 설정</span> <span class="fid">A-BL-01</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:72vh;overflow:auto">
+      <div class="notice info" style="margin-bottom:16px;font-size:12px;padding:9px 12px">
+        <span>🔐</span>
+        <div><b>Billing 조회 권한만 가진 전용 키</b>를 사용하세요. Secret Key는 Secret 저장소에 암호화 보관되며 저장 후 다시 표시되지 않습니다.</div>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>API 엔드포인트 <span class="chip gray">CR spec</span></label>
+          <input class="input mono" value="https://billing.api.samsungsdscloud.com">
+        </div>
+        <div class="field"><label>SCP 프로젝트 ID <span class="req">*</span> <span class="chip gray">CR spec</span></label>
+          <input class="input mono" value="PROJECT-a1b2c3d4">
+        </div>
+        <div class="field"><label>Access Key <span class="req">*</span> <span class="chip gray">CR spec</span></label>
+          <input class="input mono" value="SCPAK7F3K2M9Q1XXXX">
+        </div>
+        <div class="field"><label>Secret Key <span class="req">*</span> <span class="chip gray">Secret</span></label>
+          <input class="input mono" type="password" placeholder="재입력 시에만 변경 (미입력 시 기존 유지)">
+          <span class="hint">billing 권한이 부여된 키인지 저장 시 자동 검증합니다</span>
+        </div>
+        <div class="field"><label>수집 주기</label>
+          <select class="select"><option selected>일 1회 (06:00)</option><option>6시간</option><option>1시간</option></select>
+        </div>
+        <div class="field"><label>월 비용 상한 알림</label>
+          <input class="input mono" value="4,000,000">
+          <span class="hint">원(KRW) · 80% 도달 시 관리자 알림 발송</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-outline btn-sm" type="button">연결 테스트</button>
+      <button class="btn btn-primary btn-sm" type="button">저장</button>
+    </div>
   </div>
 </div>
 <!-- 자원 식별 필터 규칙 추가/수정 모달 (A-BL-02·04) -->

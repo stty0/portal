@@ -187,6 +187,12 @@
 - 예외 유지: 톱바 클러스터 드롭다운, /home·/group(전 클러스터 공유), /scratch(pangyo, data-cluster로 숨김). 노드맵·부하차트가 seoul 전용 시각화라 완전 동적 전환은 C-03 데이터 바인딩 시(현재 기본 seoul-hpc 정적, jobs/nodes와 동일).
 - 검증(portal-verifier): dashboard 태그 균형·표 컬럼 정합(큐 4/이벤트 4)·id 유일·잔여 문자열 0, 12파일 사이드바 '대시보드' 통일·균형 PASS.
 
+## 후속: SCP Billing API 연동 인라인 폼 → 모달 (AD 연결과 동일 패턴)
+- billing.html A-BL-01 카드: 인라인 입력 폼 → **읽기 전용 요약(dl)** + card-foot '수정' 버튼(→ billingApiModal). 입력 폼은 신규 `billingApiModal`로 이동(연결 테스트/저장 포함).
+- 보안: Secret Key는 모달에서 값 미노출(placeholder "재입력 시에만 변경"), 요약엔 •••• (Secret 저장소 보관).
+- 자원 식별 필터(A-BL-02·04)는 이미 billingRuleModal 사용 중 — 변경 없음. 모달 open/close 스크립트 기존 존재(범용)라 신규 모달 자동 동작.
+- 검증(portal-verifier): 태그 균형·트리거→id(billingApiModal/billingRuleModal)·id 유일(baTitle 등)·카드 input 0/모달 폼 존재 PASS.
+
 ## 미해결 / 참고
 - 정적 프로토타입이므로 수정(edit) 시 실제 값 프리필은 미구현(대표 예시값). 실데이터 바인딩(C-03) 도입 시 처리.
 - 점검 모드 시작(A-ND-05)은 이번 범위 제외(버튼 유지).
