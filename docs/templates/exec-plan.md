@@ -1,4 +1,4 @@
-<!-- 작성: Claude (계획 승인 후). docs/exec-plan.md 로 복사해 채운다. Codex 구현의 기준. -->
+<!-- 작성: Claude (계획 승인 후). docs/exec-plan.md 로 복사해 채운다. 구현의 기준. -->
 # Exec Plan: <작업/에픽 이름>
 
 - 근거 plan: docs/plan.md

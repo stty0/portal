@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hpc-portal
+  labels:
+    app.kubernetes.io/part-of: hpc-portal
+---
+# backend-design §5.3: K8s 내 단일 Pod MySQL 운영 시 PVC reclaimPolicy는 Retain이어야
+# 한다. k3s 기본 local-path는 Delete라 PVC 삭제 시 데이터가 함께 사라지므로 별도 정의.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path-retain
+provisioner: rancher.io/local-path
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer

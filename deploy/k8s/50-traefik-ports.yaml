@@ -1,0 +1,36 @@
+# k3s 내장 Traefik의 호스트 포트를 9080/9443으로 연다.
+#
+# 왜 80/443이 아닌가: 이 서버의 80/443은 기존 nginx가 점유하고 있고
+# osmo.dt-hpc.net·keycloak.dt-hpc.net의 TLS를 종단하고 있다. 뺏으면 그 서비스가 죽는다.
+#
+# k3s는 kube-system의 HelmChartConfig를 내장 차트 값에 병합해 재배포한다
+# (매니페스트를 직접 수정하면 k3s가 되돌린다).
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    # **반드시 ClusterIP여야 한다.** 차트 기본값은 LoadBalancer이고, 그러면 k3s servicelb가
+    # hostPort 80/443을 잡는 svclb-traefik 파드를 띄워 **기존 nginx(80/443)의 외부 트래픽을
+    # DNAT으로 가로챈다**(osmo·keycloak 중단). 외부 노출은 아래 hostPort 9080/9443으로만 한다.
+    # traefik 차트 v40은 raw ServiceSpec을 `service.spec` 아래에 둔다(`service.type` 아님).
+    service:
+      spec:
+        type: ClusterIP
+    # hostPort는 노드당 1개만 바인딩되므로 RollingUpdate는 새 파드가 옛 파드와
+    # 포트를 다투다 Pending으로 멈춘다. 순간 중단을 감수하고 Recreate를 쓴다.
+    updateStrategy:
+      type: Recreate
+      rollingUpdate: null
+    # 액세스 로그 — "요청이 서버까지 왔는가"를 판별하는 유일한 근거.
+    # 이게 없으면 방화벽/NAT 문제와 라우팅 문제를 구분할 수 없다.
+    logs:
+      access:
+        enabled: true
+    ports:
+      web:
+        hostPort: 9080
+      websecure:
+        hostPort: 9443

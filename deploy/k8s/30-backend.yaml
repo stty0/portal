@@ -1,0 +1,62 @@
+# Portal Backend (FastAPI) — backend-design §1.1·§5.2
+#   컨테이너 이미지: hpc-portal-backend:0.1.0 (k3s containerd에 import, imagePullPolicy: Never)
+#   DB/Redis는 클러스터 내부 DNS로 접근한다 — 개발용 NodePort를 거치지 않는다.
+#
+# 환경변수(자격증명 포함)는 Secret `portal-backend-env`에 있다. README 참조.
+apiVersion: v1
+kind: Service
+metadata:
+  name: portal-backend
+  namespace: hpc-portal
+spec:
+  selector:
+    app: portal-backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal-backend
+  namespace: hpc-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: portal-backend
+  template:
+    metadata:
+      labels:
+        app: portal-backend
+    spec:
+      # 스키마를 먼저 맞춘 뒤에 앱이 뜨게 한다. 멀티 replica로 늘릴 때는
+      # 동시 실행을 피하도록 Job/Helm hook으로 분리해야 한다(§5.5).
+      initContainers:
+        - name: migrate
+          image: hpc-portal-backend:0.1.0
+          imagePullPolicy: Never
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - secretRef: { name: portal-backend-env }
+      containers:
+        - name: backend
+          image: hpc-portal-backend:0.1.0
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - secretRef: { name: portal-backend-env }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }

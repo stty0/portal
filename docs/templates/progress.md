@@ -1,4 +1,4 @@
-<!-- 작성: Codex (구현 단계). docs/progress.md 로 복사해 갱신한다. Task마다 기록. -->
+<!-- 작성: Claude (구현 단계). docs/progress.md 로 복사해 갱신한다. Task마다 기록. -->
 # Progress: <작업/에픽 이름>
 
 - 근거 exec-plan: docs/exec-plan.md

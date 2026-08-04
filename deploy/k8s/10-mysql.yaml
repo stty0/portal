@@ -1,0 +1,107 @@
+# Portal DB (MySQL) — backend-design §5.3
+#   - StatefulSet + 네트워크/영속 스토리지(PVC). 로컬 스토리지 지양이나 단일 노드 dev라 local-path 사용
+#   - Liveness probe로 데몬 재시작 자동화
+#   - PVC reclaimPolicy: Retain (00-namespace.yaml의 local-path-retain)
+#   - 정기 백업(CronJob → S3)은 **미구현** — 운영 전 별도 구현 필요(§5.3)
+#
+# 자격증명은 이 파일에 없다. Secret `mysql-credentials`를 kubectl로 별도 생성한다(README 참조).
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: hpc-portal
+spec:
+  clusterIP: None # StatefulSet용 headless
+  selector:
+    app: mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-nodeport
+  namespace: hpc-portal
+  annotations:
+    # 백엔드가 아직 클러스터 밖(호스트)에서 실행되므로 개발용으로 노출한다.
+    # 백엔드를 클러스터에 배포하면 headless Service(mysql:3306)를 쓰고 이 객체는 제거한다.
+    portal/purpose: "개발용 외부 접근 — 운영에서는 제거"
+spec:
+  type: NodePort
+  selector:
+    app: mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+      nodePort: 30306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: hpc-portal
+spec:
+  serviceName: mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.4
+          args:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_unicode_ci
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: mysql-credentials, key: root-password }
+            - name: MYSQL_DATABASE
+              value: portal
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef: { name: mysql-credentials, key: username }
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: mysql-credentials, key: password }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+          livenessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "127.0.0.1"]
+            initialDelaySeconds: 45
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - mysql -h 127.0.0.1 -u root -p"$MYSQL_ROOT_PASSWORD" -e "SELECT 1"
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits: { cpu: "2", memory: 2Gi }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path-retain
+        resources:
+          requests:
+            storage: 10Gi

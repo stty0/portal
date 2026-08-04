@@ -1,59 +1,63 @@
-# Exec Plan: admin 등록/수정 입력 모달 전환
+# Exec Plan: Frontend — Vue 3 + TypeScript + Tailwind
 
-- 근거 plan: docs/plan.md
-- 범위: Tier 1 + Tier 2 (경계 케이스 users AD 연결 / billing SCP 연동은 인라인 유지)
-- 담당: 구현 Codex(gpt-5.6-terra) / 검증 Claude(portal-verifier, portal-reviewer)
+- 근거 plan: [docs/plan.md](plan.md)
+- 담당: 구현·검증 Claude
 
-## 공통 규칙 (모든 Task 적용)
-- **기존 모달 패턴만 사용**(신규 CSS 컴포넌트 금지):
-  `<div class="modal-backdrop hidden" id="{name}Modal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="{name}Title">`
-  → `.modal-head`(제목 + `.m-close` ✕) / `.modal-body`(폼) / `.modal-foot`(취소·저장 버튼).
-- 입력 컨트롤은 기존 클래스 재사용: `.input`, `.select`, `.switch`, 라벨 스타일 기존과 동일.
-- open/close JS는 페이지 하단 기존 `<script>` 컨벤션대로 추가: 트리거 클릭 → `modal.classList.remove('hidden')`; `.m-close`·배경 클릭·ESC → `add('hidden')`. 여러 모달이면 공통 헬퍼 하나로.
-- 트리거: 페이지 액션 `＋등록/생성` = 빈 폼(제목 "…추가"), 행 `수정` = 예시값 프리필(제목 "…수정"). 정적이므로 프리필은 대표 예시값 하드코딩.
-- **fid 칩/주석은 이동하는 폼과 함께 모달 안으로 그대로 옮긴다.**
-- 사이드바/톱바/푸터·기존 스크립트 로직 **미변경**. 오직 본문 content의 해당 카드만 수정.
-- 유지 대상(변경 금지): 검색/필터 바, 읽기전용 테이블·차트·타임라인, settings 시스템 설정(전역), users 계정·클러스터 매핑 매트릭스, users AD 연결, billing SCP 연동.
+## 공통 규칙
+- `<script setup lang="ts">` + Composition API. Options API 혼용 금지.
+- 색상·간격은 **Tailwind 테마 토큰만** 쓴다. 임의 hex 금지(정적 프로토타입 규칙 계승).
+- 사이드바/톱바는 `AppShell` 한 곳에만 존재한다. 화면이 복제하지 않는다.
+- 화면 요소에 기능 정의서 ID를 `<Fid id="U-JB-01" />`로 유지(추적성).
+- API 호출은 `src/api/*`를 통해서만. view가 `fetch`를 직접 부르지 않는다.
+- 정적 데이터 화면은 `<StaticNotice />`로 명시한다.
 
 ## Task 목록
 
-### T-01 license.html — 라이선스 서버 추가/수정 모달 (Tier1)
-- 인라인 "수집/연동 설정" 카드(L128–163) 제거 → `licenseServerModal` 신설.
-- 모달 필드: 서버명, 유형(FlexNet/FlexLM), 접속주소(port@host), 벤더 데몬, 대상 SW, 3중화 여부 + (수집/연동 관련) 연결 Timeout, 대상 서버 수집 주기, Slurm Licenses 동기화 토글.
-- 전역 성격 설정(lmutil 경로 등)은 모달 상단 "전역" 구획으로 포함(사용자 의도: 등록/수정 시 입력). 별도 인라인 카드로 남기지 않음.
-- 트리거: `＋라이선스 서버 추가`(L84, 빈 폼), 각 행 `수정`(프리필). `Feature 사용 현황`·`사용 모니터링`(A-LM-05) 테이블은 유지.
-- 검증: 태그 균형 / 내부 링크 / fid(A-LM-*) 보존.
+### T-01 프로젝트 스캐폴딩
+- Vite + Vue3 + TS, Tailwind v4, Pinia, vue-router 설치·설정
+- `vite.config.ts` 개발 프록시(`/api` → Traefik 9443)
+- 수용: `npm run dev` 기동, `npm run build` 통과
 
-### T-02 clusters.html — 클러스터 등록/수정 모달 (Tier1)
-- 인라인 "클러스터 등록/수정" 폼(L136–161) → `clusterModal`. 트리거 `＋클러스터 등록`(L84)·행 `수정`(L117/127).
-- "수집/장애 정책" 카드(L176–189)는 page-level 정책이므로 **유지**.
+### T-02 디자인 토큰 이관
+- `design/css/style.css` `:root` → `src/assets/main.css`의 `@theme`
+- 브랜드/뉴트럴/사이드바/상태 색, radius, shadow, font
+- 수용: 토큰이 Tailwind 유틸(`bg-brand-700` 등)로 사용 가능
 
-### T-03 nodes.html — 상태변경 + 파티션 + 예약 모달 (Tier1+2)
-- 노드 상태 변경 인라인(L153–164) → `nodeStateModal`. 트리거: 행 `Drain`/`Resume`(대상 노드 프리필).
-- `＋파티션 생성`(L85/188)·행 `수정` → `partitionModal`(신규 폼: 파티션명, 노드 구성, 시간제한, 우선순위, 접근 계정/그룹).
-- `＋예약 생성`(L84/208) → `reservationModal`(신규 폼: 예약명, 대상 노드, 기간, 사유/전용 그룹).
-- 파티션·예약 테이블은 읽기전용 유지. `점검 모드 시작`(L83)은 이번 범위 제외(유지).
+### T-03 API 클라이언트 · 타입
+- `types/api.ts`(백엔드 스키마 대응), `api/client.ts`(토큰 주입·오류 정규화·401 처리)
+- 도메인별: `auth.ts` `clusters.ts` `jobs.ts` `users.ts`
+- 수용: 오류가 `{code,message,detail}`로 정규화되어 표면화
 
-### T-04 jobs.html — 우선순위 조정 모달 (Tier1)
-- 인라인 "우선순위 조정" 카드(L159–172) → `jobPriorityModal`. 트리거: 행 `⇧Top`/`Hold`(L135 등, Job ID 프리필). 필터 바·제어 이력 테이블 유지.
+### T-04 스토어 · 라우터
+- `stores/auth.ts`(로그인/로그아웃/권한), `stores/cluster.ts`(전역 클러스터 스코프)
+- 라우터 가드: 미인증 → 로그인, `admin:access` 없으면 ADMIN 라우트 차단
+- 수용: USER 계정이 ADMIN 경로 접근 시 차단
 
-### T-05 users.html — QOS 생성/수정 + 파티션 접근제어 모달 (Tier1+2)
-- QOS 테이블(L246–258) 위 `＋QOS 생성`·행 `수정` → `qosModal`(신규 폼: QOS명, 최대 Job 수, 자원 한도, 우선순위).
-- 인라인 "파티션 접근 제어" 서브폼(L259–271) → `partitionAclModal`(대상 파티션, AllowAccounts).
-- AD 연결(L148–191)·계정 매핑 매트릭스(L276–324)는 **유지**.
+### T-05 공통 UI 컴포넌트
+- `Card` `Table` `Badge` `Chip` `Btn` `Modal` `Field` `Meter` `Fid` `StaticNotice` `PageHead`
+- 수용: 정적 프로토타입과 시각적으로 일치
 
-### T-06 settings.html — 공지 / 앱·템플릿 모달 (Tier2)
-- `＋공지 등록`·행 `수정` → `noticeModal`(제목, 대상, 노출 기간, 배너 여부, 본문).
-- `＋등록`(앱/템플릿)·행 `파라미터`/`버전` → `appTemplateModal`(앱명, 유형, 버전, 파라미터 정의).
-- 시스템 설정 카드(L143–171)는 전역 설정이므로 **유지**.
+### T-06 레이아웃 (AppShell)
+- 사이드바(USER 9 / ADMIN 12 메뉴, 접기 상태 localStorage), 톱바(알림·도움말·클러스터 선택·계정), 푸터
+- 수용: 22화면이 이 하나를 공유, 복붙 0
 
-### T-07 billing.html — 자원 식별 필터 규칙 모달 (Tier2)
-- `＋규칙 추가`·행 `수정` → `billingRuleModal`(구분, 조건, 매핑, 상태). "필터 밖 자원 처리" 기본 select는 page 설정으로 유지. SCP 연동 카드 **유지**.
+### T-07 인증 화면 (SCR-01)
+- 로그인 + 최초 부트스트랩(`/auth/setup-status`로 분기)
+- 수용: 실 백엔드로 로그인/로그아웃 동작
 
-### T-08 reports.html — 정기 리포트 설정 모달 (Tier2)
-- `✉ 정기 리포트 설정`(L89) → `reportScheduleModal`(수신자, 주기, 형식, 범위). 나머지 분석 위젯 유지.
+### T-08 API 연결 화면
+- USER: 클러스터 현황(SCR-02) · Job 목록(03) · Job 제출(04) · Job 상세(05)
+- ADMIN: 대시보드(10) · 전체 Job(12) · 사용자/AD(13) · 클러스터 관리(18)
+- 수용: 실 API로 조회·제출·취소·역할변경·AD 동기화 동작
 
-## 실행 순서 / 검증
-- 순서: T-01(레퍼런스) → T-02 → … → T-08. T-01에서 모달 마크업/JS 컨벤션을 확정하고 나머지에 동일 적용.
-- 각 Task 후 progress.md 갱신. 전체 완료 후 portal-verifier(태그 균형·내부 링크·fid 커버리지+negative control) 실행, portal-reviewer로 구조 규칙·정의서 정합성 검토.
-- 성공 기준: plan.md §5. 코딩 가이드라인(최소·수술적 변경) 준수 — 요청 범위 밖 리팩터/스타일 변경 금지.
+### T-09 정적 화면
+- USER: 인터랙티브 앱(06) · 파일(07) · 터미널(08) · 사용량(09) · 공지(16)
+- ADMIN: 노드/파티션(11) · 계정 · QOS · 리포트(14) · 설정(15) · License(17) · Billing(19)
+- 수용: 디자인 재현 + 정적 데이터 표시
+
+### T-10 검증
+- `vue-tsc` 타입체크, `npm run build`, 라우트 도달성, 실 백엔드 연동 확인
+- 수용: plan.md §5 전부
+
+## 실행 순서
+T-01 → T-02 → T-03 → T-04 → T-05 → T-06 → T-07 → T-08 → T-09 → T-10

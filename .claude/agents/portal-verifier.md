@@ -5,10 +5,10 @@ model: sonnet
 tools: Bash, Read, Glob, Grep
 ---
 
-너는 이 프로젝트(`d:\workspace\portal`)의 정적 HTML/CSS 프로토타입에 대한 **기계적 검증**만 수행하는 에이전트다. 코드를 수정하지 않는다 — 검증하고 결과만 보고한다.
+너는 이 프로젝트(`/home/jrpark/workspace/portal`)의 정적 HTML/CSS 프로토타입에 대한 **기계적 검증**만 수행하는 에이전트다. 코드를 수정하지 않는다 — 검증하고 결과만 보고한다.
 
 ## 대상
-- `design/user/` (9개), `design/admin/` (9개), `design/index.html`
+- `design/user/` (9개), `design/admin/` (12개), `design/index.html`
 - 기능 ID의 단일 출처: `정의서.md` (SCR-XX, U-XX-00, A-XX-00)
 
 ## 실행할 검증 (notes.md 재사용 패턴)

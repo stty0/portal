@@ -1,0 +1,543 @@
+@startuml portal-backend-class
+' Slurm HPC Portal — Backend 클래스 다이어그램 (설계 초안)
+' 설계 근거: backend-design.md(§ 참조는 해당 문서), 데이터 모델 SoT: db-erd.md, 기능 SoT: ../정의서.md
+' 본 파일은 docs/Architecture.md §3에서 참조된다.
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam linetype ortho
+title Slurm HPC Portal — Backend Class (설계 초안)
+
+package "core · 인증/인가" {
+  class require_permission <<Depends>> {
+    -permission : str
+    +__call__(request) : User
+    -verify_jwt(token) : dict          ' 포털 세션 JWT 서명·exp 검증
+    -check_session(username) : bool    ' Redis 세션 존재 확인(강제 로그아웃 반영)
+    -has_perm(role, permission) : bool ' PermissionCache 경유
+  }
+  class SessionData <<value>> {
+    +sid : str                         ' 난수 세션 ID (JWT의 sid 클레임)
+    +user_guid : str                   ' 신원의 정본 (objectGUID)
+    +username : str                    ' 참고용 (변경·재사용 가능)
+  }
+  class SessionStore {
+    -redis : Redis
+    -ttl : timedelta                   ' 세션 TTL(§9 미정, 예: 8h)
+    +create(user_guid, username) : SessionData ' session:{sid} + user_sessions:{guid} 색인
+    +get(sid) : SessionData             ' 없으면 None → 401
+    +revoke(sid)                        ' 해당 기기만 로그아웃
+    +revoke_all(user_guid) : int        ' 강제 로그아웃·비활성화(§4.1)
+  }
+  class PermissionCache {
+    -redis : Redis
+    +permissions(role) : set[str]      ' TTL 캐시 + 변경 시 명시적 무효화
+    +invalidate()
+  }
+}
+
+package "core · 자격증명/클라이언트 구성" {
+  interface SecretStore {
+    +get(secret_ref : str) : str       ' DB엔 참조(secret_ref)만 저장
+  }
+  note bottom of SecretStore
+    구현체는 <b>§9 미확정</b> — 후보:
+    K8sSecretStore(env/mount) / VaultSecretStore /
+    SCP Secret Manager. 저장소 확정 시 1개 구현,
+    호출부는 이 인터페이스에만 의존(교체 무영향).
+  end note
+  class SlurmTokenProvider {
+    -secrets : SecretStore
+    -cache : dict[cluster_id, jwt]
+    +token(cluster_id) : str           ' cluster_credential(SLURM_JWT).secret_ref 해석
+    +expires_at(cluster_id) : datetime ' exp 클레임 디코드(서명 미검증) → 만료 사전 알림
+    +on_unauthorized(cluster_id)       ' 401 감지 → 재등록 안내(반자동, §2.2)
+  }
+  class ClusterClientFactory {
+    -clusters : ClusterRepository
+    -tokens : SlurmTokenProvider
+    -secrets : SecretStore
+    -pool : dict[cluster_id, client]   ' 클러스터당 1개 재사용(keep-alive, §2.1)
+    +slurm(cluster_id) : SlurmrestdClient
+    +ssh(cluster_id) : SshClient
+  }
+}
+
+package "routers" {
+  class AuthRouter <<router>>
+  class JobRouter <<router>>
+  class NodeRouter <<router>>
+  class AccountRouter <<router>>
+  class QosRouter <<router>>
+  class UsageRouter <<router>>
+  class ClusterRouter <<router>>
+  class SessionRouter <<router>>
+  class LicenseRouter <<router>>
+  class InternalRouter <<router>> {
+    ' Swagger 비노출(include_in_schema=False)
+    +POST /internal/sessions/{id}/ready   ' Job 전용 1회성 토큰
+    +GET  /internal/sessions/{id}/authorize   ' Traefik forwardAuth 대상
+    +GET  /internal/gateway/dynamic-config    ' Traefik HTTP provider 폴링 대상(공유 시크릿)
+  }
+}
+
+package "services · slurmctld" {
+  class JobService {
+    +list(filter) / get(id)
+    +submit(user, spec)
+    +cancel(user, id)
+    +hold(id) / release(id) / set_priority(id, p)
+    +validate(user, spec) : ValidationResult
+    ' 연결성(ping)+#SBATCH 파싱(로컬)+파티션권한(Account/QosService 재사용)
+    ' +walltime한도(PartitionService 재사용) 조합. 신규 Slurm 호출 없음.
+    ' 대기시간 예측(test-only)·클러스터 추천은 미포함(§9 보류)
+  }
+  class NodeService {
+    +list() / get(name)
+    +set_state(name, DRAIN|RESUME|DOWN, reason)
+    +cluster_status()
+  }
+  class PartitionService {
+    +list() / update(name, cfg)
+  }
+  class ReservationService {
+    +list() / create(spec) / delete(name)
+  }
+}
+
+package "services · slurmdbd (sacct·sacctmgr)" {
+  class AccountService {
+    +list/create/modify/delete(account)
+    +add_user(account, user)  ' association N:M
+    +set_fairshare(account, share)
+    +allowed_accounts(partition)
+  }
+  class QosService {
+    +list/create/update/delete(qos)
+    +assign(entity, qos, is_default)
+  }
+  class SlurmUserService {
+    +upsert(username, default_account, default_qos)
+    +associations(username)
+  }
+  class UsageService {
+    +user_usage(username, period)      ' U-AC-01
+    +fairshare(username)               ' U-AC-02
+    +accounting_jobs(filter)           ' U-JB-09 / A-JB-04
+    +cluster_report(period)            ' A-RP (sreport, 필요시 CLI)
+  }
+}
+
+package "services · portal / 외부" {
+  class AuthService {
+    +login(username, password) : SessionToken ' AD bind → JIT(§3.3) → 포털 JWT 발급·세션 등록
+    +logout(user, sid)                        ' SessionStore.revoke(sid) — 해당 세션만
+    +seed_admin(setup_token, ad_username)     ' 최초 부트스트랩(§3.6)
+    +is_bootstrapped() : bool                 ' ad_connection.seed_admin_guid 존재 여부
+  }
+  class GatewayService {
+    +dynamic_config() : dict          ' Traefik HTTP provider 폴링 대상 — 활성 세션(status=running)을
+                                       ' 라우터/서비스(url=node_host:node_port)로 조합, DB 읽기만
+    +authorize(session_id, token, scope) : bool  ' Traefik forwardAuth 대상, full/view 스코프
+    ' 세션 등록/해제는 InteractiveSession 상태 변경만으로 충분(명시적 라우트 push 없음)
+  }
+  class LicenseService {
+    +list/create/update/delete_server(spec)
+    +test(server_id) : bool
+    +collect_features()          ' 배치, LicenseClient 직접 접속
+    +sync_to_slurm(server_id, cluster_id)  ' A-LM-03만 대상 클러스터 SlurmrestdClient 사용
+  }
+  class UserService {
+    +sync_from_ad()   ' A-US-01 배치(soft delete·GUID 재사용 판별)
+    +assign_role(guid, role)
+  }
+  class ClusterService {
+    +register(spec) / list() / update(id, patch)
+    +test_rest(id) / test_ssh(id)             ' 클러스터 등록 화면 연결 테스트
+  }
+  class BillingService {
+    +save_config(cfg) / rules()               ' A-BL-01·02
+    +collect_snapshot()                       ' 배치(collect_interval)
+    +trend(period, dimension)                 ' A-BL-03·04
+  }
+}
+
+package "repositories" {
+  class UserRepository {
+    -db : Session
+    +get_by_guid(guid) / get_by_username(name)
+    +upsert(user) / soft_delete(guid)
+  }
+  class ClusterRepository {
+    -db : Session
+    +get(id) / list_active()
+    +credentials(id) : list[ClusterCredential] ' kind=SLURM_JWT/SSH_KEY, secret_ref
+  }
+}
+
+package "models (Portal DB)" {
+  ' ---- 신원 & 인가 (C-01/C-02) ----
+  class User {
+    +ad_object_guid : str <<PK>>       ' AD objectGUID(불변)
+    +username : str <<uniq>>           ' sAMAccountName
+    +display_name : str
+    +email : str
+    +role_id : int <<FK>>
+    +default_cluster_id : int <<FK,N>>
+    +is_active : bool
+    +notify_prefs : json               ' 알림 수신 설정(U-AC-03)
+    +last_login_at : datetime
+    +deleted_at : datetime <<N>>       ' soft delete
+    +created_at / updated_at
+  }
+  class Role {
+    +id : int <<PK>>
+    +code : str <<uniq>>               ' 초기 USER·ADMIN 2행(향후 추가, 예: PI)
+    +name : str
+    +description : str
+  }
+  class Permission {
+    +id : int <<PK>>
+    +code : str <<uniq>>               ' 초기 admin:access 1행 → resource:action 확장
+    +description : str
+  }
+  class RolePermission {
+    +role_id : int <<PK,FK>>
+    +permission_id : int <<PK,FK>>     ' 초기 ADMIN→admin:access 1행
+  }
+  class UserSshKey {
+    +id : int <<PK>>
+    +user_guid : str <<FK>>
+    +label : str
+    +public_key : text
+    +created_at : datetime
+  }
+  ' ---- 클러스터 & 시크릿 (C-03/A-CL) ----
+  class Cluster {
+    +id : int <<PK>>
+    +name : str <<uniq>>               ' slurm.conf ClusterName
+    +description : str
+    +slurmrestd_url : str
+    +api_version : str                 ' v0.0.41
+    +auth_method : str                 ' jwt / munge
+    +login_node : str
+    +ssh_port : int                    ' 기본 22
+    +ssh_account : str                 ' 서비스 계정(제한 sudo)
+    +group_path_tpl / scratch_path_tpl
+    +is_default / is_active : bool
+    +created_at / updated_at
+  }
+  class ClusterCredential {
+    +id : int <<PK>>
+    +cluster_id : int <<FK>>
+    +kind : str                        ' SLURM_JWT / SSH_KEY
+    +secret_ref : str                  ' Secret 저장소 참조
+    +expires_at : datetime <<N>>       ' JWT exp(만료 알림)
+    +created_at : datetime
+  }
+  ' ---- AD 연결 (A-US-01, 단일 행) ----
+  class AdConnection {
+    +id : int <<PK>>
+    +ldaps_url : str
+    +base_dn : str
+    +bind_account : str
+    +bind_secret_ref : str             ' Secret 저장소 참조
+    +allowed_group : str               ' memberOf 필터
+    +id_attribute : str                ' sAMAccountName / uid
+    +sync_interval : str
+    +last_sync_at / last_sync_result
+    +seed_admin_guid : str <<N>>       ' 최초 setup seed
+    +created_at / updated_at
+  }
+  ' ---- 포털 콘텐츠 · 운영 ----
+  class Notice {
+    +id : int <<PK>>
+    +title : str
+    +body : text
+    +target_cluster_id : int <<FK,N>>  ' NULL=전체
+    +banner_enabled : bool
+    +start_at / end_at : datetime
+    +created_by : str <<FK>>
+    +created_at : datetime
+  }
+  class JobTemplate {
+    +id : int <<PK>>
+    +name : str
+    +type : str                        ' interactive / batch
+    +version : str
+    +params : json
+    +is_public : bool
+    +created_by : str <<FK>>
+    +created_at / updated_at
+  }
+  class InteractiveSession {
+    +id : int <<PK>>
+    +user_guid : str <<FK>>
+    +cluster_id : int <<FK>>
+    +app_type : str                    ' jupyter / vnc / code-server
+    +slurm_job_id : str                ' 종료=scancel(REST)
+    +status : str                      ' starting / running / terminated
+    +node_host : str                   ' Job 콜백으로 보고(GatewayService)
+    +node_port : int
+    +connect_url : str                 ' Traefik 동적 라우트 경로
+    +created_at : datetime
+    +terminated_at : datetime <<N>>
+  }
+  class Ticket {
+    +id : int <<PK>>
+    +title : str
+    +body : text
+    +requester_guid : str <<FK>>
+    +assignee_guid : str <<FK,N>>
+    +status : str                      ' open / in_progress / resolved
+    +job_id : str <<N>>
+    +created_at : datetime
+    +resolved_at : datetime <<N>>
+  }
+  class AuditLog {
+    +id : bigint <<PK>>
+    +at : datetime
+    +actor_guid : str <<FK>>
+    +actor_role : str
+    +action : str                      ' JOB_SUBMIT / NODE_DOWN ...
+    +target_cluster_id : int <<FK,N>>
+    +target : str
+    +detail : str
+    +ip : str
+  }
+  class PortalSetting {
+    +id : int <<PK>>                   ' 단일 행(A-OP-04)
+    +poll_interval_sec : int           ' C-04 ≤30초
+    +session_timeout_min : int
+    +smtp_host / smtp_port / smtp_sender
+    +webhook_url : str
+    +updated_at : datetime
+  }
+  ' ---- License (A-LM) ----
+  class LicenseServer {
+    +id : int <<PK>>
+    +name : str <<uniq>>
+    +host : str
+    +port : int                        ' port@host
+    +vendor_daemon : str
+    +collect_interval : str            ' lmstat 수집 주기
+    +is_active : bool
+    +last_check_at / last_check_result
+    +created_at / updated_at
+  }
+  class LicenseFeatureSnapshot {
+    +id : bigint <<PK>>
+    +server_id : int <<FK>>
+    +feature : str
+    +total : int
+    +in_use : int
+    +collected_at : datetime
+  }
+  ' ---- 리포트 (A-RP-04·05) ----
+  class ReportSchedule {
+    +id : int <<PK>>                   ' 단일 행
+    +recipients : str
+    +cycle : str                       ' weekly / monthly / quarterly
+    +format : str                      ' pdf / excel / csv
+    +scope : str
+    +is_active : bool
+    +updated_at : datetime
+  }
+  class ChargebackRate {
+    +id : int <<PK>>
+    +resource : str <<uniq>>           ' cpu / gpu
+    +rate_krw : int                    ' 원/core·h, 원/gpu·h
+    +unit : str
+    +updated_at : datetime
+  }
+  ' ---- Billing (A-BL) ----
+  class BillingConfig {
+    +id : int <<PK>>                   ' 단일 행
+    +api_endpoint : str
+    +scp_project_id : str
+    +access_key : str
+    +secret_ref : str                  ' SCP Secret Key 참조
+    +collect_interval : str
+    +monthly_alert_krw : bigint
+    +last_verified_at : datetime
+  }
+  class BillingRule {
+    +id : int <<PK>>
+    +kind : str                        ' Tag / Type
+    +condition : str
+    +mapping_label : str
+    +is_active : bool
+    +sort_order : int
+  }
+  class BillingSnapshot {
+    +id : bigint <<PK>>
+    +period : str                      ' YYYY-MM
+    +dimension : str
+    +cost_krw : bigint
+    +collected_at : datetime
+  }
+}
+note bottom of BillingSnapshot
+  포털 소유 <b>21개 엔티티</b> — db-erd.md와 1:1 동기.
+  타입/길이·인덱스·관계(FK) 상세의 SoT는 db-erd.md.
+end note
+
+package "clients" {
+  abstract class BaseHttpClient {
+    #base_url : str
+    #timeout_s : float
+    #max_retries : int
+    #verify_tls : bool
+    #session : httpx.Client            ' keep-alive 커넥션 풀(§2.1)
+    #default_headers : dict
+    +request(method, path, params, json, headers) : dict
+    #_retry(send) : Response           ' 지수 backoff, 멱등 op 한정
+    #_map_error(status, body)          ' 4xx/5xx → 도메인 예외(401=Unauthorized)
+  }
+  class SlurmrestdClient {
+    -cluster_id : int
+    -api_version : str                 ' v0.0.41 고정(정의서 §4.1 유의)
+    -auth : SlurmTokenProvider
+    -_headers(as_user) : dict          ' X-SLURM-USER-TOKEN(JWT) + X-SLURM-USER-NAME
+    .. slurmctld — /slurm/v0.0.41 ..
+    +get_jobs(filter) / get_job(id)
+    +submit_job(spec, as_user) : job_id
+    +update_job(id, patch, as_user)    ' hold/release/priority
+    +cancel_job(id, as_user)
+    +get_nodes() / get_node(name)
+    +update_node(name, state, reason)
+    +get_partitions() / update_partition(name, cfg)
+    +list/create/delete_reservation
+    +ping() / diag()
+    .. slurmdbd — /slurmdb/v0.0.41 ..
+    +get/create/delete_account
+    +get/create/delete_association     ' 사용자↔계정 N:M·fairshare
+    +get/create/update/delete_qos
+    +get/create/delete_user            ' 기본 계정·기본 QOS
+    +get_accounting_jobs(filter)       ' sacct
+    +get_usage / get_fairshare / get_config
+  }
+  class AdClient {
+    -ldaps_url : str
+    -base_dn : str
+    -bind_account : str
+    -bind_secret_ref : str             ' SecretStore로 해석
+    -id_attribute : str                ' sAMAccountName(§2.4)
+    +authenticate(username, password) : bool   ' 사용자 bind — 매번 새 연결(§2.1)
+    +find_user(username) : AdUser              ' objectGUID·displayName 포함
+    +list_group_members(group) : list[AdUser]  ' 허용 그룹 동기화(A-US-01)
+  }
+  class ScpBillingClient {
+    -api_endpoint : str                ' https://scp.samsungsdscloud.com
+    -account_id : str                  ' 조회 대상 SCP 계정(bills·usages 필터)
+    -access_key : str                  ' Scp-Accesskey
+    -secret_ref : str                  ' Secret Key(SecretStore) — Scp-Signature 서명용
+    +list_usages(start, end)           ' CostExplorer 일별 사용액(A-BL-03)
+    +list_bills(year_month)            ' CostExplorer 월별 청구(A-BL-03·04)
+    +get_payment_monthly()             ' 결제 상태
+    +verify() : bool                   ' A-BL-01 연결 확인
+  }
+  note bottom of ScpBillingClient
+    <b>SCP Python SDK 래핑</b>(boto3 유사) —
+    서명(Scp-Signature)·전송은 SDK가 담당하므로
+    BaseHttpClient를 상속하지 않음.
+  end note
+  class SshClient {
+    -host : str
+    -port : int                        ' 기본 22
+    -service_account : str
+    -pkey_secret_ref : str             ' SSH 개인키(SecretStore)
+    +exec(cmd, as_user) : Result       ' 제한 sudo impersonation(정의서 §4.1)
+    +sftp() : SftpSession              ' U-FM 파일 관리
+    +open_pty(as_user) : PtyChannel    ' U-SH 웹 터미널
+  }
+  class LicenseClient {
+    +lmstat(host, port) : list         ' lmutil 직접 TCP 접속(벤더 데몬 포트)
+  }
+  note bottom of LicenseClient
+    lmutil은 백엔드 컨테이너 <b>내장 바이너리</b>
+    (배포 단위 상수, 서버별 설정 아님).
+    SSH exec 아님 — 클러스터 스코프 밖.
+  end note
+}
+note as N_gateway
+  <b>인터랙티브 세션 게이트웨이는 별도 client 없음</b> —
+  GatewayService가 InteractiveSession 상태를 읽어
+  Traefik HTTP provider 폴링에 응답할 뿐(pull 방식).
+  K8s API·RBAC 불필요(§1 컴포넌트 다이어그램 참조).
+end note
+
+' ===== 상속 (is-a) — REST(HTTP) 공통만 =====
+BaseHttpClient <|-- SlurmrestdClient
+note right of BaseHttpClient
+  REST 공통(URL·메서드·파라미터·페이로드,
+  재시도·타임아웃·TLS·keep-alive 세션 풀,
+  상태코드→도메인 예외 매핑)은 여기 집약.
+  ScpBillingClient는 SCP SDK 래핑,
+  AdClient(LDAP)·SshClient(SSH)는 프로토콜이
+  달라 상속하지 않음(§1.4).
+end note
+
+' ===== 인가 (Depends) =====
+JobRouter ..> require_permission
+NodeRouter ..> require_permission
+AccountRouter ..> require_permission
+QosRouter ..> require_permission
+UsageRouter ..> require_permission
+ClusterRouter ..> require_permission
+SessionRouter ..> require_permission
+LicenseRouter ..> require_permission
+require_permission o--> SessionStore
+require_permission o--> PermissionCache
+
+' ===== router → service =====
+AuthRouter --> AuthService
+JobRouter --> JobService
+NodeRouter --> NodeService
+AccountRouter --> AccountService
+QosRouter --> QosService
+UsageRouter --> UsageService
+ClusterRouter --> ClusterService
+SessionRouter --> GatewayService
+LicenseRouter --> LicenseService
+InternalRouter --> GatewayService : ready 콜백 / forwardAuth / dynamic-config 폴링
+
+' ===== service → client/repo (조합) =====
+JobService o--> SlurmrestdClient
+NodeService o--> SlurmrestdClient
+PartitionService o--> SlurmrestdClient
+ReservationService o--> SlurmrestdClient
+AccountService o--> SlurmrestdClient
+QosService o--> SlurmrestdClient
+SlurmUserService o--> SlurmrestdClient
+UsageService o--> SlurmrestdClient
+AuthService o--> AdClient
+AuthService o--> UserRepository
+AuthService o--> SessionStore
+UserService o--> UserRepository
+UserService o--> AdClient
+ClusterService o--> ClusterRepository
+ClusterService ..> ClusterClientFactory : test_rest / test_ssh
+BillingService o--> ScpBillingClient
+ScpBillingClient ..> SecretStore : Secret Key
+GatewayService ..> InteractiveSession : dynamic_config()이 상태 조회(repository 경유)
+LicenseService o--> LicenseClient
+LicenseService ..> ClusterClientFactory : sync_to_slurm(A-LM-03만)
+
+' ===== 자격증명 · 클라이언트 구성 흐름 =====
+ClusterClientFactory ..> ClusterRepository : slurmrestd_url·login_node·secret_ref
+ClusterClientFactory ..> SlurmTokenProvider
+SlurmTokenProvider o--> SecretStore
+SlurmrestdClient o--> SlurmTokenProvider : 매 호출 JWT 헤더
+SshClient ..> SecretStore : 개인키 로드
+AdClient ..> SecretStore : bind 암호
+note bottom of ClusterClientFactory
+  모든 slurm service는 Factory.slurm(cluster_id)로
+  대상 클러스터 client 획득(클러스터별 독립 slurmdbd, §2.2).
+end note
+
+UserRepository ..> User
+ClusterRepository ..> Cluster
+ClusterRepository ..> ClusterCredential
+
+@enduml

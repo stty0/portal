@@ -78,7 +78,7 @@
       <div class="page-head">
         <div>
           <h1>비용 / Billing <span class="chip" style="vertical-align:3px">Samsung Cloud Platform</span></h1>
-          <p class="sub">SCP Billing API 연동 · 자원 Type/Tag 필터로 HPC 사용 비용 식별·표시 (A-BL-01~04) · 마지막 수집 오늘 06:00</p>
+          <p class="sub">SCP Financial Management API(CostExplorer) 연동 · Billing Item/Resource 규칙으로 HPC 비용 식별·표시 (A-BL-01~04) · 마지막 수집 오늘 06:00</p>
         </div>
         <div class="page-actions">
           <select class="select select-sm" style="width:140px"><option>2026년 7월</option><option>2026년 6월</option><option>2026년 2분기</option></select>
@@ -89,10 +89,10 @@
 
       <!-- 비용 요약 -->
       <div class="grid grid-4">
-        <div class="stat"><span class="label">이번 달 누적 (7/1~15)</span><span class="value">₩140<small>만</small></span><span class="delta">일평균 ₩9.3만</span></div>
-        <div class="stat acc-pend"><span class="label">월말 예상</span><span class="value">₩289<small>만</small></span><span class="delta up">▲ 8% vs 전월</span></div>
+        <div class="stat"><span class="label">이번 달 누적 (7/1~15)</span><span class="value">₩140<small>만</small></span><span class="delta">ListUsages 일별 합산 · 일평균 ₩9.3만</span></div>
+        <div class="stat acc-pend"><span class="label">월말 예상</span><span class="value">₩289<small>만</small></span><span class="delta up">▲ 8% vs 전월 청구(ListBills) · 6월 결제 PAID</span></div>
         <div class="stat acc-fail"><span class="label">월 비용 상한 대비</span><span class="value">72<small>%</small></span><span class="delta down">상한 ₩400만 — 알림 임계 80%</span></div>
-        <div class="stat acc-gpu"><span class="label">미태깅 자원 비용</span><span class="value">₩21<small>만</small></span><span class="delta">식별 필요 3건</span></div>
+        <div class="stat acc-gpu"><span class="label">미매핑 자원 비용</span><span class="value">₩21<small>만</small></span><span class="delta">식별 규칙 불일치 3건</span></div>
       </div>
 
       <div class="grid grid-3 mt-16">
@@ -116,18 +116,18 @@
               <div class="cb"><div class="bar-col" style="height:2%;opacity:.25"></div><div class="bar-col alt" style="height:2%;opacity:.25"></div><span class="cap" style="color:var(--ink-3)">11월</span></div>
               <div class="cb"><div class="bar-col" style="height:2%;opacity:.25"></div><div class="bar-col alt" style="height:2%;opacity:.25"></div><span class="cap" style="color:var(--ink-3)">12월</span></div>
             </div>
-            <div class="chart-line-caption"><span>SCP Billing API · 일 1회 수집 (06:00) + 수동 수집</span><span>월 청구액 (VAT 제외)</span></div>
+            <div class="chart-line-caption"><span>CostExplorer ListBills(월별)·ListUsages(일별) · 일 1회 수집 (06:00) + 수동 수집</span><span>월 청구액 bills.amounts — KRW 기준 (VAT 제외)</span></div>
           </div>
         </div>
 
         <!-- Tag(클러스터)별 비용 -->
         <div class="card">
-          <div class="card-head"><h2>Tag별 비용 (7월) <span class="fid">A-BL-04</span></h2></div>
+          <div class="card-head"><h2>식별 그룹별 비용 (7월) <span class="fid">A-BL-04</span></h2></div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:13px">
-            <div class="meter"><div class="meter-top"><span class="lbl">hpc-role=archive (아카이브/백업)</span><span class="val">₩84만</span></div><div class="bar"><i style="width:60%"></i></div></div>
-            <div class="meter"><div class="meter-top"><span class="lbl">hpc-role=staging (데이터 스테이징)</span><span class="val">₩35만</span></div><div class="bar"><i class="violet" style="width:25%"></i></div></div>
-            <div class="meter"><div class="meter-top"><span class="lbl">미태깅 (untagged)</span><span class="val">₩21만</span></div><div class="bar"><i class="err" style="width:15%"></i></div></div>
-            <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>🏷</span><div>미태깅 자원 3건 발견 — Volume 2, Public IP 1. <b>태그 규칙(hpc-cluster=*)</b> 적용을 권장합니다. <a href="#">자원 목록 →</a></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">archive — 아카이브/백업</span><span class="val">₩84만</span></div><div class="bar"><i style="width:60%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">staging — 데이터 스테이징</span><span class="val">₩35만</span></div><div class="bar"><i class="violet" style="width:25%"></i></div></div>
+            <div class="meter"><div class="meter-top"><span class="lbl">미매핑 (unmatched)</span><span class="val">₩21만</span></div><div class="bar"><i class="err" style="width:15%"></i></div></div>
+            <div class="notice warn" style="font-size:12px;padding:9px 12px"><span>🏷</span><div>미매핑 자원 3건 발견 — Volume 2, Public IP 1. <b>resource_name 규칙(hpc-*)</b> 적용을 권장합니다. <a href="#">자원 목록 →</a></div></div>
           </div>
         </div>
       </div>
@@ -135,21 +135,21 @@
       <!-- A-BL-02 자원 Type별 비용 -->
       <div class="card mt-16">
         <div class="card-head">
-          <h2>자원 Type별 비용 (7월) <span class="fid">A-BL-02</span></h2>
+          <h2>Billing Item별 비용 (7월) <span class="fid">A-BL-02</span></h2>
           <div style="display:flex;gap:8px">
-            <select class="select select-sm" style="width:170px"><option>전체 Type</option><option>Virtual Server</option><option>GPU Server</option><option>Block Storage</option><option>Object Storage</option><option>Networking</option></select>
-            <select class="select select-sm" style="width:200px"><option>Tag: 전체</option><option>hpc-role=archive</option><option>hpc-role=staging</option><option>미태깅</option></select>
+            <select class="select select-sm" style="width:190px"><option>Billing Item: 전체</option><option>OBJECT_STORAGE</option><option>BACKUP</option><option>BLOCK_STORAGE</option><option>NETWORKING</option><option>VIRTUAL_SERVER</option></select>
+            <select class="select select-sm" style="width:160px"><option>식별: 전체</option><option>archive</option><option>staging</option><option>미매핑</option></select>
           </div>
         </div>
         <div class="card-body flush table-wrap">
           <table class="tbl">
-            <thead><tr><th>자원 Type</th><th>SCP 상품</th><th>Tag</th><th class="num">수량</th><th class="num">사용량</th><th class="num">비용 (7/1~15)</th><th class="num">월말 예상</th><th class="num">전월 대비</th></tr></thead>
+            <thead><tr><th>Billing Item</th><th>Category</th><th>Resource · Region</th><th>식별</th><th class="num">비용 (7/1~15)</th><th class="num">월말 예상</th><th class="num">전월 대비</th></tr></thead>
             <tbody>
-              <tr><td><b>Object Storage</b> <span class="chip gray">스토리지</span></td><td class="mono">표준 (연구 데이터 아카이브)</td><td><span class="chip gray">archive</span></td><td class="num mono">2 버킷</td><td class="num mono">142 TB</td><td class="num mono">₩58만</td><td class="num mono">₩118만</td><td class="num" style="color:var(--ok)">▼ 3%</td></tr>
-              <tr><td><b>Backup</b> <span class="chip gray">스토리지</span></td><td class="mono">스냅샷 · 이미지 백업</td><td><span class="chip gray">archive</span></td><td class="num mono">14 세트</td><td class="num mono">38 TB</td><td class="num mono">₩26만</td><td class="num mono">₩54만</td><td class="num" style="color:var(--ink-3)">± 0%</td></tr>
-              <tr><td><b>Block Storage</b> <span class="chip gray">스토리지</span></td><td class="mono">SSD (데이터 스테이징)</td><td><span class="chip gray">staging</span></td><td class="num mono">8 vol</td><td class="num mono">12 TB·월</td><td class="num mono">₩24만</td><td class="num mono">₩50만</td><td class="num" style="color:var(--err)">▲ 9%</td></tr>
-              <tr><td><b>Networking</b> <span class="chip gray">네트워크</span></td><td class="mono">전용선 · 데이터 전송</td><td><span class="chip gray">staging</span></td><td class="num mono">—</td><td class="num mono">아웃바운드 3.1 TB</td><td class="num mono">₩11만</td><td class="num mono">₩23만</td><td class="num" style="color:var(--err)">▲ 14%</td></tr>
-              <tr><td><b>기타</b></td><td class="mono">NAT GW · DNS · Public IP</td><td><span class="badge plain pending" style="font-size:10.5px">미태깅 포함</span></td><td class="num mono">7</td><td class="num mono">—</td><td class="num mono">₩21만</td><td class="num mono">₩44만</td><td class="num" style="color:var(--ink-3)">± 0%</td></tr>
+              <tr><td class="mono"><b>OBJECT_STORAGE</b></td><td><span class="chip gray">STORAGE</span></td><td class="mono">hpc-archive 외 1 · kr-west1</td><td><span class="chip gray">archive</span></td><td class="num mono">₩58만</td><td class="num mono">₩118만</td><td class="num" style="color:var(--ok)">▼ 3%</td></tr>
+              <tr><td class="mono"><b>BACKUP</b></td><td><span class="chip gray">STORAGE</span></td><td class="mono">스냅샷·이미지 14 세트 · kr-west1</td><td><span class="chip gray">archive</span></td><td class="num mono">₩26만</td><td class="num mono">₩54만</td><td class="num" style="color:var(--ink-3)">± 0%</td></tr>
+              <tr><td class="mono"><b>BLOCK_STORAGE</b></td><td><span class="chip gray">STORAGE</span></td><td class="mono">hpc-stg-ssd 8 vol · kr-west1</td><td><span class="chip gray">staging</span></td><td class="num mono">₩24만</td><td class="num mono">₩50만</td><td class="num" style="color:var(--err)">▲ 9%</td></tr>
+              <tr><td class="mono"><b>NETWORKING</b></td><td><span class="chip gray">NETWORKING</span></td><td class="mono">전용선 · 아웃바운드 3.1 TB · kr-west1</td><td><span class="chip gray">staging</span></td><td class="num mono">₩11만</td><td class="num mono">₩23만</td><td class="num" style="color:var(--err)">▲ 14%</td></tr>
+              <tr><td class="mono"><b>기타</b></td><td><span class="chip gray">—</span></td><td class="mono">NAT_GATEWAY · DNS · PUBLIC_IP (7건)</td><td><span class="badge plain pending" style="font-size:10.5px">미매핑 포함</span></td><td class="num mono">₩21만</td><td class="num mono">₩44만</td><td class="num" style="color:var(--ink-3)">± 0%</td></tr>
             </tbody>
           </table>
         </div>
@@ -164,20 +164,21 @@
         <div class="card">
           <div class="card-head">
             <h2>SCP Billing API 연동 <span class="fid">A-BL-01</span></h2>
-            <span class="badge completed">연결됨 · billing:read ✓</span>
+            <span class="badge completed">연결됨 · CostExplorer ✓</span>
           </div>
           <div class="card-body">
             <div class="notice info" style="margin-bottom:16px;font-size:12px;padding:9px 12px">
               <span>🔐</span>
-              <div><b>Billing 조회 권한만 가진 전용 키</b>를 사용하세요. Secret Key는 Secret 저장소에 암호화 보관되며 저장 후 다시 표시되지 않습니다.</div>
+              <div><b>조회(CostExplorer) 권한만 가진 전용 키</b>를 사용하세요. 호출은 SCP Python SDK가 Access Key + Secret Key로 요청 서명(<code>Scp-Signature</code>)을 생성해 수행하며, Secret Key는 Secret 저장소에 암호화 보관되어 저장 후 다시 표시되지 않습니다.</div>
             </div>
-            <dl class="dl" style="grid-template-columns:150px 1fr">
-              <dt>API 엔드포인트</dt><dd class="mono">https://billing.api.samsungsdscloud.com</dd>
-              <dt>SCP 프로젝트 ID</dt><dd class="mono">PROJECT-a1b2c3d4</dd>
-              <dt>Access Key</dt><dd class="mono">SCPAK7F3K2M9Q1XXXX</dd>
-              <dt>Secret Key</dt><dd class="mono">•••••••••••••••• <span style="font-size:11px;color:var(--ink-3)">(Secret 저장소 보관)</span></dd>
-              <dt>수집 주기</dt><dd class="mono">일 1회 (06:00)</dd>
-              <dt>월 비용 상한 알림</dt><dd class="mono">4,000,000 원 <span style="font-size:11px;color:var(--ink-3)">(80% 도달 시 관리자 알림)</span></dd>
+            <dl class="dl" style="grid-template-columns:170px 1fr">
+              <dt>API 엔드포인트</dt><dd class="mono">https://scp.samsungsdscloud.com</dd>
+              <dt>조회 대상 Account ID</dt><dd class="mono">228cb9e4a793…f26f7a21 <span style="font-size:11px;color:var(--ink-3)">(bills·usages 조회 필터)</span></dd>
+              <dt>Access Key</dt><dd class="mono">2sd2gg=2agbdSD26svcD <span style="font-size:11px;color:var(--ink-3)">(Scp-Accesskey)</span></dd>
+              <dt>Secret Key</dt><dd class="mono">•••••••••••••••• <span style="font-size:11px;color:var(--ink-3)">(Scp-Signature 서명용 · Secret 저장소 보관)</span></dd>
+              <dt>API 버전</dt><dd class="mono">costexplorer 1.0 <span style="font-size:11px;color:var(--ink-3)">(Scp-Api-Version)</span></dd>
+              <dt>수집 주기</dt><dd class="mono">일 1회 (06:00) <span style="font-size:11px;color:var(--ink-3)">ListUsages(일별) · ListBills(월별) · GetPaymentMonthly(결제)</span></dd>
+              <dt>월 비용 상한 알림</dt><dd class="mono">4,000,000 원 <span style="font-size:11px;color:var(--ink-3)">(80% 도달 시 관리자 알림 — 포털 자체 판정)</span></dd>
             </dl>
           </div>
           <div class="card-foot" style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
@@ -194,20 +195,20 @@
             <table class="tbl">
               <thead><tr><th>구분</th><th>조건</th><th>매핑</th><th>상태</th><th style="width:110px">액션</th></tr></thead>
               <tbody>
-                <tr><td><span class="chip">Tag</span></td><td class="mono">hpc-role = archive</td><td>아카이브/백업 비용</td><td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="billingRuleModal" data-modal-title="규칙 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
-                <tr><td><span class="chip">Tag</span></td><td class="mono">hpc-role = staging</td><td>데이터 스테이징 비용</td><td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="billingRuleModal" data-modal-title="규칙 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
-                <tr><td><span class="chip gray">Type</span></td><td class="mono">resourceType = ObjectStorage, Backup, BlockStorage</td><td>스토리지 분류</td><td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="billingRuleModal" data-modal-title="규칙 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
-                <tr><td><span class="chip gray">Type</span></td><td class="mono">resourceType = VirtualServer</td><td>컴퓨트 (현재 미사용 · 0건)</td><td><label class="switch"><input type="checkbox"><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="billingRuleModal" data-modal-title="규칙 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
+                <tr><td><span class="chip">Item</span></td><td class="mono">billing_item_id = OBJECT_STORAGE, BACKUP</td><td>archive — 아카이브/백업</td><td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="billingRuleModal" data-modal-title="규칙 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
+                <tr><td><span class="chip">Resource</span></td><td class="mono">resource_name LIKE hpc-stg-*</td><td>staging — 데이터 스테이징</td><td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="billingRuleModal" data-modal-title="규칙 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
+                <tr><td><span class="chip gray">Category</span></td><td class="mono">service_category = STORAGE</td><td>스토리지 분류</td><td><label class="switch"><input type="checkbox" checked><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="billingRuleModal" data-modal-title="규칙 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
+                <tr><td><span class="chip gray">Item</span></td><td class="mono">billing_item_id = VIRTUAL_SERVER</td><td>컴퓨트 (현재 미사용 · 0건)</td><td><label class="switch"><input type="checkbox"><span class="knob"></span></label></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="billingRuleModal" data-modal-title="규칙 수정">수정</button><button class="btn btn-sm btn-danger">삭제</button></div></td></tr>
               </tbody>
             </table>
           </div>
-          <div class="card-body" style="border-top:1px solid var(--line)">
-            <div class="field">
-              <label>필터 밖 자원 처리</label>
-              <select class="select"><option selected>"미태깅"으로 집계 + 주간 리포트 알림</option><option>무시 (HPC 외 자원으로 간주)</option></select>
+          <div class="card-body" style="border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <div>
+              <div style="font-size:12px;color:var(--ink-3)">필터 밖 자원 처리</div>
+              <div style="margin-top:2px">"미매핑"으로 집계 + 주간 리포트 알림</div>
             </div>
+            <button class="btn btn-outline btn-sm" data-open-modal="billingFilterSettingModal" data-modal-title="필터 밖 자원 처리 설정">수정</button>
           </div>
-          <div class="card-foot" style="text-align:right"><button class="btn btn-primary">필터 저장</button></div>
         </div>
       </div>
 
@@ -234,28 +235,31 @@
     <div class="modal-body" style="max-height:72vh;overflow:auto">
       <div class="notice info" style="margin-bottom:16px;font-size:12px;padding:9px 12px">
         <span>🔐</span>
-        <div><b>Billing 조회 권한만 가진 전용 키</b>를 사용하세요. Secret Key는 Secret 저장소에 암호화 보관되며 저장 후 다시 표시되지 않습니다.</div>
+        <div><b>조회(CostExplorer) 권한만 가진 전용 키</b>를 사용하세요. 호출은 SCP Python SDK가 Access Key + Secret Key로 요청 서명(<code>Scp-Signature</code>)을 생성해 수행하며, Secret Key는 Secret 저장소에 암호화 보관되어 저장 후 다시 표시되지 않습니다.</div>
       </div>
       <div class="form-grid">
-        <div class="field"><label>API 엔드포인트 <span class="chip gray">CR spec</span></label>
-          <input class="input mono" value="https://billing.api.samsungsdscloud.com">
+        <div class="field"><label>API 엔드포인트</label>
+          <input class="input mono" value="https://scp.samsungsdscloud.com">
+          <span class="hint">SCP OpenAPI 베이스 URL · Scp-Api-Version: costexplorer 1.0</span>
         </div>
-        <div class="field"><label>SCP 프로젝트 ID <span class="req">*</span> <span class="chip gray">CR spec</span></label>
-          <input class="input mono" value="PROJECT-a1b2c3d4">
+        <div class="field"><label>조회 대상 Account ID <span class="req">*</span></label>
+          <input class="input mono" value="228cb9e4a7934f84853594c7f26f7a21">
+          <span class="hint">bills·usages 조회 시 account_id 필터로 사용</span>
         </div>
-        <div class="field"><label>Access Key <span class="req">*</span> <span class="chip gray">CR spec</span></label>
-          <input class="input mono" value="SCPAK7F3K2M9Q1XXXX">
+        <div class="field"><label>Access Key <span class="req">*</span> <span class="chip gray">Scp-Accesskey</span></label>
+          <input class="input mono" value="2sd2gg=2agbdSD26svcD">
         </div>
         <div class="field"><label>Secret Key <span class="req">*</span> <span class="chip gray">Secret</span></label>
           <input class="input mono" type="password" placeholder="재입력 시에만 변경 (미입력 시 기존 유지)">
-          <span class="hint">billing 권한이 부여된 키인지 저장 시 자동 검증합니다</span>
+          <span class="hint">Scp-Signature 서명 생성용 · 저장 시 CostExplorer 조회로 자동 검증</span>
         </div>
         <div class="field"><label>수집 주기</label>
           <select class="select"><option selected>일 1회 (06:00)</option><option>6시간</option><option>1시간</option></select>
+          <span class="hint">ListUsages(일별) · ListBills(월별) · GetPaymentMonthly(결제)</span>
         </div>
         <div class="field"><label>월 비용 상한 알림</label>
           <input class="input mono" value="4,000,000">
-          <span class="hint">원(KRW) · 80% 도달 시 관리자 알림 발송</span>
+          <span class="hint">원(KRW) · 80% 도달 시 관리자 알림 — 포털 자체 판정 (SCP Budget API 연동은 향후 선택)</span>
         </div>
       </div>
     </div>
@@ -276,10 +280,31 @@
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="field"><label>구분</label><select class="select"><option>Tag</option><option>Type</option><option>Account</option></select></div>
-        <div class="field full"><label>조건 <span class="req">*</span></label><input class="input mono" placeholder="예: hpc-role = archive"></div>
-        <div class="field full"><label>매핑</label><input class="input" placeholder="예: 아카이브/백업 비용"></div>
+        <div class="field"><label>구분</label><select class="select"><option>Billing Item</option><option>Service Category</option><option>Resource Name</option><option>Region</option><option>Account</option></select></div>
+        <div class="field full"><label>조건 <span class="req">*</span></label><input class="input mono" placeholder="예: billing_item_id = OBJECT_STORAGE · resource_name LIKE hpc-*"></div>
+        <div class="field full"><label>매핑</label><input class="input" placeholder="예: archive — 아카이브/백업"></div>
         <div class="field full"><label class="checkline"><input type="checkbox" checked> 활성</label></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-primary btn-sm" type="button">저장</button>
+    </div>
+  </div>
+</div>
+<!-- 필터 밖 자원 처리 설정 모달 (A-BL-02·04) -->
+<div class="modal-backdrop hidden" id="billingFilterSettingModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bfsTitle" style="max-width:480px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">₩</span>
+      <h3 id="bfsTitle" style="flex:1"><span class="m-title-text">필터 밖 자원 처리 설정</span> <span class="fid">A-BL-02·04</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>등록된 규칙에 매칭되지 않는 자원</label>
+        <select class="select"><option selected>"미매핑"으로 집계 + 주간 리포트 알림</option><option>무시 (HPC 외 자원으로 간주)</option></select>
+        <span class="hint">위 자원 식별 필터(Item/Resource/Category/Region/Account) 규칙에 해당하지 않는 비용 라인의 처리 방식입니다.</span>
       </div>
     </div>
     <div class="modal-foot">

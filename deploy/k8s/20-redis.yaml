@@ -1,0 +1,86 @@
+# 세션 · 권한 캐시 · 분산락 (Redis) — backend-design §5.4
+#   - 용도가 캐시/세션이라 데이터 유실 허용 → 이중화 불필요, 단일 Pod + Deployment
+#   - 영속성 미사용(emptyDir): 재시작 시 전 사용자 재로그인. 설계상 허용되는 손실이다.
+#     (§5.4 "필요 시 AOF" — 필요해지면 PVC + --appendonly yes 로 전환)
+#
+# 자격증명은 Secret `redis-credentials`로 별도 생성한다(README 참조).
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: hpc-portal
+spec:
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-nodeport
+  namespace: hpc-portal
+  annotations:
+    portal/purpose: "개발용 외부 접근 — 운영에서는 제거"
+spec:
+  type: NodePort
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      nodePort: 30379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: hpc-portal
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.4-alpine
+          command:
+            - sh
+            - -c
+            - exec redis-server --requirepass "$REDIS_PASSWORD" --save ""
+          ports:
+            - containerPort: 6379
+              name: redis
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: redis-credentials, key: password }
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", 'redis-cli -a "$REDIS_PASSWORD" ping']
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", 'redis-cli -a "$REDIS_PASSWORD" ping']
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+      volumes:
+        - name: data
+          emptyDir: {}

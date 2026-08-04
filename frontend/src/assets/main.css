@@ -1,0 +1,74 @@
+@import 'tailwindcss';
+
+/* ============================================================
+   디자인 토큰 — design/css/style.css 의 :root 를 그대로 옮긴다.
+   Look & Feel: Samsung SDS Cloud Service Portal 참조.
+   색상·간격을 컴포넌트에서 하드코딩하지 말고 이 토큰만 쓴다.
+   ============================================================ */
+@theme {
+  /* Brand */
+  --color-brand-900: #0b1553;
+  --color-brand-800: #101d78;
+  --color-brand-700: #1428a0; /* Samsung Blue */
+  --color-brand-600: #1e3ac8;
+  --color-brand-500: #2f52e0;
+  --color-brand-100: #e6eafc;
+  --color-brand-50: #f2f5ff;
+
+  /* Neutrals */
+  --color-bg: #f4f6fa;
+  --color-surface: #ffffff;
+  --color-line: #e4e8f0;
+  --color-line-dark: #d4dae6;
+  --color-ink: #1a1f36;
+  --color-ink-2: #4b5468;
+  --color-ink-3: #8a93a8;
+
+  /* Sidebar */
+  --color-side-bg: #131a3a;
+  --color-side-ink: #aab2d0;
+  --color-side-act: #ffffff;
+
+  /* Status */
+  --color-ok: #17994f;
+  --color-ok-bg: #e7f7ee;
+  --color-warn: #d97a08;
+  --color-warn-bg: #fdf3e3;
+  --color-err: #d3383c;
+  --color-err-bg: #fdecec;
+  --color-info: #1f6fd6;
+  --color-info-bg: #e8f1fd;
+  --color-idle: #6b7280;
+  --color-idle-bg: #eef0f4;
+  --color-violet: #6d4fc4;
+  --color-violet-bg: #f0ebfb;
+
+  --radius-card: 10px;
+
+  --shadow-card: 0 1px 3px rgba(20, 30, 70, 0.06), 0 4px 14px rgba(20, 30, 70, 0.05);
+  --shadow-pop: 0 8px 30px rgba(16, 24, 70, 0.14);
+
+  --font-sans: 'Noto Sans KR', 'Malgun Gothic', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'D2Coding', Consolas, monospace;
+}
+
+/* 히어로 그라데이션은 색이 아니라 배경이라 유틸로 따로 뺀다 */
+@utility bg-grad-hero {
+  background-image: linear-gradient(120deg, #101d78 0%, #1428a0 45%, #3b2fb8 100%);
+}
+
+@layer base {
+  html {
+    font-size: 15px;
+  }
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* 표 안의 숫자·ID는 고정폭이라야 자릿수가 눈에 들어온다 */
+  .mono {
+    font-family: var(--font-mono);
+  }
+}

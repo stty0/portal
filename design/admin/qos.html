@@ -78,7 +78,7 @@
       <div class="page-head">
         <div>
           <h1>QOS 정책</h1>
-          <p class="sub">선택한 클러스터의 QOS 정책 정의 · 파티션 접근 제어 (A-US-03 · A-US-05) · 클러스터별 독립 slurmdbd</p>
+          <p class="sub">선택한 클러스터의 QOS 정책 정의 · 파티션 접근 제어 · 자원 신청 승인 (A-US-03 · A-US-05 · A-US-06) · 클러스터별 독립 slurmdbd</p>
         </div>
         <div class="page-actions">
           <button class="btn btn-outline" data-open-modal="partitionAclModal" data-modal-title="파티션 접근 제어">파티션 접근 제어</button>
@@ -103,6 +103,23 @@
             </tbody>
           </table>
         </div>
+      </div>
+
+      <!-- A-US-06 자원 신청 승인 워크플로 (승인제 QOS 접근·자원 증설 신청) -->
+      <div class="card">
+        <div class="card-head"><h2>자원 신청 승인 <span class="fid">A-US-06</span></h2><span class="chip cl">seoul-hpc</span></div>
+        <div class="card-body flush table-wrap">
+          <table class="tbl">
+            <thead><tr><th>#</th><th>신청 내용</th><th>신청자</th><th>계정</th><th>신청일</th><th>상태</th><th style="width:150px">액션</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">R-2026-118</td><td>QOS <b>high</b> 접근 신청 <span class="chip gray">승인제 QOS</span></td><td class="mono">jrpark</td><td class="mono">acct-llm</td><td class="mono">2026-08-03</td><td><span class="badge pending">대기</span></td><td><div class="row-actions"><button class="btn btn-sm btn-primary" data-open-modal="resourceRequestModal" data-modal-title="자원 신청 검토">검토</button></div></td></tr>
+              <tr><td class="mono">R-2026-117</td><td>gpu 파티션 자원 증설 신청 (gpu 12 → 24)</td><td class="mono">seonsj</td><td class="mono">acct-vision</td><td class="mono">2026-08-02</td><td><span class="badge pending">대기</span></td><td><div class="row-actions"><button class="btn btn-sm btn-primary" data-open-modal="resourceRequestModal" data-modal-title="자원 신청 검토">검토</button></div></td></tr>
+              <tr><td class="mono">R-2026-114</td><td>QOS <b>long</b> 접근 신청 (walltime 14일)</td><td class="mono">leejh</td><td class="mono">acct-cae</td><td class="mono">2026-07-30</td><td><span class="badge completed">승인</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="resourceRequestModal" data-modal-title="자원 신청 상세">보기</button></div></td></tr>
+              <tr><td class="mono">R-2026-111</td><td>QOS <b>high</b> 접근 신청</td><td class="mono">choiyj</td><td class="mono">acct-cae</td><td class="mono">2026-07-28</td><td><span class="badge cancelled">반려</span></td><td><div class="row-actions"><button class="btn btn-sm btn-outline" data-open-modal="resourceRequestModal" data-modal-title="자원 신청 상세">보기</button></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">승인 시 해당 계정·사용자의 허용 QOS 또는 자원 한도에 반영됩니다(sacctmgr). 처리 결과는 감사 로그에 기록됩니다 <span class="fid">C-05</span>. 사용자 가입은 AD 자동 프로비저닝이라 승인 대상이 아닙니다 <span class="fid">A-US-01</span>.</div>
       </div>
 
     </main>
@@ -164,6 +181,36 @@
     <div class="modal-foot">
       <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
       <button class="btn btn-primary btn-sm" type="button">적용</button>
+    </div>
+  </div>
+</div>
+
+<!-- 자원 신청 검토 모달 (A-US-06) -->
+<div class="modal-backdrop hidden" id="resourceRequestModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rreqTitle" style="max-width:560px">
+    <div class="modal-head" style="background:var(--surface)">
+      <span class="m-ico">👥</span>
+      <h3 id="rreqTitle" style="flex:1"><span class="m-title-text">자원 신청 검토</span> <span class="fid">A-US-06</span></h3>
+      <button class="m-close" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:70vh;overflow:auto">
+      <div class="form-grid">
+        <div class="field"><label>신청 번호</label><input class="input mono" value="R-2026-118" readonly></div>
+        <div class="field"><label>신청자</label><input class="input mono" value="jrpark (박정록)" readonly></div>
+        <div class="field"><label>계정</label><input class="input mono" value="acct-llm" readonly></div>
+        <div class="field"><label>대상 클러스터</label><input class="input mono" value="seoul-hpc" readonly></div>
+        <div class="field full"><label>신청 내용</label><input class="input mono" value="QOS high 접근 신청" readonly><span class="hint">승인제 QOS · 우선순위 50 · gpu≤24, preempt</span></div>
+        <div class="field full"><label>신청 사유</label><textarea class="input" rows="3" readonly>LLM 파인튜닝 과제(2026-Q3) 마감 일정에 따라 gpu 24장 우선순위 실행이 필요합니다.</textarea></div>
+        <div class="field full"><label>처리 결과 <span class="req">*</span></label>
+          <label class="checkline"><input type="radio" name="rreqResult" checked> 승인 — 허용 QOS에 <b>high</b> 추가 (sacctmgr modify user set qos+=)</label>
+          <label class="checkline"><input type="radio" name="rreqResult"> 반려</label>
+        </div>
+        <div class="field full"><label>처리 사유 (감사 로그 기록)</label><input class="input" placeholder="예: 2026-Q3 과제 승인 건, 만료 시 회수"><span class="hint">처리 내역은 감사 로그(C-05)에 기록됩니다</span></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" type="button" data-close>취소</button>
+      <button class="btn btn-primary btn-sm" type="button">처리 (sacctmgr)</button>
     </div>
   </div>
 </div>
