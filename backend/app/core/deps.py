@@ -58,6 +58,7 @@ def get_client_factory(request: Request) -> ClusterClientFactory:
 
 SecretStoreDep = Annotated[SecretStore, Depends(get_secret_store)]
 ClientFactoryDep = Annotated[ClusterClientFactory, Depends(get_client_factory)]
+PermissionCacheDep = Annotated[PermissionCache, Depends(get_permission_cache)]
 
 
 def _bearer_token(request: Request) -> str:

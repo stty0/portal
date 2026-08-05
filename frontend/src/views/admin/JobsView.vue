@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import { jobApi } from '@/api/jobs'
 import { useClusterStore } from '@/stores/cluster'
-import { jobField, jobId, jobState, stateTone } from '@/utils/job'
+import { canCancel, canHold, isTerminal, jobField, jobId, jobOwner, jobState, stateTone } from '@/utils/job'
 import type { SlurmJob } from '@/types/api'
 import Badge from '@/components/ui/Badge.vue'
 import Btn from '@/components/ui/Btn.vue'
@@ -20,25 +20,37 @@ const loading = ref(false)
 const error = ref<unknown>(null)
 const username = ref('')
 const state = ref('')
+const tab = ref<'active' | 'history'>('active')
+/** 이력 출처. slurmdbd가 끊기면 slurmctld의 잔여 완료 Job으로 대체된다. */
+const source = ref<string | null>(null)
 
 async function load() {
   if (!clusters.selectedId) return
   loading.value = true
   error.value = null
   try {
-    const res = await jobApi.list(clusters.selectedId, {
-      username: username.value || undefined,
-      state: state.value || undefined,
-    })
+    // 이력은 slurmdbd(sacct 상당)에서 온다 — 진행 중 목록(slurmctld)과 출처가 다르다.
+    const res =
+      tab.value === 'active'
+        ? await jobApi.list(clusters.selectedId, {
+            username: username.value || undefined,
+            state: state.value || undefined,
+          })
+        : await jobApi.history(clusters.selectedId, {
+            username: username.value || undefined,
+            state: state.value || undefined,
+          })
     jobs.value = res.items
+    source.value = tab.value === 'history' ? (res.source ?? null) : null
   } catch (e) {
     error.value = e
     jobs.value = []
+    source.value = null
   } finally {
     loading.value = false
   }
 }
-watch(() => clusters.selectedId, load, { immediate: true })
+watch([() => clusters.selectedId, tab], load, { immediate: true })
 
 async function control(job: SlurmJob, action: 'hold' | 'release') {
   if (!clusters.selectedId) return
@@ -51,7 +63,7 @@ async function control(job: SlurmJob, action: 'hold' | 'release') {
 }
 
 async function cancel(job: SlurmJob) {
-  if (!clusters.selectedId || !confirm(`Job ${jobId(job)} (${jobField(job, 'user_name')}) 취소?`)) return
+  if (!clusters.selectedId || !confirm(`Job ${jobId(job)} (${jobOwner(job)}) 취소?`)) return
   try {
     await jobApi.cancel(clusters.selectedId, jobId(job))
     await load()
@@ -72,15 +84,36 @@ async function cancel(job: SlurmJob) {
 
   <ErrorNote :error="error" />
 
+  <!-- 이력이 slurmdbd가 아니라 slurmctld에서 온 경우, 목록이 불완전함을 밝힌다 -->
+  <div
+    v-if="source === 'slurmctld'"
+    class="mb-3 px-3.5 py-2.5 rounded-lg bg-warn-bg text-warn text-[14px]"
+  >
+    slurmdbd에 연결할 수 없어 <b>최근 완료된 Job만</b> 표시합니다.
+  </div>
+
   <Card flush>
     <template #head>
       <div class="flex flex-wrap items-center gap-2">
+        <div class="flex rounded-lg border border-line overflow-hidden text-[14px]">
+          <button
+            v-for="t in (['active', 'history'] as const)"
+            :key="t"
+            class="px-3 py-1.5"
+            :class="tab === t ? 'bg-brand-700 text-white font-semibold' : 'bg-surface text-ink-2'"
+            @click="tab = t"
+          >{{ t === 'active' ? '진행 중' : '이력' }}</button>
+        </div>
         <input
           v-model="username" placeholder="사용자 ID"
-          class="px-2.5 py-1.5 rounded-lg border border-line-dark text-[13px] mono"
+          class="px-2.5 py-1.5 rounded-lg border border-line-dark text-[14px] mono"
           @keyup.enter="load"
         />
-        <select v-model="state" class="px-2.5 py-1.5 rounded-lg border border-line-dark text-[13px]" @change="load">
+        <select
+          v-model="state"
+          class="px-2.5 py-1.5 rounded-lg border border-line-dark text-[14px]"
+          @change="load"
+        >
           <option value="">상태 전체</option>
           <option>RUNNING</option><option>PENDING</option><option>COMPLETED</option><option>FAILED</option>
         </select>
@@ -105,15 +138,19 @@ async function cancel(job: SlurmJob) {
       <tr v-for="job in jobs" :key="jobId(job)" class="border-b border-line last:border-0 hover:bg-bg">
         <td class="px-3.5 py-2.5 mono font-semibold">{{ jobId(job) }}</td>
         <td class="px-3.5 py-2.5">{{ jobField(job, 'name') }}</td>
-        <td class="px-3.5 py-2.5 mono">{{ jobField(job, 'user_name') }}</td>
+        <td class="px-3.5 py-2.5 mono">{{ jobOwner(job) }}</td>
         <td class="px-3.5 py-2.5"><Badge :state="stateTone(jobState(job))">{{ jobState(job) || '—' }}</Badge></td>
         <td class="px-3.5 py-2.5 mono">{{ jobField(job, 'partition') }}</td>
         <td class="px-3.5 py-2.5">
-          <div class="flex flex-wrap gap-1.5">
-            <Btn size="sm" @click="control(job, 'hold')">Hold</Btn>
-            <Btn size="sm" @click="control(job, 'release')">Release</Btn>
-            <Btn size="sm" variant="danger" @click="cancel(job)">취소</Btn>
+          <!-- 끝난 Job에는 제어가 의미 없다. Hold/Release는 대기 중에만 가능하다. -->
+          <div v-if="!isTerminal(job)" class="flex flex-wrap gap-1.5">
+            <template v-if="canHold(job)">
+              <Btn size="sm" @click="control(job, 'hold')">Hold</Btn>
+              <Btn size="sm" @click="control(job, 'release')">Release</Btn>
+            </template>
+            <Btn v-if="canCancel(job)" size="sm" variant="danger" @click="cancel(job)">취소</Btn>
           </div>
+          <span v-else class="text-ink-3">—</span>
         </td>
       </tr>
     </Table>

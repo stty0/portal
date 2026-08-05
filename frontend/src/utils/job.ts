@@ -21,6 +21,15 @@ export function jobState(job: SlurmJob): string {
   return String(raw ?? '')
 }
 
+/**
+ * 소유자 이름. slurmctld는 `user_name`, slurmdbd(이력)는 `user`로 준다 — 실측.
+ * 화면에서 두 출처를 같은 표에 섞어 쓰므로 여기서 흡수한다.
+ */
+export function jobOwner(job: SlurmJob): string {
+  const raw = job.user_name ?? (job as Record<string, unknown>).user
+  return raw ? String(raw) : '—'
+}
+
 export function jobField(job: SlurmJob, key: string, fallback = '—'): string {
   const value = (job as Record<string, unknown>)[key]
   if (value === null || value === undefined || value === '') return fallback
@@ -37,4 +46,29 @@ export function stateTone(state: string): string {
   if (s.startsWith('FAIL') || s.startsWith('NODE_FAIL') || s.startsWith('TIMEOUT')) return 'failed'
   if (s.startsWith('CANCEL')) return 'cancelled'
   return 'idle'
+}
+
+
+/**
+ * 종료된 Job — 제어(Hold/Release/취소)가 의미 없는 상태.
+ * 이력 탭은 대부분 여기에 해당한다.
+ */
+const TERMINAL_STATES = [
+  'COMPLETED', 'FAILED', 'CANCELLED', 'TIMEOUT', 'NODE_FAIL', 'PREEMPTED',
+  'BOOT_FAIL', 'DEADLINE', 'OUT_OF_MEMORY', 'REVOKED', 'SPECIAL_EXIT',
+]
+
+export function isTerminal(job: SlurmJob): boolean {
+  const state = jobState(job).toUpperCase()
+  return TERMINAL_STATES.some((t) => state.startsWith(t))
+}
+
+/** 취소는 아직 끝나지 않은 Job에만 가능하다. */
+export function canCancel(job: SlurmJob): boolean {
+  return !isTerminal(job)
+}
+
+/** Hold/Release는 대기 중인 Job에만 의미가 있다 — 실행이 시작되면 되돌릴 수 없다. */
+export function canHold(job: SlurmJob): boolean {
+  return jobState(job).toUpperCase().startsWith('PEND')
 }

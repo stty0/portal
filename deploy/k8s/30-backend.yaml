@@ -49,6 +49,12 @@ spec:
               name: http
           envFrom:
             - secretRef: { name: portal-backend-env }
+          # 로그인 노드 호스트키 (U-FM-01). 없으면 SSH 접속을 거부한다.
+          # 갱신: ssh-keyscan <노드> > known_hosts 후 secret 재생성
+          volumeMounts:
+            - name: ssh-known-hosts
+              mountPath: /etc/portal/ssh
+              readOnly: true
           livenessProbe:
             httpGet: { path: /healthz, port: 8000 }
             initialDelaySeconds: 10
@@ -60,3 +66,7 @@ spec:
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: ssh-known-hosts
+          secret:
+            secretName: portal-ssh-known-hosts

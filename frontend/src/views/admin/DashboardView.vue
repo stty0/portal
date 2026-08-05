@@ -60,7 +60,7 @@ watch(() => clusters.selectedId, load)
 
   <Card title="Job 현황" class="mb-5">
     <template #title-extra><Fid id="A-DB-03" /></template>
-    <div v-if="loading" class="py-6 text-center text-ink-3 text-[13.5px]">불러오는 중…</div>
+    <div v-if="loading" class="py-6 text-center text-ink-3 text-[14.5px]">불러오는 중…</div>
     <div v-else class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div
         v-for="s in [
@@ -71,8 +71,8 @@ watch(() => clusters.selectedId, load)
         ]"
         :key="s.k"
       >
-        <p class="text-[12.5px] text-ink-3 mb-1">{{ s.k }}</p>
-        <p class="text-3xl font-bold mono" :class="s.tone">{{ s.v }}</p>
+        <p class="text-[13.5px] text-ink-3 mb-1">{{ s.k }}</p>
+        <p class="text-[32px] font-bold mono" :class="s.tone">{{ s.v }}</p>
       </div>
     </div>
   </Card>

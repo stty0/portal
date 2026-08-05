@@ -119,7 +119,14 @@ def test_script_generation_from_form(client, cluster, user_token):
         headers=auth_headers(user_token),
     )
     script = resp.json()["script"]
-    assert script == "srun ./a.out"  # 스크립트를 직접 준 경우 그대로 쓴다
+    # 폼 모드는 폼 값을 #SBATCH 지시자로 적고 그 아래에 본문을 둔다
+    assert script.startswith("#!/bin/bash\n#SBATCH --job-name=mpi-run")
+    assert "#SBATCH --partition=cpu" in script
+    assert "#SBATCH --cpus-per-task=8" in script
+    assert "#SBATCH --gres=gpu:2" in script
+    assert "#SBATCH --mem=64G" in script
+    assert "#SBATCH --time=02:00:00" in script
+    assert script.rstrip().endswith("srun ./a.out")
 
 
 def test_script_generation_from_template(client, db, cluster, user_token):
@@ -176,3 +183,210 @@ def test_job_control_is_admin_only(client, cluster, user_token, admin_token):
     path = f"/api/v1/clusters/{cluster.id}/jobs/45812"
     assert client.patch(path, json=body, headers=auth_headers(user_token)).status_code == 403
     assert client.patch(path, json=body, headers=auth_headers(admin_token)).status_code == 200
+
+
+# --- slurmrestd v0.0.41 페이로드 형식 (실측 기반) ---------------------------
+
+
+def test_walltime_is_converted_to_minutes():
+    """v0.0.41의 time_limit은 분 단위 정수다 — 문자열이면 9202로 거부된다."""
+    from app.services.job import walltime_minutes
+
+    assert walltime_minutes("00:05:00") == 5
+    assert walltime_minutes("02:00:00") == 120
+    assert walltime_minutes("1-00:00:00") == 1440
+    assert walltime_minutes("30") == 30
+    # 초는 올림 — 30초를 0분으로 만들면 작업이 즉시 끝난다
+    assert walltime_minutes("00:00:30") == 1
+
+
+def test_job_properties_match_v0_0_41_types():
+    from app.services.job import JobSpec, _slurm_job_properties
+
+    spec = JobSpec(
+        name="t", partition="cpu", nodes=1, cpus_per_task=2,
+        memory_gb=1, walltime="00:05:00", environment={"FOO": "bar"},
+    )
+    props = _slurm_job_properties(spec, default_name="t")
+    assert props["time_limit"] == 5
+    assert props["memory_per_node"] == 1024
+    assert props["nodes"] == "1"
+    # environment는 배열이며 **비어 있으면 안 된다**(2019 I/O error)
+    assert "FOO=bar" in props["environment"]
+    assert any(e.startswith("PATH=") for e in props["environment"])
+
+
+def test_environment_is_never_empty():
+    from app.services.job import JobSpec, _slurm_job_properties
+
+    props = _slurm_job_properties(JobSpec(name="t"), default_name="t")
+    assert props["environment"], "빈 environment는 Slurm이 제출을 거부한다"
+
+
+def test_user_script_gets_shebang_when_missing():
+    """shebang이 없으면 sbatch가 배치 스크립트로 인정하지 않아 즉시 FAILED가 된다."""
+    from app.services.job import JobService, JobSpec
+
+    svc = JobService.__new__(JobService)
+    built = svc.build_script(JobSpec(name="t", script="sleep 30", mode="script"))
+    assert built.startswith("#!/bin/bash\n")
+    # 이미 있으면 건드리지 않는다
+    given = "#!/bin/zsh\nsleep 30\n"
+    assert svc.build_script(JobSpec(name="t", script=given, mode="script")) == given
+
+
+def test_work_dir_must_be_absolute_without_traversal(client, cluster, user_token):
+    """화면이 홈 하위로 제한하지만 API 직접 호출도 막는다."""
+    for bad in ("relative/path", "/home/jrpark/../opadmin", ".."):
+        resp = client.post(
+            f"/api/v1/clusters/{cluster.id}/jobs",
+            json={"name": "t", "script": "sleep 1", "work_dir": bad},
+            headers=auth_headers(user_token),
+        )
+        assert resp.status_code == 422, f"{bad} 가 통과했다"
+
+    ok = client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs",
+        json={"name": "t", "script": "sleep 1", "work_dir": "/home/jrpark/work"},
+        headers=auth_headers(user_token),
+    )
+    assert ok.status_code == 200
+
+
+def test_job_options_survive_partial_slurmdbd_failure(client, cluster, user_token, slurm_client):
+    """slurmdbd만 끊겨도 파티션은 골라야 한다 — 전부 실패로 처리하면 제출이 막힌다."""
+    def boom(*a, **kw):
+        raise RuntimeError("Connection refused")
+
+    slurm_client.get_qos = boom
+    slurm_client.get_associations = boom
+
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/job-options", headers=auth_headers(user_token)
+    ).json()
+    assert body["partitions"] == ["debug"]
+    assert body["accounts"] == [] and body["qos"] == []
+
+
+def test_job_options_salvage_list_from_partial_500(client, cluster, user_token, slurm_client):
+    """slurmrestd는 부분 실패도 500으로 준다 — 본문에 목록이 있으면 건져 쓴다(실측)."""
+    from app.core.errors import ExternalServiceError
+
+    def partial_failure(*a, **kw):
+        raise ExternalServiceError(
+            "외부 서비스 호출이 실패했습니다.",
+            detail={"status": 500, "body": {"partitions": [{"name": "cpu"}], "errors": [{"error": "Connection refused"}]}},
+        )
+
+    slurm_client.get_partitions = partial_failure
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/job-options", headers=auth_headers(user_token)
+    ).json()
+    assert body["partitions"] == ["cpu"]
+
+
+def test_history_falls_back_to_slurmctld_when_slurmdbd_is_down(
+    client, cluster, user_token, slurm_client
+):
+    """slurmdbd가 끊겨도 최근 완료 Job은 보여준다 — 출처를 함께 알린다."""
+    def boom(*a, **kw):
+        raise RuntimeError("Connection refused")
+
+    slurm_client.get_accounting_jobs = boom
+    slurm_client.jobs = [
+        {"job_id": 1, "name": "done", "user_name": "jrpark", "job_state": ["COMPLETED"]},
+        {"job_id": 2, "name": "now", "user_name": "jrpark", "job_state": ["RUNNING"]},
+    ]
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/jobs/history", headers=auth_headers(user_token)
+    ).json()
+    assert body["source"] == "slurmctld"
+    # 실행 중인 Job은 이력이 아니다
+    assert [j["name"] for j in body["items"]] == ["done"]
+
+
+def test_history_uses_slurmdbd_when_available(client, cluster, user_token, slurm_client):
+    slurm_client.jobs = [{"job_id": 7, "name": "acct", "user_name": "jrpark",
+                          "job_state": ["COMPLETED"]}]
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/jobs/history", headers=auth_headers(user_token)
+    ).json()
+    assert body["source"] == "slurmdbd"
+
+
+def test_validation_errors_use_the_standard_envelope(client, cluster, user_token):
+    """검증 오류도 code·message를 갖는다 — 화면이 '[UNKNOWN]'만 띄우면 원인을 알 수 없다."""
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs/preview-script",
+        json={"name": "", "script": "sleep 1"},
+        headers=auth_headers(user_token),
+    )
+    assert resp.status_code == 422
+    body = resp.json()
+    assert body["code"] == "VALIDATION_FAILED"
+    assert "name" in body["message"]
+    assert body["detail"][0]["field"].endswith("name")
+
+
+def test_script_mode_keeps_user_body_untouched(client, cluster, user_token):
+    """스크립트 모드는 사용자가 쓴 그대로 쓴다 — 임의로 지시자를 넣지 않는다."""
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs/preview-script",
+        json={"name": "raw", "mode": "script", "partition": "cpu", "nodes": 4,
+              "script": "#!/bin/bash\n#SBATCH --nodes=1\nsrun ./a.out"},
+        headers=auth_headers(user_token),
+    )
+    script = resp.json()["script"]
+    assert script == "#!/bin/bash\n#SBATCH --nodes=1\nsrun ./a.out"
+    assert "--nodes=4" not in script
+
+
+def test_admin_can_filter_history_by_user(client, cluster, admin_token, slurm_client):
+    client.get(
+        f"/api/v1/clusters/{cluster.id}/jobs/history?username=someone",
+        headers=auth_headers(admin_token),
+    )
+    call = next(c for c in reversed(slurm_client.calls) if c[0] == "get_accounting_jobs")
+    assert call[1]["users"] == "someone"
+
+
+def test_user_cannot_widen_history_scope(client, cluster, user_token, slurm_client):
+    """USER가 username을 넘겨도 무시되고 본인으로 강제된다."""
+    client.get(
+        f"/api/v1/clusters/{cluster.id}/jobs/history?username=opadmin",
+        headers=auth_headers(user_token),
+    )
+    call = next(c for c in reversed(slurm_client.calls) if c[0] == "get_accounting_jobs")
+    assert call[1]["users"] == "jrpark"
+
+
+def test_history_state_filter_is_applied_locally(client, cluster, user_token, slurm_client):
+    """slurmdbd의 state 필터는 이 빌드에서 0건만 돌려준다 — 서버로 넘기지 않고 직접 거른다."""
+    slurm_client.jobs = [
+        {"job_id": 1, "name": "ok", "user": "jrpark", "state": {"current": ["COMPLETED"]}},
+        {"job_id": 2, "name": "bad", "user": "jrpark", "state": {"current": ["FAILED"]}},
+    ]
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/jobs/history?state=FAILED",
+        headers=auth_headers(user_token),
+    ).json()
+    assert [j["name"] for j in body["items"]] == ["bad"]
+    call = next(c for c in reversed(slurm_client.calls) if c[0] == "get_accounting_jobs")
+    assert "state" not in call[1], "state를 slurmdbd로 넘기면 0건이 된다"
+
+
+def test_account_choices_are_limited_to_own_associations(client, cluster, user_token):
+    """소속되지 않은 계정을 고르면 Slurm이 제출을 거부한다 — 애초에 보여주지 않는다."""
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/job-options", headers=auth_headers(user_token)
+    ).json()
+    assert body["accounts"] == ["hpc"]  # 'other'(남의 연결)는 빠진다
+
+
+def test_no_account_association_yields_empty_choices(client, cluster, user_token, slurm_client):
+    """연결이 없으면 전체 계정으로 대체하지 않고 비운다."""
+    slurm_client.get_associations = lambda *, as_user=None: {"associations": []}
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/job-options", headers=auth_headers(user_token)
+    ).json()
+    assert body["accounts"] == []

@@ -53,13 +53,14 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 
 | Method | Path | 설명 | 기능 ID | 권한 | 우선순위 |
 |---|---|---|---|---|---|
-| GET | `/clusters` | 클러스터 목록(사용자: 선택용 요약 / 관리자: 설정 포함) | C-03 | 인증 | 필수 |
+| GET | `/clusters` | 클러스터 목록(사용자: 선택용 요약 / 관리자: 설정 포함). `?include_inactive=true`는 관리자에게만 비활성 행을 포함 | C-03 | 인증 | 필수 |
 | POST | `/clusters` | 클러스터 등록(이름은 slurmrestd에서 자동 조회) | A-CL | admin:access | 필수 |
-| GET | `/clusters/{cid}` | 클러스터 상세(Secret 마스킹) | A-CL | admin:access | 필수 |
+| GET | `/clusters/{cid}` | 클러스터 상세(Secret 마스킹). `last_health_at`·`last_health_ok`와 자격증명 참조 목록(`credentials`: kind·expires_at, **값 없음**) 포함 | A-CL | admin:access | 필수 |
 | PATCH | `/clusters/{cid}` | 수정(엔드포인트·SSH·경로 템플릿·기본 여부) | A-CL | admin:access | 필수 |
 | DELETE | `/clusters/{cid}` | 삭제(비활성화) | A-CL | admin:access | 필수 |
+| DELETE | `/clusters/{cid}/purge` | 완전 삭제. 비활성 + 무참조(감사 로그·세션·공지·기본 클러스터)일 때만 허용, 아니면 409. 자격증명·Secret 실값 동반 파기 | A-CL | admin:access | 권장 |
 | PUT | `/clusters/{cid}/credentials` | JWT/SSH 키 등록·교체(kind=SLURM_JWT/SSH_KEY, 무중단 교체) | C-03 | admin:access | 필수 |
-| POST | `/clusters/{cid}/test-rest` | slurmrestd 연결 테스트(ping) | A-CL | admin:access | 필수 |
+| POST | `/clusters/{cid}/test-rest` | slurmrestd 연결 테스트(ping). 성공·실패 모두 `last_health_*`에 기록 | A-CL | admin:access | 필수 |
 | POST | `/clusters/{cid}/test-ssh` | 로그인 노드 SSH 연결 테스트 | A-CL | admin:access | 필수 |
 
 ## 4. Cluster 현황/대시보드 (U-CL, A-DB) `DashboardRouter`

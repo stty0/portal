@@ -78,6 +78,8 @@ entity "cluster" as cluster {
   scratch_path_tpl : VARCHAR(255)     ' /scratch/{user}
   is_default : BOOL
   is_active : BOOL
+  last_health_at : DATETIME           ' A-CL-01 마지막 헬스체크 (NULL=미확인)
+  last_health_ok : BOOL               ' 마지막 REST 연결 결과
   created_at : DATETIME
   updated_at : DATETIME
 }

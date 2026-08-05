@@ -4,10 +4,10 @@ defineProps<{ label: string; hint?: string; required?: boolean; full?: boolean }
 
 <template>
   <div :class="full ? 'sm:col-span-2' : ''">
-    <label class="block text-[13px] font-semibold text-ink-2 mb-1.5">
+    <label class="block text-[14px] font-semibold text-ink-2 mb-1.5">
       {{ label }}<span v-if="required" class="text-err ml-0.5">*</span>
     </label>
     <slot />
-    <p v-if="hint" class="mt-1 text-[12.5px] text-ink-3">{{ hint }}</p>
+    <p v-if="hint" class="mt-1 text-[13.5px] text-ink-3">{{ hint }}</p>
   </div>
 </template>

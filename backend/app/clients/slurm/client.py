@@ -81,6 +81,9 @@ class SlurmrestdClient(BaseHttpClient):
     def get_partitions(self, *, as_user: str | None = None) -> Any:
         return self._call("GET", "slurm", "/partitions", as_user=as_user)
 
+    def get_reservations(self, *, as_user: str | None = None) -> Any:
+        return self._call("GET", "slurm", "/reservations", as_user=as_user)
+
     # --- slurmdbd 그룹 (Architecture.md §2.2, = sacct/sacctmgr/sreport) --
     def get_accounting_jobs(self, *, as_user: str | None = None, **params) -> Any:
         return self._call("GET", "slurmdb", "/jobs", as_user=as_user, params=params or None)
@@ -88,8 +91,96 @@ class SlurmrestdClient(BaseHttpClient):
     def get_accounts(self, *, as_user: str | None = None) -> Any:
         return self._call("GET", "slurmdb", "/accounts", as_user=as_user)
 
+    def get_associations(self, *, as_user: str | None = None) -> Any:
+        return self._call("GET", "slurmdb", "/associations", as_user=as_user)
+
+    # --- 계정·연결 쓰기 (A-US-02) ---------------------------------------
+    # 이 조작들은 **사용자로 위장하지 않는다**(as_user 없음). slurmdbd 쓰기에는 AdminLevel이
+    # 필요해서, 일반 사용자로 위장하면 `Access/permission denied`(2002)가 난다(실측).
+    # 토큰 소유자(SlurmUser) 권한으로 수행하고, "누가 시켰는가"는 포털 RBAC(ADMIN 전용)와
+    # 감사 로그가 남긴다. Job 조작이 임퍼소네이션을 쓰는 것과 목적이 다르다.
+    def create_account(self, account: dict[str, Any], cluster_name: str) -> Any:
+        """계정 생성 + 클러스터 association 노드 생성.
+
+        `/accounts/`만 호출하면 계정 레코드는 생기지만 클러스터 association이 없어
+        사용자를 붙일 수 없다(users_association이 304를 돌려준다 — 실측).
+        `/accounts_association/`이 둘을 한 번에 만든다.
+        """
+        return self._call(
+            "POST",
+            "slurmdb",
+            "/accounts_association/",
+            as_user=None,
+            json={
+                "accounts": [account],
+                "association_condition": {
+                    "accounts": [account["name"]],
+                    "clusters": [cluster_name],
+                },
+            },
+        )
+
+    def delete_account(self, name: str) -> Any:
+        return self._call("DELETE", "slurmdb", f"/account/{name}", as_user=None)
+
+    def add_user_association(self, *, username: str, account: str, cluster_name: str) -> Any:
+        return self._call(
+            "POST",
+            "slurmdb",
+            "/users_association/",
+            as_user=None,
+            json={
+                "association_condition": {
+                    "accounts": [account],
+                    "clusters": [cluster_name],
+                    "users": [username],
+                },
+                "user": {"name": username},
+            },
+        )
+
+    def set_association_qos(
+        self, *, account: str, username: str, cluster_name: str, qos: list[str]
+    ) -> Any:
+        """association의 허용 QOS 목록을 덮어쓴다 (A-US-03).
+
+        `username=""`이면 **계정 단위** association(계정 노드)이 대상이다.
+        """
+        return self._call(
+            "POST",
+            "slurmdb",
+            "/associations/",
+            as_user=None,
+            json={
+                "associations": [
+                    {
+                        "account": account,
+                        "user": username,
+                        "cluster": cluster_name,
+                        "partition": "",
+                        "qos": qos,
+                    }
+                ]
+            },
+        )
+
+    def delete_association(self, *, username: str, account: str, cluster_name: str) -> Any:
+        return self._call(
+            "DELETE",
+            "slurmdb",
+            "/association/",
+            as_user=None,
+            params={"account": account, "user": username, "cluster": cluster_name},
+        )
+
     def get_qos(self, *, as_user: str | None = None) -> Any:
         return self._call("GET", "slurmdb", "/qos", as_user=as_user)
+
+    def create_qos(self, qos: dict[str, Any]) -> Any:
+        return self._call("POST", "slurmdb", "/qos/", as_user=None, json={"qos": [qos]})
+
+    def delete_qos(self, name: str) -> Any:
+        return self._call("DELETE", "slurmdb", f"/qos/{name}", as_user=None)
 
     def get_slurm_user(self, username: str, *, as_user: str | None = None) -> Any:
         return self._call("GET", "slurmdb", f"/user/{username}", as_user=as_user)

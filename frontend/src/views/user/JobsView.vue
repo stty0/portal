@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { jobApi } from '@/api/jobs'
 import { useClusterStore } from '@/stores/cluster'
-import { jobField, jobId, jobState, stateTone } from '@/utils/job'
+import { canCancel, jobField, jobId, jobState, stateTone } from '@/utils/job'
 import type { SlurmJob } from '@/types/api'
 import Badge from '@/components/ui/Badge.vue'
 import Btn from '@/components/ui/Btn.vue'
@@ -20,6 +20,8 @@ const error = ref<unknown>(null)
 const state = ref('')
 const partition = ref('')
 const tab = ref<'active' | 'history'>('active')
+/** 이력 출처. slurmdbd가 끊기면 slurmctld의 잔여 완료 Job으로 대체된다. */
+const source = ref<string | null>(null)
 
 const columns = [
   { key: 'id', label: 'Job ID', width: '110px' },
@@ -40,11 +42,13 @@ async function load() {
     const res =
       tab.value === 'active'
         ? await jobApi.list(clusters.selectedId, filters)
-        : await jobApi.history(clusters.selectedId, {})
+        : await jobApi.history(clusters.selectedId, { state: state.value || undefined })
     jobs.value = res.items
+    source.value = tab.value === 'history' ? (res.source ?? null) : null
   } catch (e) {
     error.value = e
     jobs.value = []
+    source.value = null
   } finally {
     loading.value = false
   }
@@ -74,7 +78,6 @@ async function resubmit(job: SlurmJob) {
   }
 }
 
-const canCancel = (job: SlurmJob) => ['running', 'pending'].includes(stateTone(jobState(job)))
 const filtered = computed(() => jobs.value)
 </script>
 
@@ -92,10 +95,19 @@ const filtered = computed(() => jobs.value)
 
   <ErrorNote :error="error" />
 
+  <!-- 이력이 slurmdbd가 아니라 slurmctld에서 온 경우, 목록이 불완전함을 밝힌다 -->
+  <div
+    v-if="source === 'slurmctld'"
+    class="mb-3 px-3.5 py-2.5 rounded-lg bg-warn-bg text-warn text-[14px]"
+  >
+    slurmdbd에 연결할 수 없어 <b>최근 완료된 Job만</b> 표시합니다. 전체 이력을 보려면
+    클러스터의 slurmdbd 연결을 확인하세요.
+  </div>
+
   <Card flush>
     <template #head>
       <div class="flex flex-wrap items-center gap-2">
-        <div class="flex rounded-lg border border-line overflow-hidden text-[13px]">
+        <div class="flex rounded-lg border border-line overflow-hidden text-[14px]">
           <button
             v-for="t in (['active', 'history'] as const)"
             :key="t"
@@ -106,7 +118,7 @@ const filtered = computed(() => jobs.value)
         </div>
         <select
           v-model="state"
-          class="px-2.5 py-1.5 rounded-lg border border-line-dark text-[13px]"
+          class="px-2.5 py-1.5 rounded-lg border border-line-dark text-[14px]"
           @change="load"
         >
           <option value="">상태 전체</option>
@@ -116,14 +128,14 @@ const filtered = computed(() => jobs.value)
         <input
           v-model="partition"
           placeholder="파티션"
-          class="w-28 px-2.5 py-1.5 rounded-lg border border-line-dark text-[13px]"
+          class="w-28 px-2.5 py-1.5 rounded-lg border border-line-dark text-[14px]"
           @keyup.enter="load"
         />
         <Fid id="U-JB-04" />
       </div>
     </template>
 
-    <div v-if="loading" class="py-12 text-center text-ink-3 text-[13.5px]">불러오는 중…</div>
+    <div v-if="loading" class="py-12 text-center text-ink-3 text-[14.5px]">불러오는 중…</div>
     <Empty v-else-if="!filtered.length" text="조건에 맞는 Job이 없습니다." />
     <Table v-else :columns="columns">
       <tr v-for="job in filtered" :key="jobId(job)" class="border-b border-line last:border-0 hover:bg-bg">

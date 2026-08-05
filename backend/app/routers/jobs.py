@@ -77,16 +77,28 @@ def job_history(
     service: JobServiceDep,
     start_time: str | None = None,
     end_time: str | None = None,
+    username: str | None = None,
+    state: str | None = None,
 ) -> JobListResponse:
+    """`username` 필터는 ADMIN만 쓸 수 있다 — USER는 서버가 본인으로 강제한다."""
     cluster = service.clusters.get(cid)
-    jobs = service.history(
+    admin = is_admin(db, cache, user)
+    jobs, source = service.history(
         cluster,
         user=user,
-        is_admin=is_admin(db, cache, user),
+        is_admin=admin,
         start_time=start_time,
         end_time=end_time,
+        users=username if admin else None,
+        state=state,
     )
-    return JobListResponse(items=jobs, total=len(jobs))
+    return JobListResponse(items=jobs, total=len(jobs), source=source)
+
+
+@router.get("/clusters/{cid}/job-options", summary="제출 폼 선택지 (U-JB-01)")
+def job_options(cid: int, user: CurrentUser, service: JobServiceDep) -> dict[str, Any]:
+    """파티션·계정·QOS 목록. 조회에 실패한 항목은 빈 배열로 온다."""
+    return service.options(service.clusters.get(cid), user=user)
 
 
 @router.post("/clusters/{cid}/jobs", response_model=JobSubmitResponse, summary="Job 제출")

@@ -1,15 +1,29 @@
+<script lang="ts">
+// 모달이 겹쳐 열릴 수 있으므로(예: 클러스터 폼 위의 자격증명 모달) 열린 순서를 추적한다.
+// 인스턴스가 아니라 모듈 스코프여야 모든 모달이 같은 스택을 공유한다.
+const stack: symbol[] = []
+</script>
+
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
 
 const props = defineProps<{ title: string; wide?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
-// ESC 닫기 — 정적 프로토타입의 모달 규약과 동일하게 유지한다.
+const token = Symbol('modal')
+
+// ESC 닫기 — 정적 프로토타입의 모달 규약과 동일하게 유지하되, 최상단 모달만 닫는다.
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') emit('close')
+  if (e.key === 'Escape' && stack[stack.length - 1] === token) emit('close')
 }
-onMounted(() => document.addEventListener('keydown', onKey))
-onUnmounted(() => document.removeEventListener('keydown', onKey))
+onMounted(() => {
+  stack.push(token)
+  document.addEventListener('keydown', onKey)
+})
+onUnmounted(() => {
+  stack.splice(stack.indexOf(token), 1)
+  document.removeEventListener('keydown', onKey)
+})
 </script>
 
 <template>
@@ -24,11 +38,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
       aria-modal="true"
     >
       <header class="flex items-center gap-2 px-5 py-3.5 border-b border-line">
-        <h3 class="flex-1 text-[15px] font-semibold text-ink flex items-center gap-2">
+        <h3 class="flex-1 text-[16px] font-semibold text-ink flex items-center gap-2">
           {{ title }}<slot name="title-extra" />
         </h3>
         <button
-          class="w-7 h-7 rounded-md text-ink-3 hover:bg-bg text-lg leading-none"
+          class="w-7 h-7 rounded-md text-ink-3 hover:bg-bg text-[19px] leading-none"
           aria-label="닫기"
           @click="emit('close')"
         >✕</button>

@@ -48,7 +48,7 @@ async function submit() {
   <div class="min-h-screen grid lg:grid-cols-2">
     <!-- 좌: 브랜드 히어로 -->
     <div class="hidden lg:flex bg-grad-hero text-white p-12 flex-col justify-center">
-      <p class="text-sm font-semibold tracking-widest opacity-80">SLURM HPC PORTAL</p>
+      <p class="text-[15px] font-semibold tracking-widest opacity-80">SLURM HPC PORTAL</p>
       <h1 class="mt-4 text-4xl font-bold leading-tight">
         여러 Slurm 클러스터를,<br />브라우저 하나로.
       </h1>
@@ -56,7 +56,7 @@ async function submit() {
         CLI 없이 Job을 제출하고 자원을 모니터링합니다. 파일 관리, 인터랙티브 앱, 사용량 통계까지
         한 곳에서 처리합니다.
       </p>
-      <ul class="mt-8 space-y-2 text-[13.5px] text-white/70">
+      <ul class="mt-8 space-y-2 text-[14.5px] text-white/70">
         <li>· 폼·스크립트·템플릿 기반 Job 제출</li>
         <li>· 클러스터별 자원 현황과 대기 큐</li>
         <li>· 관리자 콘솔에서 노드·정책·사용자 관리</li>
@@ -70,33 +70,33 @@ async function submit() {
           <span class="w-9 h-9 rounded-lg bg-brand-700 text-white grid place-items-center font-bold">H</span>
           <div>
             <b class="block text-ink">HPC Portal</b>
-            <small class="text-ink-3 text-[12px]">Slurm 클러스터 통합 포털</small>
+            <small class="text-ink-3 text-[13px]">Slurm 클러스터 통합 포털</small>
           </div>
         </div>
 
-        <h2 class="text-xl font-bold text-ink mb-1 flex items-center gap-2">
+        <h2 class="text-[21px] font-bold text-ink mb-1 flex items-center gap-2">
           로그인 <Fid id="C-01" />
         </h2>
-        <p class="text-[13px] text-ink-3 mb-6">회사 AD 계정으로 로그인 · 접근 문의는 관리자</p>
+        <p class="text-[14px] text-ink-3 mb-6">회사 AD 계정으로 로그인 · 접근 문의는 관리자</p>
 
         <ErrorNote :error="error" />
 
-        <label class="block text-[13px] font-semibold text-ink-2 mb-1.5">사용자 ID</label>
+        <label class="block text-[14px] font-semibold text-ink-2 mb-1.5">사용자 ID</label>
         <input
           v-model="username"
           autocomplete="username"
           required
-          class="w-full mb-4 px-3 py-2.5 rounded-lg border border-line-dark bg-surface text-[14px] outline-none focus:border-brand-500"
+          class="w-full mb-4 px-3 py-2.5 rounded-lg border border-line-dark bg-surface text-[15px] outline-none focus:border-brand-500"
           placeholder="AD 계정 (sAMAccountName)"
         />
 
-        <label class="block text-[13px] font-semibold text-ink-2 mb-1.5">비밀번호</label>
+        <label class="block text-[14px] font-semibold text-ink-2 mb-1.5">비밀번호</label>
         <input
           v-model="password"
           type="password"
           autocomplete="current-password"
           required
-          class="w-full mb-6 px-3 py-2.5 rounded-lg border border-line-dark bg-surface text-[14px] outline-none focus:border-brand-500"
+          class="w-full mb-6 px-3 py-2.5 rounded-lg border border-line-dark bg-surface text-[15px] outline-none focus:border-brand-500"
           placeholder="••••••••"
         />
 
@@ -104,7 +104,7 @@ async function submit() {
           {{ busy ? '확인 중…' : '로그인' }}
         </Btn>
 
-        <p class="mt-6 text-[12px] text-ink-3 leading-relaxed">
+        <p class="mt-6 text-[13px] text-ink-3 leading-relaxed">
           인증은 Active Directory가 처리하고, 역할(USER/ADMIN)은 포털이 관리합니다.
           비밀번호는 포털에 저장되지 않습니다.
         </p>

@@ -8,11 +8,28 @@ from fastapi import FastAPI
 from app.clients.factory import ClusterClientFactory
 from app.clients.token_provider import SlurmTokenProvider
 from app.core.config import Settings, get_settings
-from app.core.errors import PortalError, portal_error_handler, unhandled_error_handler
+from fastapi.exceptions import RequestValidationError
+
+from app.core.errors import (
+    PortalError,
+    portal_error_handler,
+    unhandled_error_handler,
+    validation_error_handler,
+)
 from app.core.redis_client import PermissionCache, SessionStore, build_redis
 from app.core.secrets import EnvSecretStore
 from app.db.session import dispose_engine, init_engine
-from app.routers import auth, clusters, health, jobs, users
+from app.routers import (
+    auth,
+    billing,
+    clusters,
+    files,
+    health,
+    jobs,
+    reports,
+    terminal,
+    users,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +88,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=f"{settings.api_prefix}/redoc",
     )
 
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(PortalError, portal_error_handler)
     app.add_exception_handler(Exception, unhandled_error_handler)
 
     app.include_router(health.router)
-    for module in (auth, users, clusters, jobs):
+    for module in (auth, users, clusters, jobs, files, billing, terminal, reports):
         app.include_router(module.router, prefix=settings.api_prefix)
 
     return app

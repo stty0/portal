@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { installChunkReload } from '@/utils/chunk-reload'
 import { getToken } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 
@@ -44,7 +45,7 @@ const routes: RouteRecordRaw[] = [
     path: '/cluster',
     name: 'cluster',
     component: () => import('@/views/user/ClusterView.vue'),
-    meta: { title: '클러스터', scr: 'SCR-02', icon: '🖧', group: '클러스터' },
+    meta: { title: '클러스터', scr: 'SCR-02', icon: '◈', group: '클러스터' },
   },
   {
     path: '/notices',
@@ -80,13 +81,13 @@ const routes: RouteRecordRaw[] = [
     path: '/files',
     name: 'files',
     component: () => import('@/views/user/FilesView.vue'),
-    meta: { title: '파일 관리자', scr: 'SCR-07', icon: '🗀', group: '작업 환경', staticOnly: true },
+    meta: { title: '파일 관리자', scr: 'SCR-07', icon: '▤', group: '작업 환경', staticOnly: true },
   },
   {
     path: '/terminal',
     name: 'terminal',
     component: () => import('@/views/user/TerminalView.vue'),
-    meta: { title: '웹 터미널', scr: 'SCR-08', icon: '⌨', group: '작업 환경', staticOnly: true },
+    meta: { title: '웹 터미널', scr: 'SCR-08', icon: '❯', group: '작업 환경', staticOnly: true },
   },
   {
     path: '/usage',
@@ -110,7 +111,7 @@ const routes: RouteRecordRaw[] = [
     path: '/admin/clusters',
     name: 'admin-clusters',
     component: () => import('@/views/admin/ClustersView.vue'),
-    meta: { admin: true, title: '클러스터 관리', scr: 'SCR-18', icon: '🖧', group: '자원 관리' },
+    meta: { admin: true, title: '클러스터 관리', scr: 'SCR-18', icon: '◈', group: '자원 관리' },
   },
   {
     path: '/admin/nodes',
@@ -144,7 +145,7 @@ const routes: RouteRecordRaw[] = [
     name: 'admin-accounts',
     component: () => import('@/views/admin/AccountsView.vue'),
     meta: {
-      admin: true, title: '계정', scr: 'SCR-13', icon: '🗂',
+      admin: true, title: '계정', scr: 'SCR-13', icon: '▩',
       group: '사용자 / 정책', staticOnly: true,
     },
   },
@@ -173,7 +174,7 @@ const routes: RouteRecordRaw[] = [
     path: '/admin/license',
     name: 'admin-license',
     component: () => import('@/views/admin/LicenseView.vue'),
-    meta: { admin: true, title: 'License 관리', scr: 'SCR-17', icon: '🗝', group: '운영', staticOnly: true },
+    meta: { admin: true, title: 'License 관리', scr: 'SCR-17', icon: '▧', group: '운영', staticOnly: true },
   },
   {
     path: '/admin/settings',
@@ -190,6 +191,9 @@ export const router = createRouter({
   routes,
   scrollBehavior: () => ({ top: 0 }),
 })
+
+// 배포 직후 옛 탭이 사라진 청크를 부르면 화면이 조용히 멈춘다 — 한 번 새로고침해 복구한다.
+installChunkReload(router)
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()

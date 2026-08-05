@@ -9,7 +9,7 @@ const TONE = {
 </script>
 
 <template>
-  <span class="inline-block px-2 py-0.5 rounded-md text-[11.5px] font-semibold" :class="TONE[tone]">
+  <span class="inline-block px-2 py-0.5 rounded-md text-[12.5px] font-semibold" :class="TONE[tone]">
     <slot />
   </span>
 </template>

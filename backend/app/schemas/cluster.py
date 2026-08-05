@@ -8,6 +8,15 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class CredentialOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    kind: str
+    expires_at: datetime | None
+    created_at: datetime
+
+
 class ClusterSummary(BaseModel):
     """사용자용 — 클러스터 선택에 필요한 최소 정보."""
 
@@ -32,6 +41,10 @@ class ClusterOut(ClusterSummary):
     group_path_tpl: str | None
     scratch_path_tpl: str | None
     created_at: datetime | None = None
+    last_health_at: datetime | None = None
+    last_health_ok: bool | None = None
+    #: 등록된 자격증명의 **참조 정보만** — 값은 여기에도 없다(A-CL-02).
+    credentials: list[CredentialOut] = []
 
 
 class ClusterCreate(BaseModel):
@@ -67,16 +80,35 @@ class CredentialPut(BaseModel):
     value: str = Field(..., min_length=1)  # Secret 저장소로만 흘러가고 응답에 없다
 
 
-class CredentialOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    kind: str
-    expires_at: datetime | None
-    created_at: datetime
-
-
 class RestTestResult(BaseModel):
     ok: bool
     cluster_name: str | None = None
     api_version: str | None = None
+
+
+class SlurmAccountCreate(BaseModel):
+    """Slurm 계정 생성 (A-US-02). 이름은 sacctmgr 규칙에 맞춰 제한한다."""
+
+    name: str = Field(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+    description: str | None = Field(default=None, max_length=255)
+    organization: str | None = Field(default=None, max_length=255)
+
+
+class SlurmAssociationIn(BaseModel):
+    username: str = Field(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._@-]+$")
+
+
+class SlurmQosCreate(BaseModel):
+    """QOS 생성 (A-US-03). 제한값은 비워두면 무제한이다."""
+
+    name: str = Field(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+    description: str | None = Field(default=None, max_length=255)
+    priority: int | None = Field(default=None, ge=0)
+    max_wall_minutes: int | None = Field(default=None, ge=1)
+    max_jobs_per_user: int | None = Field(default=None, ge=1)
+
+
+class SlurmQosAssign(BaseModel):
+    """association에 허용할 QOS 집합. **덮어쓰기**이므로 전체를 보낸다."""
+
+    qos: list[str] = Field(default_factory=list, max_length=32)

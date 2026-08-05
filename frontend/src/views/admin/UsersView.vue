@@ -79,7 +79,7 @@ async function toggleActive(u: User) {
 
   <ErrorNote :error="error" />
 
-  <div class="px-3.5 py-2.5 rounded-lg bg-info-bg text-info text-[13px] mb-4">
+  <div class="px-3.5 py-2.5 rounded-lg bg-info-bg text-info text-[14px] mb-4">
     <b>AD 자동 프로비저닝</b> — 허용 그룹 조건에 맞는 AD 사용자는 로그인·동기화 시 자동으로
     활성 사용자가 됩니다. 별도 가입 승인 절차는 없습니다. <Fid id="A-US-01" />
   </div>
@@ -89,10 +89,10 @@ async function toggleActive(u: User) {
       <div class="flex flex-wrap items-center gap-2">
         <input
           v-model="q" placeholder="사용자 검색"
-          class="px-2.5 py-1.5 rounded-lg border border-line-dark text-[13px]"
+          class="px-2.5 py-1.5 rounded-lg border border-line-dark text-[14px]"
           @keyup.enter="load"
         />
-        <select v-model="roleFilter" class="px-2.5 py-1.5 rounded-lg border border-line-dark text-[13px]" @change="load">
+        <select v-model="roleFilter" class="px-2.5 py-1.5 rounded-lg border border-line-dark text-[14px]" @change="load">
           <option value="">역할 전체</option><option>ADMIN</option><option>USER</option>
         </select>
         <Btn size="sm" @click="load">검색</Btn>
@@ -115,19 +115,19 @@ async function toggleActive(u: User) {
       <tr v-for="u in rows" :key="u.ad_object_guid" class="border-b border-line last:border-0 hover:bg-bg">
         <td class="px-3.5 py-2.5">
           <b class="mono">{{ u.username }}</b>
-          <p class="text-[12px] text-ink-3">{{ u.display_name ?? '—' }}</p>
-          <code class="text-[10.5px] text-ink-3 mono" :title="u.ad_object_guid">
+          <p class="text-[13px] text-ink-3">{{ u.display_name ?? '—' }}</p>
+          <code class="text-[11.5px] text-ink-3 mono" :title="u.ad_object_guid">
             {{ u.ad_object_guid.slice(0, 8) }}…
           </code>
         </td>
-        <td class="px-3.5 py-2.5 mono text-[12.5px]">{{ u.email ?? '—' }}</td>
+        <td class="px-3.5 py-2.5 mono text-[13.5px]">{{ u.email ?? '—' }}</td>
         <td class="px-3.5 py-2.5">
           <Chip :tone="u.role === 'ADMIN' ? 'brand' : 'gray'">{{ u.role ?? '—' }}</Chip>
         </td>
         <td class="px-3.5 py-2.5">
           <Badge :state="u.is_active ? 'idle' : 'cancelled'">{{ u.is_active ? '활성' : '비활성' }}</Badge>
         </td>
-        <td class="px-3.5 py-2.5 mono text-[12px]">{{ u.last_login_at?.slice(0, 16).replace('T', ' ') ?? '—' }}</td>
+        <td class="px-3.5 py-2.5 mono text-[13px]">{{ u.last_login_at?.slice(0, 16).replace('T', ' ') ?? '—' }}</td>
         <td class="px-3.5 py-2.5">
           <div class="flex gap-1.5">
             <Btn size="sm" @click="openRole(u)">역할</Btn>
@@ -147,7 +147,7 @@ async function toggleActive(u: User) {
 
   <Modal v-if="editing" :title="`역할 변경 — ${editing.username}`" @close="editing = null">
     <template #title-extra><Fid id="C-02" /></template>
-    <p class="text-[13px] text-ink-3 mb-4">
+    <p class="text-[14px] text-ink-3 mb-4">
       인증은 AD가, 역할은 포털이 관리합니다. AD 그룹은 변경되지 않습니다.
     </p>
     <div class="space-y-2">
@@ -158,8 +158,8 @@ async function toggleActive(u: User) {
       >
         <input v-model="draftRole" type="radio" :value="r" class="mt-1 accent-brand-700" />
         <span>
-          <b class="text-[13.5px]">{{ r }}</b>
-          <span class="block text-[12.5px] text-ink-3">
+          <b class="text-[14.5px]">{{ r }}</b>
+          <span class="block text-[13.5px] text-ink-3">
             {{ r === 'ADMIN' ? '관리자 콘솔 접근 (admin:access)' : 'Job 제출·본인 자원 조회' }}
           </span>
         </span>

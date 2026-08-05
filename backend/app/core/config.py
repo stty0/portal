@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     # DC 인증서가 사설 CA/자체서명이면 CA 파일을 지정한다. 검증 해제는 개발 환경 한정.
     ad_tls_verify: bool = True
     ad_ca_cert_file: str | None = None
+    # 로그인 노드 SSH (U-FM-01·A-DB-05). 호스트키 파일이 없으면 접속을 거부한다 —
+    # 자동 수락은 중간자 공격을 그대로 통과시킨다.
+    ssh_known_hosts: str | None = None
+    ssh_timeout_seconds: float = 10.0
 
     # --- Secret 저장소 (§9 미확정 — 현재 환경변수 구현) ---
     secret_env_prefix: str = "PORTAL_SECRET_"

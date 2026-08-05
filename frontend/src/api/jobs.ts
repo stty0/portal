@@ -1,7 +1,15 @@
 import { api } from './client'
 import type { JobListResponse, JobSubmitRequest, JobSubmitResponse, SlurmJob } from '@/types/api'
 
+export interface JobOptions {
+  partitions: string[]
+  accounts: string[]
+  qos: string[]
+}
+
 export const jobApi = {
+  /** 제출 폼 선택지. 조회 실패한 항목은 빈 배열로 온다(slurmdbd만 끊긴 환경 등). */
+  options: (cid: number) => api.get<JobOptions>(`/clusters/${cid}/job-options`),
   list: (cid: number, filters: Record<string, string | undefined> = {}) =>
     api.get<JobListResponse>(`/clusters/${cid}/jobs`, filters),
   history: (cid: number, filters: Record<string, string | undefined> = {}) =>

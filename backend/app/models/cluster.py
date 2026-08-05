@@ -7,7 +7,7 @@ Portal DB 테이블이 아니다. 여기엔 '어떤 클러스터에 어떻게 �
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, utcnow
 
@@ -28,8 +28,18 @@ class Cluster(Base):
     scratch_path_tpl: Mapped[str | None] = mapped_column(String(255))  # /scratch/{user}
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # A-CL-01 "마지막 헬스체크" — 상태 컬럼이 스스로 말하게 한다. NULL = 아직 확인 안 함.
+    last_health_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_health_ok: Mapped[bool | None] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    # 자격증명은 클러스터 소유물이다 — 등록 여부·만료를 폼에서 보여주고, 삭제 시 함께 사라진다.
+    credentials: Mapped[list["ClusterCredential"]] = relationship(
+        lazy="selectin",
+        order_by="ClusterCredential.id",
+        cascade="all, delete-orphan",
+    )
 
 
 class ClusterCredential(Base):

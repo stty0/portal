@@ -105,6 +105,8 @@ class FakeSlurmClient:
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.cancelled: list[str] = []
         self.next_job_id = "90001"
+        # slurmdbd 쓰기는 HTTP 200으로도 본문 errors로 실패를 알린다 — 그 상황 재현용
+        self.write_errors: list[dict[str, Any]] = []
 
     def _record(self, name: str, **kw):
         self.calls.append((name, kw))
@@ -134,10 +136,106 @@ class FakeSlurmClient:
         self._record("update_job", job_id=job_id, patch=patch, as_user=as_user)
         return {"ok": True}
 
+    def get_nodes(self, *, as_user=None):
+        self._record("get_nodes", as_user=as_user)
+        return {"nodes": [{"name": "cn01", "state": ["IDLE"], "cpus": 8}], "errors": []}
+
+    def get_partitions(self, *, as_user=None):
+        self._record("get_partitions", as_user=as_user)
+        # slurmdbd 미연결 시 errors가 채워져도 목록은 정상적으로 온다 — 실물 관측 결과.
+        return {
+            "partitions": [{"name": "debug", "nodes": {"total": 1}}],
+            "errors": [{"error": "Connection refused", "source": "slurmdb_tres_get"}],
+        }
+
+    def get_reservations(self, *, as_user=None):
+        self._record("get_reservations", as_user=as_user)
+        return {"reservations": [], "errors": []}
+
     def get_accounting_jobs(self, *, as_user=None, **params):
         self._record("get_accounting_jobs", as_user=as_user, **params)
         # slurmdbd가 users 필터를 무시하는 상황을 재현 — 서비스가 한 번 더 걸러야 한다.
         return {"jobs": self.jobs}
+
+    def get_accounts(self, *, as_user=None):
+        self._record("get_accounts", as_user=as_user)
+        # 실물에서도 accounts의 associations는 비어 온다 — 매핑은 /associations로 받아야 한다.
+        return {
+            "accounts": [
+                {"name": "hpc", "description": "HPC", "organization": "org",
+                 "coordinators": [], "associations": []}
+            ]
+        }
+
+    def get_associations(self, *, as_user=None):
+        self._record("get_associations", as_user=as_user)
+        return {
+            "associations": [
+                # user가 빈 행 = 계정 자체 노드 — 사용자 목록에 넣으면 안 된다
+                {"account": "hpc", "user": "", "cluster": "seoul-hpc", "qos": ["normal", "short"]},
+                {"account": "hpc", "user": "jrpark", "cluster": "seoul-hpc", "partition": "",
+                 "qos": ["normal"], "is_default": True, "shares_raw": 1},
+                # 남의 연결 — 제출 폼 선택지에 섞이면 안 된다
+                {"account": "other", "user": "someone-else", "cluster": "seoul-hpc",
+                 "qos": ["normal"], "is_default": True, "shares_raw": 1},
+            ]
+        }
+
+    def get_qos(self, *, as_user=None):
+        self._record("get_qos", as_user=as_user)
+        return {
+            "qos": [
+                {
+                    "name": "normal",
+                    "description": "기본",
+                    "priority": {"set": True, "infinite": False, "number": 0},
+                    "usage_factor": {"set": True, "infinite": False, "number": 1.0},
+                    "flags": [],
+                    "limits": {
+                        "max": {
+                            # 무제한은 infinite=True로 온다 — None으로 접혀야 한다
+                            "wall_clock": {"per": {"job": {"set": False, "infinite": True, "number": 0}}},
+                            "jobs": {"per": {"user": {"set": True, "infinite": False, "number": 4}}},
+                        }
+                    },
+                }
+            ]
+        }
+
+    def create_qos(self, qos):
+        self._record("create_qos", qos=qos)
+        return {"errors": self.write_errors, "warnings": []}
+
+    def delete_qos(self, name):
+        self._record("delete_qos", qos_name=name)
+        return {"errors": self.write_errors, "warnings": []}
+
+    def create_account(self, account, cluster_name):
+        self._record("create_account", account=account, cluster_name=cluster_name)
+        return {"errors": self.write_errors, "warnings": []}
+
+    def delete_account(self, name):
+        self._record("delete_account", account_name=name)
+        return {"errors": self.write_errors, "warnings": []}
+
+    def add_user_association(self, *, username, account, cluster_name):
+        self._record("add_user_association", username=username, account=account,
+                     cluster_name=cluster_name)
+        return {"errors": self.write_errors, "warnings": []}
+
+    def set_association_qos(self, *, account, username, cluster_name, qos):
+        self._record("set_association_qos", account=account, username=username,
+                     cluster_name=cluster_name, qos=qos)
+        return {"errors": self.write_errors, "warnings": []}
+
+    def delete_association(self, *, username, account, cluster_name):
+        self._record("delete_association", username=username, account=account,
+                     cluster_name=cluster_name)
+        return {"errors": self.write_errors, "warnings": []}
+
+    def get_slurm_user(self, username, *, as_user=None):
+        self._record("get_slurm_user", username=username, as_user=as_user)
+        return {"users": [{"name": username, "associations": [{"account": "hpc"}]}]}
 
 
 class FakeClientFactory:

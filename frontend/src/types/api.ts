@@ -111,6 +111,10 @@ export interface Cluster extends ClusterSummary {
   group_path_tpl: string | null
   scratch_path_tpl: string | null
   created_at?: string | null
+  last_health_at?: string | null
+  last_health_ok?: boolean | null
+  /** 자격증명의 참조 정보만 — 값은 응답에 없다. */
+  credentials?: CredentialOut[]
 }
 
 export interface ClusterCreate {
@@ -157,10 +161,14 @@ export type SlurmJob = Record<string, unknown> & {
 export interface JobListResponse {
   items: SlurmJob[]
   total: number
+  /** 이력 출처 — slurmdbd 미연결 시 'slurmctld'(최근 완료 Job만). */
+  source?: string | null
 }
 
 export interface JobSubmitRequest {
   name: string
+  /** form이면 폼 값이 #SBATCH 지시자로 생성되고, script면 본문을 그대로 쓴다. */
+  mode?: 'form' | 'script' | 'template'
   partition?: string | null
   account?: string | null
   qos?: string | null

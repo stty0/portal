@@ -14,7 +14,7 @@ const VARIANT = {
   ghost: 'bg-transparent text-ink-2 border-transparent hover:bg-bg',
   danger: 'bg-err text-white border-err hover:brightness-95',
 } as const
-const SIZE = { sm: 'text-xs px-2.5 py-1', md: 'text-[13.5px] px-3.5 py-2' } as const
+const SIZE = { sm: 'text-[13px] px-2.5 py-1', md: 'text-[14.5px] px-3.5 py-2' } as const
 </script>
 
 <template>

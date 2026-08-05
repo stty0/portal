@@ -5,7 +5,7 @@ defineProps<{ id: string }>()
 
 <template>
   <span
-    class="inline-block px-1.5 py-px rounded border border-line-dark bg-bg text-[10.5px] font-semibold text-ink-3 align-middle mono"
+    class="inline-block px-1.5 py-px rounded border border-line-dark bg-bg text-[11.5px] font-semibold text-ink-3 align-middle mono"
     :title="`기능 정의서 ${id}`"
   >{{ id }}</span>
 </template>

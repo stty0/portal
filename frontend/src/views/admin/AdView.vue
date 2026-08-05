@@ -82,7 +82,7 @@ async function sync() {
 }
 
 const inputClass =
-  'w-full px-3 py-2 rounded-lg border border-line-dark text-[13.5px] outline-none focus:border-brand-500'
+  'w-full px-3 py-2 rounded-lg border border-line-dark text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>
@@ -99,14 +99,14 @@ const inputClass =
   </PageHead>
 
   <ErrorNote :error="error" />
-  <div v-if="notice" class="px-3.5 py-2.5 rounded-lg bg-ok-bg text-ok text-[13px] mb-4">{{ notice }}</div>
+  <div v-if="notice" class="px-3.5 py-2.5 rounded-lg bg-ok-bg text-ok text-[14px] mb-4">{{ notice }}</div>
 
   <div class="grid lg:grid-cols-2 gap-5 items-start">
     <Card title="현재 AD 연결">
       <template #title-extra><Fid id="A-US-01" /></template>
-      <dl v-if="conn" class="grid grid-cols-[130px_1fr] gap-y-2.5 text-[13.5px]">
+      <dl v-if="conn" class="grid grid-cols-[130px_1fr] gap-y-2.5 text-[14.5px]">
         <dt class="text-ink-3">LDAP URL</dt><dd class="mono">{{ conn.ldaps_url ?? '—' }}</dd>
-        <dt class="text-ink-3">Base DN</dt><dd class="mono">{{ conn.base_dn ?? '—' }}</dd>
+        <dt class="text-ink-3">사용자 DN</dt><dd class="mono">{{ conn.base_dn ?? '—' }}</dd>
         <dt class="text-ink-3">Bind 계정</dt><dd class="mono">{{ conn.bind_account ?? '—' }}</dd>
         <dt class="text-ink-3">Bind 암호</dt>
         <dd>
@@ -117,7 +117,7 @@ const inputClass =
         <dt class="text-ink-3">허용 그룹</dt>
         <dd class="mono">
           {{ conn.allowed_group ?? '—' }}
-          <span v-if="!conn.allowed_group" class="text-warn text-[12px] block mt-0.5">
+          <span v-if="!conn.allowed_group" class="text-warn text-[13px] block mt-0.5">
             미설정 — 전 AD 사용자가 포털 사용자가 됩니다
           </span>
         </dd>
@@ -136,19 +136,19 @@ const inputClass =
     </Card>
 
     <Card title="동기화 상태">
-      <dl class="grid grid-cols-[130px_1fr] gap-y-2.5 text-[13.5px] mb-4">
+      <dl class="grid grid-cols-[130px_1fr] gap-y-2.5 text-[14.5px] mb-4">
         <dt class="text-ink-3">주기</dt><dd class="mono">{{ conn?.sync_interval ?? '—' }}</dd>
         <dt class="text-ink-3">최근 실행</dt>
         <dd class="mono">{{ conn?.last_sync_at?.slice(0, 19).replace('T', ' ') ?? '—' }}</dd>
         <dt class="text-ink-3">최근 결과</dt><dd>{{ conn?.last_sync_result ?? '—' }}</dd>
       </dl>
 
-      <div v-if="lastSync" class="p-3.5 rounded-lg bg-bg text-[13px]">
+      <div v-if="lastSync" class="p-3.5 rounded-lg bg-bg text-[14px]">
         <b class="block mb-1.5">방금 실행한 동기화</b>
         <div class="grid grid-cols-3 gap-2 text-center">
-          <div><span class="block text-lg font-bold text-ok mono">{{ lastSync.created }}</span>신규</div>
-          <div><span class="block text-lg font-bold text-info mono">{{ lastSync.updated }}</span>갱신</div>
-          <div><span class="block text-lg font-bold text-warn mono">{{ lastSync.deactivated }}</span>비활성</div>
+          <div><span class="block text-[19px] font-bold text-ok mono">{{ lastSync.created }}</span>신규</div>
+          <div><span class="block text-[19px] font-bold text-info mono">{{ lastSync.updated }}</span>갱신</div>
+          <div><span class="block text-[19px] font-bold text-warn mono">{{ lastSync.deactivated }}</span>비활성</div>
         </div>
       </div>
 
@@ -165,13 +165,15 @@ const inputClass =
       <Field label="LDAP(S) URL" required full hint="인증서가 있으면 ldaps:// 권장 — 평문은 비밀번호가 노출됩니다">
         <input v-model="form.ldaps_url" :class="[inputClass, 'mono']" />
       </Field>
-      <Field label="Base DN" required><input v-model="form.base_dn" :class="[inputClass, 'mono']" /></Field>
+      <Field label="사용자 DN (Users DN)" required hint="이 지점 아래에서만 사용자를 찾습니다">
+        <input v-model="form.base_dn" :class="[inputClass, 'mono']" placeholder="OU=people,DC=corp,DC=com" />
+      </Field>
       <Field label="Bind 계정" required><input v-model="form.bind_account" :class="[inputClass, 'mono']" /></Field>
       <Field label="Bind 암호" full hint="비워 두면 기존 값을 유지합니다">
         <input v-model="form.bind_password" type="password" :class="inputClass" placeholder="재입력 시에만 변경" />
       </Field>
-      <Field label="허용 그룹" full hint="비우면 전 AD 사용자 허용">
-        <input v-model="form.allowed_group" :class="[inputClass, 'mono']" placeholder="cn=HPC-Users,dc=corp,dc=com" />
+      <Field label="허용 그룹" full hint="그룹 DN만 유효(OU 불가) — 비우면 사용자 DN 아래 전원 허용">
+        <input v-model="form.allowed_group" :class="[inputClass, 'mono']" placeholder="CN=HPC-Users,OU=groups,DC=corp,DC=com" />
       </Field>
       <Field label="식별 속성">
         <select v-model="form.id_attribute" :class="inputClass"><option>sAMAccountName</option><option>uid</option></select>

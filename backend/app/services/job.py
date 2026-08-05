@@ -18,6 +18,10 @@ from app.services.audit import AuditService
 from app.services.cluster import ClusterService
 
 
+# 아직 끝나지 않은 상태 — 이력 대체 조회에서 제외한다.
+RUNNING_STATES = {"RUNNING", "PENDING", "SUSPENDED", "CONFIGURING", "COMPLETING", "RESIZING"}
+
+
 @dataclass
 class JobSpec:
     """폼 기반 제출 파라미터 (U-JB-01)."""
@@ -36,6 +40,8 @@ class JobSpec:
     script: str | None = None  # U-JB-02: 직접 작성한 스크립트
     template_id: int | None = None  # U-JB-03
     template_params: dict[str, Any] | None = None
+    # form: 폼 값으로 #SBATCH 지시자를 생성 / script: 사용자가 준 본문을 그대로 사용
+    mode: str = "form"
 
 
 class JobService:
@@ -99,17 +105,100 @@ class JobService:
 
     def history(
         self, cluster: Cluster, *, user: User, is_admin: bool, **filters
-    ) -> list[dict[str, Any]]:
-        """완료 Job 이력 = slurmdbd(sacct 상당) (U-JB-09, A-JB-04)."""
+    ) -> tuple[list[dict[str, Any]], str]:
+        """완료 Job 이력 = slurmdbd(sacct 상당) (U-JB-09, A-JB-04).
+
+        slurmdbd가 끊긴 환경에서는 **slurmctld가 아직 들고 있는 완료 Job**으로 대체한다.
+        보존 기간이 짧아(`MinJobAge`, 기본 300초) 완전한 이력은 아니지만,
+        화면 전체를 오류로 막는 것보다 최근 결과라도 보이는 편이 낫다.
+        어느 쪽에서 왔는지를 함께 돌려주어 화면이 그 차이를 밝힐 수 있게 한다.
+        """
         client = self.clusters.slurm_client(cluster)
         params = {k: v for k, v in filters.items() if v is not None}
+        # slurmdbd의 state 필터는 이 빌드에서 항상 0건을 돌려준다(실측) — 서버로 넘기지 않고
+        # 받아온 뒤 직접 거른다. users 필터를 한 번 더 거르는 것과 같은 이유다.
+        state_filter = params.pop("state", None)
         if not is_admin:
             params["users"] = user.username  # 서버측 강제
-        jobs = _as_job_list(client.get_accounting_jobs(as_user=user.username, **params))
+        requested_user = params.get("users") if is_admin else None
+        try:
+            jobs = _as_job_list(client.get_accounting_jobs(as_user=user.username, **params))
+            source = "slurmdbd"
+        except Exception:
+            jobs = [
+                j
+                for j in _as_job_list(client.get_jobs(as_user=user.username))
+                if _state_of(j).upper() not in RUNNING_STATES
+            ]
+            # 대체 경로는 slurmdbd의 users 필터를 못 쓰므로 여기서 직접 건다.
+            if requested_user:
+                jobs = [j for j in jobs if self._owner_of(j) == requested_user]
+            source = "slurmctld"
         if not is_admin:
             # slurmdbd가 필터를 무시해도 새어 나가지 않도록 한 번 더 거른다.
             jobs = [j for j in jobs if self._owner_of(j) == user.username]
-        return jobs
+        if state_filter:
+            jobs = [j for j in jobs if _state_of(j).upper() == state_filter.upper()]
+        return jobs, source
+
+    # --- 제출 폼 선택지 (U-JB-01) ----------------------------------------
+    def options(self, cluster: Cluster, *, user: User) -> dict[str, Any]:
+        """파티션·계정·QOS 목록.
+
+        **한 항목이 실패해도 나머지는 돌려준다.** 파티션은 slurmctld, 계정·QOS는
+        slurmdbd에서 오는데 slurmdbd만 끊긴 환경이 흔하다(실측). 전부 실패로 처리하면
+        파티션까지 못 고르게 되어 제출 자체가 막힌다.
+        """
+        client = self.clusters.slurm_client(cluster)
+
+        def safe(fetch, key: str) -> list[str]:
+            """실패해도 응답 본문에 목록이 실려 있으면 건져 쓴다.
+
+            slurmrestd는 **부분 실패도 500으로 돌려준다** — 파티션 조회에서
+            slurmdbd TRES 조회만 실패해도 전체가 500이 되는데, 본문에는 파티션 목록이
+            정상적으로 들어 있다(실측). 여기서까지 버리면 고를 수 있는 값이 하나도 없어
+            제출이 막힌다. 오류 자체는 노드/파티션 관리 화면에서 그대로 드러난다.
+            """
+            try:
+                return fetch()
+            except Exception as exc:
+                detail = getattr(exc, "detail", None)
+                body = detail.get("body") if isinstance(detail, dict) else None
+                return _names(body.get(key)) if isinstance(body, dict) else []
+
+        def partitions() -> list[str]:
+            payload = client.get_partitions(as_user=user.username)
+            return _names(payload.get("partitions") if isinstance(payload, dict) else None)
+
+        def accounts() -> list[str]:
+            """**이 사용자에게 연결된 계정만** 돌려준다.
+
+            전체 계정 목록으로 대체하면 안 된다 — 소속되지 않은 계정을 골라 제출하면
+            Slurm이 거부한다. 고를 수 없는 값을 보여주는 화면이 더 나쁘다.
+
+            출처는 `/associations`다. `/user/{name}`은 응답에 associations를 채워주지
+            않아(항상 빈 배열 — 실측) 소속을 알 수 없다.
+            """
+            payload = client.get_associations(as_user=user.username)
+            associations = payload.get("associations") if isinstance(payload, dict) else None
+            found: list[str] = []
+            for assoc in associations or []:
+                if not isinstance(assoc, dict) or assoc.get("user") != user.username:
+                    continue
+                account = assoc.get("account")
+                if account and account not in found:
+                    found.append(str(account))
+            return found
+
+        def qos() -> list[str]:
+            payload = client.get_qos(as_user=user.username)
+            return _names(payload.get("qos") if isinstance(payload, dict) else None)
+
+        return {
+            "partitions": safe(partitions, "partitions"),
+            "accounts": safe(accounts, "accounts"),
+            "qos": safe(qos, "qos"),
+        }
 
     # --- 제출 -----------------------------------------------------------
     def submit(self, cluster: Cluster, spec: JobSpec, *, user: User) -> dict[str, Any]:
@@ -135,12 +224,25 @@ class JobService:
     def build_script(self, spec: JobSpec) -> str:
         """폼/템플릿 → `#SBATCH` 배치 스크립트 생성 (U-JB-01·03).
 
-        스크립트를 직접 준 경우(U-JB-02)는 그대로 쓴다.
-        """
-        if spec.script:
-            return spec.script
+        모드별로 다르게 만든다.
+          - `script`(U-JB-02): 사용자가 준 본문을 **그대로** 쓴다. shebang만 보강한다.
+          - `form`(U-JB-01)·`template`(U-JB-03): 폼 값을 `#SBATCH` 지시자로 적고
+            그 아래에 실행 본문을 둔다.
 
-        body = ""
+        주의: slurmrestd 제출에서 `#SBATCH`는 **적용되지 않는다**(실측 — REST의 job
+        속성이 이긴다). 지시자는 스크립트를 그대로 `sbatch`로 재실행하거나 내용을
+        확인할 수 있게 남기는 기록이며, 실제 자원 적용은 REST 페이로드가 담당한다.
+        두 곳 모두 같은 폼 값에서 나오므로 어긋나지 않는다.
+        """
+        if spec.mode == "script":
+            if not spec.script:
+                raise ValidationFailed("실행할 스크립트가 필요합니다.")
+            # shebang이 없으면 sbatch가 배치 스크립트로 인정하지 않아 제출 직후 FAILED가 된다(실측).
+            if spec.script.lstrip().startswith("#!"):
+                return spec.script
+            return "#!/bin/bash\n" + spec.script.lstrip("\n")
+
+        body = spec.script or ""
         if spec.template_id is not None:
             template = self.session.get(JobTemplate, spec.template_id)
             if template is None:
@@ -245,7 +347,11 @@ def _state_of(job: dict[str, Any]) -> str:
     if isinstance(state, list):
         return str(state[0]) if state else ""
     if isinstance(state, dict):
-        return str(state.get("current") or "")
+        # slurmdbd는 {"current": ["COMPLETED"], "reason": ...} 형태로 준다 — 리스트를 한 번 더 푼다.
+        current = state.get("current")
+        if isinstance(current, list):
+            return str(current[0]) if current else ""
+        return str(current or "")
     return str(state)
 
 
@@ -260,16 +366,59 @@ def _extract_job_id(payload: Any) -> str | None:
     return None
 
 
+def walltime_minutes(walltime: str) -> int:
+    """`D-HH:MM:SS`·`HH:MM:SS`·`MM` → 분.
+
+    slurmrestd v0.0.41의 `time_limit`은 **분 단위 정수**다. 문자열을 그대로 보내면
+    `Expected integer but got "00:05:00"`(9202)로 제출이 거부된다(실측).
+    초는 올림한다 — 30초짜리를 0분으로 만들면 즉시 종료된다.
+    """
+    text = walltime.strip()
+    days = 0
+    if "-" in text:
+        head, _, text = text.partition("-")
+        days = int(head)
+    parts = [int(p) for p in text.split(":")] if text else [0]
+    if len(parts) == 1:
+        h, m, s = 0, parts[0], 0
+    elif len(parts) == 2:
+        h, m, s = 0, parts[0], parts[1]
+    elif len(parts) == 3:
+        h, m, s = parts
+    else:
+        raise ValidationFailed("Walltime 형식이 올바르지 않습니다.", detail={"walltime": walltime})
+    return days * 1440 + h * 60 + m + (1 if s else 0)
+
+
+def _environment(spec: JobSpec) -> list[str]:
+    """`KEY=VALUE` 배열. slurmrestd v0.0.41은 객체를 받지 않는다.
+
+    **비우면 안 된다** — 빈 배열로 보내면 Slurm이
+    `I/O error writing script/environment to file`(2019)로 제출을 실패시킨다(실측).
+    """
+    env = {"PATH": "/usr/local/bin:/usr/bin:/bin"}
+    env.update(spec.environment or {})
+    return [f"{k}={v}" for k, v in env.items()]
+
+
+def _names(items: Any) -> list[str]:
+    if not isinstance(items, list):
+        return []
+    return [str(i["name"]) for i in items if isinstance(i, dict) and i.get("name")]
+
+
 def _slurm_job_properties(spec: JobSpec, *, default_name: str) -> dict[str, Any]:
-    props: dict[str, Any] = {"name": default_name, "environment": spec.environment or {}}
+    props: dict[str, Any] = {"name": default_name, "environment": _environment(spec)}
     for key, value in (
         ("partition", spec.partition),
         ("account", spec.account),
         ("qos", spec.qos),
-        ("nodes", spec.nodes),
+        # nodes는 문자열이다("1", "2-4" 같은 범위 표기를 허용하므로)
+        ("nodes", str(spec.nodes) if spec.nodes else None),
         ("cpus_per_task", spec.cpus_per_task),
-        ("memory_per_node", f"{spec.memory_gb}G" if spec.memory_gb else None),
-        ("time_limit", spec.walltime),
+        # 메모리는 MB 정수
+        ("memory_per_node", spec.memory_gb * 1024 if spec.memory_gb else None),
+        ("time_limit", walltime_minutes(spec.walltime) if spec.walltime else None),
         ("current_working_directory", spec.work_dir),
     ):
         if value not in (None, ""):

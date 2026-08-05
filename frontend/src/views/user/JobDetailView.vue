@@ -76,14 +76,14 @@ const rows = computed(() =>
       <template #title-extra><Fid id="U-JB-05" /></template>
       <div class="flex flex-wrap items-center gap-3 mb-4">
         <Badge :state="stateTone(jobState(job))">{{ jobState(job) || '—' }}</Badge>
-        <span class="text-[13px] text-ink-3">
+        <span class="text-[14px] text-ink-3">
           파티션 <b class="mono text-ink-2">{{ jobField(job, 'partition') }}</b>
         </span>
-        <span class="text-[13px] text-ink-3">
+        <span class="text-[14px] text-ink-3">
           노드 <b class="mono text-ink-2">{{ jobField(job, 'nodes') }}</b>
         </span>
       </div>
-      <dl class="grid grid-cols-[130px_1fr] gap-y-2 text-[13px]">
+      <dl class="grid grid-cols-[130px_1fr] gap-y-2 text-[14px]">
         <template v-for="[k, v] in rows" :key="k">
           <dt class="text-ink-3 mono truncate" :title="k">{{ k }}</dt>
           <dd class="text-ink-2 mono break-all">{{ v }}</dd>
@@ -95,9 +95,9 @@ const rows = computed(() =>
       <Card title="제출 스크립트">
         <pre
           v-if="jobField(job, 'script', '') !== ''"
-          class="mono text-[12px] bg-side-bg text-side-act rounded-lg p-4 overflow-x-auto whitespace-pre-wrap"
+          class="mono text-[13px] bg-side-bg text-side-act rounded-lg p-4 overflow-x-auto whitespace-pre-wrap"
         >{{ jobField(job, 'script') }}</pre>
-        <p v-else class="text-[13px] text-ink-3">이 Job에는 스크립트 정보가 없습니다.</p>
+        <p v-else class="text-[14px] text-ink-3">이 Job에는 스크립트 정보가 없습니다.</p>
       </Card>
 
       <Card title="실시간 로그 (stdout / stderr)">

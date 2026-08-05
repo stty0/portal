@@ -16,7 +16,7 @@ const tone = computed(() => TONE[props.state.toLowerCase()] ?? 'bg-idle-bg text-
 
 <template>
   <span
-    class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap"
+    class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[13px] font-semibold whitespace-nowrap"
     :class="tone"
   >
     <i v-if="!plain" class="w-1.5 h-1.5 rounded-full bg-current" />

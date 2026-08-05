@@ -82,7 +82,7 @@ async function confirm() {
 }
 
 const inputClass =
-  'w-full px-3 py-2 rounded-lg border border-line-dark text-[13.5px] outline-none focus:border-brand-500'
+  'w-full px-3 py-2 rounded-lg border border-line-dark text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>
@@ -92,20 +92,20 @@ const inputClass =
         <span class="w-9 h-9 rounded-lg bg-brand-700 text-white grid place-items-center font-bold">H</span>
         <div class="flex-1">
           <b class="block text-ink">최초 실행 설정</b>
-          <small class="text-ink-3 text-[12px]">AD 연결 후 첫 관리자를 지정합니다</small>
+          <small class="text-ink-3 text-[13px]">AD 연결 후 첫 관리자를 지정합니다</small>
         </div>
         <Fid id="C-02" />
       </div>
 
       <!-- 단계 표시 -->
-      <ol class="flex items-center gap-2 mb-6 text-[12.5px]">
+      <ol class="flex items-center gap-2 mb-6 text-[13.5px]">
         <li
           v-for="(label, i) in ['AD 연결', '관리자 지정', '완료']"
           :key="label"
           class="flex items-center gap-2"
         >
           <span
-            class="w-6 h-6 rounded-full grid place-items-center font-bold text-[11px]"
+            class="w-6 h-6 rounded-full grid place-items-center font-bold text-[12px]"
             :class="step > i + 1 ? 'bg-ok text-white' : step === i + 1 ? 'bg-brand-700 text-white' : 'bg-idle-bg text-ink-3'"
           >{{ step > i + 1 ? '✓' : i + 1 }}</span>
           <span :class="step === i + 1 ? 'font-semibold text-ink' : 'text-ink-3'">{{ label }}</span>
@@ -117,7 +117,7 @@ const inputClass =
 
       <!-- 1단계: AD 연결 -->
       <form v-if="step === 1" @submit.prevent="probe">
-        <div class="px-3.5 py-2.5 rounded-lg bg-warn-bg text-warn text-[13px] mb-5">
+        <div class="px-3.5 py-2.5 rounded-lg bg-warn-bg text-warn text-[14px] mb-5">
           <b>1회용 설정입니다.</b> 완료되면 서버가 재실행을 거부합니다. setup 토큰은 설치 시
           서버 로그에 출력된 값입니다.
         </div>
@@ -129,8 +129,8 @@ const inputClass =
           <Field label="LDAP(S) URL" required full hint="인증서가 있으면 ldaps:// 권장 — 평문은 비밀번호가 노출됩니다">
             <input v-model="form.ldaps_url" required :class="[inputClass, 'mono']" placeholder="ldaps://ad.corp.com:636" />
           </Field>
-          <Field label="Base DN" required>
-            <input v-model="form.base_dn" required :class="[inputClass, 'mono']" placeholder="DC=corp,DC=com" />
+          <Field label="사용자 DN (Users DN)" required hint="이 지점 아래에서만 사용자를 찾습니다 — OU로 좁힐 수 있습니다">
+            <input v-model="form.base_dn" required :class="[inputClass, 'mono']" placeholder="OU=people,DC=corp,DC=com" />
           </Field>
           <Field label="Bind 계정" required hint="사용자 조회용 서비스 계정">
             <input v-model="form.bind_account" required :class="[inputClass, 'mono']" placeholder="svc-portal@corp.com" />
@@ -143,8 +143,12 @@ const inputClass =
               <option>sAMAccountName</option><option>uid</option>
             </select>
           </Field>
-          <Field label="허용 그룹" full hint="비우면 전 AD 사용자가 포털 사용자가 됩니다">
-            <input v-model="form.allowed_group" :class="[inputClass, 'mono']" placeholder="cn=HPC-Users,dc=corp,dc=com" />
+          <Field
+            label="허용 그룹"
+            full
+            hint="그룹 DN만 유효합니다 — OU를 넣으면 아무도 조회되지 않습니다(memberOf에는 그룹만 들어감). 비우면 위 사용자 DN 아래 전원 허용"
+          >
+            <input v-model="form.allowed_group" :class="[inputClass, 'mono']" placeholder="CN=HPC-Users,OU=groups,DC=corp,DC=com" />
           </Field>
         </div>
 
@@ -157,13 +161,13 @@ const inputClass =
 
       <!-- 2단계: 관리자 지정 -->
       <div v-else-if="step === 2">
-        <div class="px-3.5 py-2.5 rounded-lg bg-ok-bg text-ok text-[13px] mb-5">
+        <div class="px-3.5 py-2.5 rounded-lg bg-ok-bg text-ok text-[14px] mb-5">
           AD 연결 성공 — <b>{{ candidates.length }}개</b> 계정이 조회됐습니다.
           이 중 한 명을 <b>첫 관리자</b>로 지정합니다.
         </div>
 
-        <div v-if="!candidates.length" class="px-3.5 py-2.5 rounded-lg bg-warn-bg text-warn text-[13px] mb-5">
-          조회된 계정이 없습니다. 허용 그룹 조건이 너무 좁거나 Base DN이 맞지 않을 수 있습니다.
+        <div v-if="!candidates.length" class="px-3.5 py-2.5 rounded-lg bg-warn-bg text-warn text-[14px] mb-5">
+          조회된 계정이 없습니다. 사용자 DN이 맞지 않거나, 허용 그룹에 그룹이 아닌 OU를 넣었을 수 있습니다.
         </div>
 
         <div v-else class="max-h-72 overflow-y-auto border border-line rounded-lg divide-y divide-line">
@@ -175,16 +179,16 @@ const inputClass =
           >
             <input v-model="selected" type="radio" :value="u.username" class="mt-1 accent-brand-700" />
             <span class="min-w-0 flex-1">
-              <b class="block text-[13.5px] mono">{{ u.username }}</b>
-              <span class="block text-[12.5px] text-ink-3">
+              <b class="block text-[14.5px] mono">{{ u.username }}</b>
+              <span class="block text-[13.5px] text-ink-3">
                 {{ u.display_name || '—' }}<span v-if="u.email"> · {{ u.email }}</span>
               </span>
-              <code class="text-[10.5px] text-ink-3 mono">{{ u.object_guid }}</code>
+              <code class="text-[11.5px] text-ink-3 mono">{{ u.object_guid }}</code>
             </span>
           </label>
         </div>
 
-        <p class="mt-3 text-[12px] text-ink-3 leading-relaxed">
+        <p class="mt-3 text-[13px] text-ink-3 leading-relaxed">
           지정된 계정만 관리자가 되고, 나머지는 로그인 시 일반 사용자로 자동 등록됩니다.
           역할은 포털이 관리하며 AD 그룹은 변경되지 않습니다.
         </p>
@@ -199,7 +203,7 @@ const inputClass =
 
       <!-- 3단계: 완료 -->
       <div v-else>
-        <div class="px-4 py-3 rounded-lg bg-ok-bg text-ok text-[13.5px] mb-5">
+        <div class="px-4 py-3 rounded-lg bg-ok-bg text-ok text-[14.5px] mb-5">
           설정이 완료됐습니다. <b class="mono">{{ seeded }}</b> 계정이 첫 관리자로 지정됐습니다.
           이 화면은 다시 열리지 않습니다.
         </div>

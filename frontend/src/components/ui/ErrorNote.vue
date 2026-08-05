@@ -9,7 +9,7 @@ function text(e: unknown): string {
 </script>
 
 <template>
-  <div v-if="props.error" class="px-3.5 py-2.5 rounded-lg bg-err-bg text-err text-[13px] mb-4">
+  <div v-if="props.error" class="px-3.5 py-2.5 rounded-lg bg-err-bg text-err text-[14px] mb-4">
     {{ text(props.error) }}
   </div>
 </template>

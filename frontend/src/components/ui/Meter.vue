@@ -8,7 +8,7 @@ const tone = computed(() => (pct.value >= 90 ? 'bg-err' : pct.value >= 75 ? 'bg-
 
 <template>
   <div>
-    <div class="flex justify-between text-[13px] mb-1">
+    <div class="flex justify-between text-[14px] mb-1">
       <span class="text-ink-2">{{ label }}</span>
       <span class="text-ink-3 mono">{{ caption ?? `${pct}%` }}</span>
     </div>

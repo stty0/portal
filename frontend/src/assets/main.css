@@ -59,7 +59,8 @@
 
 @layer base {
   html {
-    font-size: 15px;
+    /* rem 기준값 — 명시 크기가 없는 텍스트와 rem 기반 여백이 함께 커진다 */
+    font-size: 16px;
   }
   body {
     font-family: var(--font-sans);
