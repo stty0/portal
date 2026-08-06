@@ -390,3 +390,24 @@ def test_no_account_association_yields_empty_choices(client, cluster, user_token
         f"/api/v1/clusters/{cluster.id}/job-options", headers=auth_headers(user_token)
     ).json()
     assert body["accounts"] == []
+
+
+def test_history_always_sends_a_start_time(client, cluster, user_token, slurm_client):
+    """slurmdbd는 start_time이 없으면 오늘 것만 준다 — 날짜가 바뀌면 이력이 사라진다(실측)."""
+    from datetime import date, timedelta
+
+    client.get(f"/api/v1/clusters/{cluster.id}/jobs/history", headers=auth_headers(user_token))
+    call = next(c for c in reversed(slurm_client.calls) if c[0] == "get_accounting_jobs")
+    assert call[1]["start_time"] == str(date.today() - timedelta(days=30))
+    # 날짜만 보낸다 — `T00:00:00`을 붙이면 slurmrestd가 400을 낸다
+    assert "T" not in call[1]["start_time"]
+
+
+def test_history_period_is_overridable(client, cluster, user_token, slurm_client):
+    from datetime import date, timedelta
+
+    client.get(
+        f"/api/v1/clusters/{cluster.id}/jobs/history?days=7", headers=auth_headers(user_token)
+    )
+    call = next(c for c in reversed(slurm_client.calls) if c[0] == "get_accounting_jobs")
+    assert call[1]["start_time"] == str(date.today() - timedelta(days=7))

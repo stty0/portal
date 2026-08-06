@@ -445,3 +445,59 @@ def test_qos_assign_is_admin_only(client, cluster, user_token):
         json={"qos": []},
         headers=auth_headers(user_token),
     ).status_code == 403
+
+
+def test_metrics_aggregate_node_state(client, cluster, admin_token):
+    """Prometheus 없이 노드 상태에서 부하를 집계한다 (A-DB-02)."""
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/metrics", headers=auth_headers(admin_token)
+    ).json()
+    assert body["nodes"] == 1
+    assert body["cpus"] == 8
+    assert body["states"] == [{"state": "IDLE", "count": 1}]
+
+
+def test_metrics_handle_zero_capacity(client, cluster, admin_token, slurm_client):
+    """CPU가 0인(=조회 실패) 상황에서 0으로 나누지 않는다."""
+    slurm_client.get_nodes = lambda *, as_user=None: {"nodes": []}
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/metrics", headers=auth_headers(admin_token)
+    ).json()
+    assert body["nodes"] == 0 and body["cpu_pct"] is None
+
+
+def test_events_are_cluster_scoped(client, db, cluster, admin_token):
+    """이벤트는 이 클러스터를 대상으로 한 감사 로그다 (A-DB-04)."""
+    from app.models import AuditLog
+
+    db.add(AuditLog(action="JOB_SUBMIT", target="1", target_cluster_id=cluster.id))
+    db.add(AuditLog(action="OTHER_CLUSTER", target="x", target_cluster_id=None))
+    db.commit()
+    rows = client.get(
+        f"/api/v1/clusters/{cluster.id}/events", headers=auth_headers(admin_token)
+    ).json()
+    actions = [r["action"] for r in rows]
+    assert "JOB_SUBMIT" in actions
+    assert "OTHER_CLUSTER" not in actions
+
+
+def test_dashboard_endpoints_are_admin_only(client, cluster, user_token):
+    for path in ("metrics", "events"):
+        assert client.get(
+            f"/api/v1/clusters/{cluster.id}/{path}", headers=auth_headers(user_token)
+        ).status_code == 403
+
+
+def test_desktop_image_ref_round_trips(client, admin_token, cluster):
+    """U-IA-02 세션 이미지는 관리자가 설정한다 — 이 값 하나로 레지스트리 전환이 끝난다."""
+    ref = "oras://reg.example.com/hpc/rocky9-mate:1.0"
+    resp = client.patch(
+        f"/api/v1/clusters/{cluster.id}",
+        json={"desktop_image_ref": ref},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["desktop_image_ref"] == ref
+    assert client.get(
+        f"/api/v1/clusters/{cluster.id}", headers=auth_headers(admin_token)
+    ).json()["desktop_image_ref"] == ref

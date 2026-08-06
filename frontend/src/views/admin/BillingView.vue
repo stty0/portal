@@ -29,7 +29,15 @@ const errors = ref<{ trend: unknown; rules: unknown; config: unknown }>({
   rules: null,
   config: null,
 })
-const form = ref({ kind: 'tag', condition: '', mapping_label: '' })
+/** 규칙은 태그 전용이다. condition에는 서버·필터가 쓰는 `key=value` 형식으로 합쳐 보낸다. */
+const form = ref({ key: '', value: '', mapping_label: '' })
+
+function tagParts(condition: string) {
+  const i = condition.indexOf('=')
+  return i < 0
+    ? { key: condition, value: '' }
+    : { key: condition.slice(0, i), value: condition.slice(i + 1) }
+}
 
 /** A-BL-01 자격증명 입력. 저장 후에는 화면에 남기지 않는다. */
 const editing = ref(false)
@@ -75,10 +83,16 @@ async function load() {
 onMounted(load)
 
 async function addRule() {
-  if (!form.value.condition) return
+  const key = form.value.key.trim()
+  const value = form.value.value.trim()
+  if (!key || !value) return
   try {
-    await billingApi.addRule({ ...form.value })
-    form.value = { kind: 'tag', condition: '', mapping_label: '' }
+    await billingApi.addRule({
+      kind: 'tag',
+      condition: `${key}=${value}`,
+      mapping_label: form.value.mapping_label,
+    })
+    form.value = { key: '', value: '', mapping_label: '' }
     rules.value = await billingApi.rules()
   } catch (e) {
     errors.value.rules = e
@@ -166,22 +180,13 @@ const inputClass =
       <ErrorNote :error="errors.rules" class="m-4" />
       <!-- SCP 응답에 Tag가 없어 resource_id 등 조건식으로 클러스터를 식별한다 -->
       <div class="px-4 py-3 border-b border-line flex flex-wrap gap-2 items-end">
-        <label class="text-[13px] text-ink-3">
-          기준
-          <select v-model="form.kind" :class="[inputClass, 'mt-1']">
-            <option value="tag">tag</option>
-            <option value="resource_id">resource_id</option>
-            <option value="billing_item_id">billing_item_id</option>
-            <option value="service_category">service_category</option>
-          </select>
+        <label class="flex-1 min-w-[160px] text-[13px] text-ink-3">
+          태그 키
+          <input v-model="form.key" :class="[inputClass, 'mono mt-1']" placeholder="purpose" />
         </label>
-        <label class="flex-1 min-w-[200px] text-[13px] text-ink-3">
-          조건값
-          <input
-            v-model="form.condition"
-            :class="[inputClass, 'mono mt-1']"
-            :placeholder="form.kind === 'tag' ? 'purpose=hpc' : '4d4c747e42be…'"
-          />
+        <label class="flex-1 min-w-[160px] text-[13px] text-ink-3">
+          태그 값
+          <input v-model="form.value" :class="[inputClass, 'mono mt-1']" placeholder="hpc" />
         </label>
         <label class="flex-1 min-w-[160px] text-[13px] text-ink-3">
           매핑 대상
@@ -193,16 +198,16 @@ const inputClass =
       <Table
         v-else
         :columns="[
-          { key: 'kind', label: '기준' },
-          { key: 'cond', label: '조건값' },
+          { key: 'tagkey', label: '태그 키' },
+          { key: 'tagval', label: '태그 값' },
           { key: 'map', label: '매핑 대상' },
           { key: 'state', label: '상태' },
           { key: 'act', label: '', width: '80px' },
         ]"
       >
         <tr v-for="r in rules" :key="r.id" class="border-b border-line last:border-0">
-          <td class="px-3.5 py-2.5 mono text-[13px]">{{ r.kind }}</td>
-          <td class="px-3.5 py-2.5 mono">{{ r.condition }}</td>
+          <td class="px-3.5 py-2.5 mono">{{ tagParts(r.condition).key }}</td>
+          <td class="px-3.5 py-2.5 mono">{{ tagParts(r.condition).value || '—' }}</td>
           <td class="px-3.5 py-2.5">{{ r.mapping_label ?? '—' }}</td>
           <td class="px-3.5 py-2.5">
             <Badge :state="r.is_active ? 'idle' : 'down'">{{ r.is_active ? '사용' : '중지' }}</Badge>

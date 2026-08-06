@@ -20,13 +20,16 @@ from app.core.redis_client import PermissionCache, SessionStore, build_redis
 from app.core.secrets import EnvSecretStore
 from app.db.session import dispose_engine, init_engine
 from app.routers import (
+    account,
     auth,
     billing,
     clusters,
     files,
     health,
     jobs,
+    ops,
     reports,
+    sessions,
     terminal,
     users,
 )
@@ -93,7 +96,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(Exception, unhandled_error_handler)
 
     app.include_router(health.router)
-    for module in (auth, users, clusters, jobs, files, billing, terminal, reports):
+    for module in (
+        auth, users, clusters, jobs, files, billing,
+        terminal, reports, sessions, account, ops,
+    ):
         app.include_router(module.router, prefix=settings.api_prefix)
 
     return app

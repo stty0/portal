@@ -40,6 +40,7 @@ class ClusterOut(ClusterSummary):
     ssh_account: str | None
     group_path_tpl: str | None
     scratch_path_tpl: str | None
+    desktop_image_ref: str | None = None
     created_at: datetime | None = None
     last_health_at: datetime | None = None
     last_health_ok: bool | None = None
@@ -59,6 +60,8 @@ class ClusterCreate(BaseModel):
     ssh_account: str | None = None
     group_path_tpl: str | None = None
     scratch_path_tpl: str | None = None
+    #: U-IA-02 세션 이미지. SIF 경로 / oras:// / docker:// (plan §3.5)
+    desktop_image_ref: str | None = None
     is_default: bool = False
 
 
@@ -72,6 +75,7 @@ class ClusterUpdate(BaseModel):
     ssh_account: str | None = None
     group_path_tpl: str | None = None
     scratch_path_tpl: str | None = None
+    desktop_image_ref: str | None = None
     is_default: bool | None = None
 
 

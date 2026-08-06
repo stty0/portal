@@ -39,6 +39,29 @@ export interface SlurmAccount {
   }[]
 }
 
+/** 클러스터 부하 요약 (A-DB-02). slurmctld 노드 상태에서 집계된다. */
+export interface ClusterMetrics {
+  nodes: number
+  states: { state: string; count: number }[]
+  cpus: number
+  alloc_cpus: number
+  cpu_pct: number | null
+  memory_mb: number
+  alloc_memory_mb: number
+  memory_pct: number | null
+  load_per_cpu: number | null
+}
+
+/** 최근 이벤트 (A-DB-04) = 이 클러스터 대상 감사 로그. */
+export interface ClusterEvent {
+  at: string
+  actor: string | null
+  actor_role: string | null
+  action: string
+  target: string | null
+  detail: string | null
+}
+
 export const clusterApi = {
   /** includeInactive는 관리 화면 전용 — 사용자 선택 목록에는 활성 클러스터만 내려온다. */
   list: (includeInactive = false) =>
@@ -65,6 +88,9 @@ export const clusterApi = {
     api.post<{ ok: boolean }>(`/clusters/${cid}/accounts/${encodeURIComponent(name)}/users`, {
       username,
     }),
+  metrics: (cid: number) => api.get<ClusterMetrics>(`/clusters/${cid}/metrics`),
+  events: (cid: number, limit = 20) =>
+    api.get<ClusterEvent[]>(`/clusters/${cid}/events?limit=${limit}`),
   qos: (cid: number) => api.get<SlurmQos[]>(`/clusters/${cid}/qos`),
   /** QOS 지정은 **덮어쓰기**다 — 현재 목록에 더하거나 뺀 전체 집합을 보낸다. */
   setAccountQos: (cid: number, account: string, qos: string[]) =>

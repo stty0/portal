@@ -24,6 +24,9 @@ class Cluster(Base):
     login_node: Mapped[str | None] = mapped_column(String(128))  # SSH (웹터미널·SFTP 공용)
     ssh_port: Mapped[int | None] = mapped_column(Integer, default=22)
     ssh_account: Mapped[str | None] = mapped_column(String(64))  # 서비스 계정 (제한 sudo)
+    # U-IA-02 세션 컨테이너. SIF 경로 / oras:// / docker:// 를 모두 받는다 —
+    # 이 값만 바꾸면 공유 NFS 배포에서 레지스트리로 전환된다(plan §3.5).
+    desktop_image_ref: Mapped[str | None] = mapped_column(String(255))
     group_path_tpl: Mapped[str | None] = mapped_column(String(255))  # /group/{group}
     scratch_path_tpl: Mapped[str | None] = mapped_column(String(255))  # /scratch/{user}
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -55,6 +55,14 @@ def _within(path: str, roots: Sequence[str]) -> bool:
     return any(path == r or path.startswith(r.rstrip("/") + "/") for r in roots)
 
 
+def _num(text: str) -> float | None:
+    """`sshare` 열 값 → 숫자. `parent`·`none`·빈 칸이 섞여 나오므로 조용히 None으로 둔다."""
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
 def _load_key(pem: str) -> paramiko.PKey:
     for cls in (paramiko.Ed25519Key, paramiko.ECDSAKey, paramiko.RSAKey):
         try:
@@ -161,6 +169,75 @@ class LoginNodeClient:
         finally:
             sftp.close()
 
+    def read_text(self, user: str, path: str, *, max_bytes: int = 65536) -> str | None:
+        """사용자 권한으로 작은 텍스트 파일을 읽는다. 없으면 None.
+
+        인터랙티브 세션의 `connection.json`용이다(U-IA-02). **없는 것은 정상 상태**라
+        예외로 만들지 않는다 — 세션이 아직 준비 중이거나 이미 끝난 경우다.
+        """
+        sftp = self._sftp_as(user)
+        try:
+            with sftp.open(path, "rb") as handle:
+                return handle.read(max_bytes).decode("utf-8", "replace")
+        except FileNotFoundError:
+            return None
+        except PermissionError as exc:
+            raise Forbidden("파일에 접근할 수 없습니다.", detail={"path": path}) from exc
+        except OSError as exc:
+            raise ExternalServiceError(f"파일 읽기 실패: {exc}") from exc
+        finally:
+            sftp.close()
+
+    def makedirs(self, user: str, base: str, relative: str, *, mode: int = 0o700) -> None:
+        """`base` 아래에 `relative` 경로를 만든다(`mkdir -p`).
+
+        Slurm은 로그 파일을 만들 뿐 **상위 디렉터리는 만들지 않아** 제출 전에 필요하다.
+
+        **`base` 자체는 만들지 않는다.** 사용자 홈 생성은 `pam_mkhomedir` 같은 시스템의
+        몫이고, 포털이 만들면 소유권·권한이 사이트 정책과 어긋난다. 홈이 없으면 그 사실을
+        그대로 알린다 — 한 번도 로그인하지 않은 AD 계정에서 실제로 나온다.
+        """
+        sftp = self._sftp_as(user)
+        try:
+            try:
+                sftp.stat(base)
+            except FileNotFoundError as exc:
+                raise ValidationFailed(
+                    f"홈 디렉터리가 아직 없습니다: {base}. "
+                    f"{user} 계정으로 클러스터에 한 번 로그인하면 만들어집니다 "
+                    "— 관리자에게 홈 디렉터리 생성을 요청하세요.",
+                    detail={"path": base, "user": user},
+                ) from exc
+            except PermissionError as exc:
+                raise ValidationFailed(
+                    f"홈 디렉터리에 접근할 수 없습니다: {base}. "
+                    f"{user} 계정의 UID와 디렉터리 소유자가 다를 수 있습니다.",
+                    detail={"path": base, "user": user},
+                ) from exc
+
+            current = base.rstrip("/")
+            for part in [p for p in relative.strip("/").split("/") if p]:
+                current = f"{current}/{part}"
+                try:
+                    sftp.stat(current)
+                except FileNotFoundError:
+                    try:
+                        sftp.mkdir(current, mode)
+                    except PermissionError as exc:
+                        # 포털 장애가 아니라 계정/파일시스템 상태 문제다. 확인할 곳을 알려준다.
+                        raise ValidationFailed(
+                            f"{current} 을(를) 만들 권한이 없습니다. "
+                            f"{user} 계정의 UID와 홈 디렉터리 소유자가 다를 수 있습니다 "
+                            "— 클러스터에서 홈 디렉터리 소유권을 확인하세요.",
+                            detail={"path": current, "user": user},
+                        ) from exc
+                    except OSError as exc:
+                        raise ExternalServiceError(
+                            f"디렉터리를 만들지 못했습니다: {current} ({exc})"
+                        ) from exc
+        finally:
+            sftp.close()
+
     def list_dir(
         self, user: str, path: str, *, allowed_roots: Sequence[str] | None = None
     ) -> tuple[str, list[FileEntry]]:
@@ -212,6 +289,44 @@ class LoginNodeClient:
                     "used_bytes": used,
                     "avail_bytes": avail,
                     "used_pct": round(used / total * 100, 1) if total else None,
+                }
+            )
+        return rows
+
+    def fairshare(self, user: str) -> list[dict[str, Any]]:
+        """`sshare` — 계산된 fairshare 계수 (U-AC-02).
+
+        slurmrestd v0.0.41의 association에는 **계산된 fairshare가 없다**(실측: `shares_raw`와
+        한도만 있고 `usage`·`level_fs`·`fairshare` 키가 아예 없음). 정의서 §4.1이 허용하는
+        "REST 미지원 op 한정 CLI 래핑"에 해당한다.
+
+        `-P`(구분자 출력) + `-n`(헤더 없음)으로 열 위치를 고정한다. 미설정·미지원 환경이
+        흔하므로 실패를 오류로 올리지 않고 빈 목록으로 둔다(quota와 같은 원칙).
+        """
+        try:
+            out = self._run_as(
+                user,
+                [
+                    "sshare", "-P", "-n", "-U", "-u", user,
+                    "-o", "Account,User,RawShares,NormShares,RawUsage,EffectvUsage,FairShare",
+                ],
+            )
+        except ExternalServiceError:
+            return []
+        rows: list[dict[str, Any]] = []
+        for line in out.splitlines():
+            cols = [c.strip() for c in line.split("|")]
+            if len(cols) < 7 or not cols[0]:
+                continue
+            rows.append(
+                {
+                    "account": cols[0],
+                    "user": cols[1] or None,
+                    "raw_shares": _num(cols[2]),
+                    "norm_shares": _num(cols[3]),
+                    "raw_usage": _num(cols[4]),
+                    "effective_usage": _num(cols[5]),
+                    "fairshare": _num(cols[6]),
                 }
             )
         return rows

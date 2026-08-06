@@ -110,6 +110,8 @@ export interface Cluster extends ClusterSummary {
   ssh_account: string | null
   group_path_tpl: string | null
   scratch_path_tpl: string | null
+  /** U-IA-02 세션 이미지. SIF 경로 / oras:// / docker:// */
+  desktop_image_ref: string | null
   created_at?: string | null
   last_health_at?: string | null
   last_health_ok?: boolean | null
@@ -128,6 +130,7 @@ export interface ClusterCreate {
   ssh_account?: string | null
   group_path_tpl?: string | null
   scratch_path_tpl?: string | null
+  desktop_image_ref?: string | null
   is_default?: boolean
 }
 

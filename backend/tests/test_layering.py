@@ -5,6 +5,7 @@
 """
 
 import ast
+import re
 import pathlib
 
 APP = pathlib.Path(__file__).resolve().parent.parent / "app"
@@ -70,10 +71,13 @@ def test_routers_use_permission_syntax_not_role_checks():
 
 
 def test_no_raw_sql_outside_repositories():
-    """text() 원문 SQL은 repository 밖에서 쓰지 않는다."""
+    """text() 원문 SQL은 repository 밖에서 쓰지 않는다.
+
+    단어 경계로 찾는다 — 단순 부분 문자열이면 `read_text(` 같은 정상 호출까지 잡는다.
+    """
     offenders = []
     for package in ("routers", "services"):
         for path in _modules(package):
-            if "text(" in path.read_text(encoding="utf-8"):
+            if re.search(r"\btext\(", path.read_text(encoding="utf-8")):
                 offenders.append(path.name)
     assert offenders == []

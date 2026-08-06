@@ -205,13 +205,6 @@ package "models (Portal DB)" {
     +role_id : int <<PK,FK>>
     +permission_id : int <<PK,FK>>     ' 초기 ADMIN→admin:access 1행
   }
-  class UserSshKey {
-    +id : int <<PK>>
-    +user_guid : str <<FK>>
-    +label : str
-    +public_key : text
-    +created_at : datetime
-  }
   ' ---- 클러스터 & 시크릿 (C-03/A-CL) ----
   class Cluster {
     +id : int <<PK>>

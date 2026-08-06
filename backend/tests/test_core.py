@@ -155,9 +155,13 @@ def test_client_factory_survives_detached_cluster(db, settings, secret_store):
 
 
 def test_models_match_erd_entity_count():
+    """db-erd.md의 엔티티 수와 일치해야 한다.
+
+    20 = 초기 21개 - `user_ssh_key`(U-AC-03 SSH 공개키, 0005에서 제거).
+    """
     from app.models import Base
 
-    assert len(Base.metadata.tables) == 21
+    assert len(Base.metadata.tables) == 20
 
 
 def test_slurm_owned_entities_are_not_portal_tables():

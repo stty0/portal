@@ -13,12 +13,11 @@ from app.core.config import Settings
 from app.core.errors import Unauthenticated
 from app.core.redis_client import SessionStore
 from app.core.secrets import SecretStore
-from app.core.security import decode_session_token
 from app.models import User
 from app.repositories.cluster import ClusterCredentialRepository, ClusterRepository
-from app.repositories.identity import UserRepository
 from app.services.audit import AuditService
 from app.services.files import ssh_target_for
+from app.services.ws_auth import authenticate_ws_token
 
 
 class TerminalService:
@@ -38,15 +37,9 @@ class TerminalService:
 
     def authenticate(self, token: str) -> User:
         """세션 토큰 → 사용자. HTTP와 같은 규칙(서명 + Redis 세션 존재)을 적용한다."""
-        payload = decode_session_token(self.settings, token)
-        sid = str(payload.get("sid") or "")
-        data = self.sessions.get(sid) if sid else None
-        if data is None:
-            raise Unauthenticated("세션이 만료되었거나 로그아웃되었습니다.")
-        user = UserRepository(self.session).get_by_guid(data.user_guid)
-        if user is None or not user.is_active or user.deleted_at is not None:
-            raise Unauthenticated("비활성화된 계정입니다.")
-        return user
+        return authenticate_ws_token(
+            self.session, settings=self.settings, sessions=self.sessions, token=token
+        )
 
     def open(self, cluster_id: int, *, user: User) -> PtySession:
         """로그인 노드에 사용자 권한 PTY를 연다.

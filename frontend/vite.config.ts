@@ -12,6 +12,11 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  build: {
+    // noVNC 1.7이 top-level await를 쓴다(WebCodecs H.264 지원 감지). 기본 타깃(es2020)은
+    // 이를 지원하지 않아 빌드가 실패한다. es2022는 Chrome 89+·Firefox 89+·Safari 15+.
+    target: 'es2022',
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

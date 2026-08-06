@@ -20,6 +20,7 @@ from app.core.secrets import SecretStore, build_secret_ref
 from app.core.security import decode_slurm_token_exp
 from app.db.base import utcnow
 from app.models import Cluster, ClusterCredential, User
+from app.repositories.audit import AuditLogRepository
 from app.repositories.cluster import ClusterCredentialRepository, ClusterRepository
 from app.services.audit import AuditService
 
@@ -230,6 +231,61 @@ class ClusterService:
                 "users": by_account.get(str(a.get("name") or ""), []),
             }
             for a in accounts
+        ]
+
+    # --- 대시보드 (A-DB-02) ----------------------------------------------
+    def metrics(self, cluster_id: int) -> dict[str, Any]:
+        """클러스터 부하 요약.
+
+        Prometheus 없이 **slurmctld의 노드 상태에서 직접 집계**한다. Slurm이 이미
+        노드별 할당 CPU·메모리를 들고 있어서, 별도 수집기 없이도 "지금 얼마나 쓰이는가"는
+        답할 수 있다. 시계열·상세 지표가 필요해지면 그때 Prometheus를 붙인다(정의서 A-DB-02).
+        """
+        nodes = self.nodes(cluster_id)
+        states: dict[str, int] = {}
+        cpus = alloc_cpus = memory = alloc_memory = 0
+        load = 0.0
+        for node in nodes:
+            for state in node.get("state") or []:
+                key = str(state)
+                states[key] = states.get(key, 0) + 1
+            cpus += int(node.get("cpus") or 0)
+            alloc_cpus += int(node.get("alloc_cpus") or 0)
+            memory += int(node.get("real_memory") or 0)
+            alloc_memory += int(node.get("alloc_memory") or 0)
+            load += float(node.get("cpu_load") or 0)
+
+        return {
+            "nodes": len(nodes),
+            "states": [{"state": k, "count": v} for k, v in sorted(states.items())],
+            "cpus": cpus,
+            "alloc_cpus": alloc_cpus,
+            "cpu_pct": round(alloc_cpus / cpus * 100, 1) if cpus else None,
+            "memory_mb": memory,
+            "alloc_memory_mb": alloc_memory,
+            "memory_pct": round(alloc_memory / memory * 100, 1) if memory else None,
+            # cpu_load는 노드별 load average 합이다 — CPU 수로 나눠 1코어 기준으로 본다.
+            "load_per_cpu": round(load / cpus, 2) if cpus else None,
+        }
+
+    def events(self, cluster_id: int, *, limit: int = 20) -> list[dict[str, Any]]:
+        """최근 이벤트 (A-DB-04) = 이 클러스터를 대상으로 한 감사 로그.
+
+        Slurm 자체 이벤트 로그가 아니라 **포털을 통해 일어난 일**이다. 누가 무엇을
+        했는지는 이미 C-05로 기록하고 있어 별도 수집 없이 바로 쓸 수 있다.
+        """
+        self.get(cluster_id)  # 없는 클러스터면 404
+        rows, _total = AuditLogRepository(self.session).search(cluster_id=cluster_id, limit=limit)
+        return [
+            {
+                "at": row.at,
+                "actor": row.actor_guid,
+                "actor_role": row.actor_role,
+                "action": row.action,
+                "target": row.target,
+                "detail": row.detail,
+            }
+            for row in rows
         ]
 
     # --- QOS (A-US-03) ---------------------------------------------------

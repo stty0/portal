@@ -53,15 +53,6 @@ entity "role_permission" as rp {
   *permission_id : INT <<PK,FK>>       ' 초기 ADMIN→admin:access 1행
 }
 
-entity "user_ssh_key" as ukey {
-  *id : INT <<PK>>
-  --
-  *user_guid : CHAR(36) <<FK>>
-  label : VARCHAR(64)
-  public_key : TEXT
-  created_at : DATETIME
-}
-
 ' ===== 클러스터 & 시크릿 (C-03 / A-CL) =====
 entity "cluster" as cluster {
   *id : INT <<PK>>
@@ -277,7 +268,6 @@ entity "chargeback_rate" as crate {
 role ||--o{ user : role_id
 role ||--o{ rp
 perm ||--o{ rp
-user ||--o{ ukey : user_guid
 cluster |o--o{ user : default_cluster_id
 cluster ||--o{ ccred : cluster_id
 cluster |o--o{ notice : target_cluster_id
@@ -325,7 +315,6 @@ end note
 |---|---|---|
 | `user` | AD 사용자의 포털 표현. **PK=objectGUID(불변)**, `username`=sAMAccountName(변경/재사용 가능). soft delete. | backend §3.2, C-02 |
 | `role` / `permission` / `role_permission` | RBAC. **초기 seed: role 2행(`USER`/`ADMIN`) · permission 1행(`admin:access`=ADMIN 페이지 접근 여부) · 매핑 1행(ADMIN→admin:access)**. 향후 role 추가(예: PI, 정의서 §1.2)·`resource:action` 세분화(`job:cancel` 등)를 **스키마 변경 없이 행 추가**로 수용. 1단계 구현은 코드 dict 가능. | backend §3.4, 정의서 §1.2 |
-| `user_ssh_key` | 사용자 SSH 공개키 등록(프로필). | U-AC-03 |
 
 ### 클러스터 · 연동
 | 테이블 | 목적 | 근거 |

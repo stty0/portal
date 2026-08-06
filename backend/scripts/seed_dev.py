@@ -50,7 +50,6 @@ from app.models import (
     Role,
     Ticket,
     User,
-    UserSshKey,
 )
 
 NOW = datetime.now(timezone.utc)
@@ -128,7 +127,6 @@ DEV_TABLES = [
     AuditLog,
     InteractiveSession,
     Ticket,
-    UserSshKey,  # 사용자 소유 데이터 — user 삭제를 막지 않도록 함께 정리
     Notice,
     JobTemplate,
     LicenseFeatureSnapshot,

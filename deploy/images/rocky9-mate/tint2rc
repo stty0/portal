@@ -1,0 +1,51 @@
+# 단일 앱 세션용 얇은 작업표시줄 (U-IA-02).
+#
+# 이 파일을 이미지에 넣고 `tint2 -c`로 지정한다 — 지정하지 않으면 tint2가 사용자 홈에
+# 기본 설정을 만들고, 홈이 NFS라 그 설정이 세션·노드를 넘어 따라온다.
+#
+# 있는 이유는 하나다: 작업표시줄이 없으면 **최소화한 창을 되살릴 방법이 없다.**
+# Alt+Tab은 브라우저·호스트 OS가 가로채는 경우가 많아 의존할 수 없다.
+
+#---- 배경 --------------------------------------------------------------
+# 정의 순서가 곧 background_id다(1부터). **참조보다 먼저 와야 한다.**
+# 색은 포털 사이드바 네이비에 맞춘다.
+
+# id 1 — 막대
+rounded = 0
+border_width = 0
+background_color = #131a3a 100
+border_color = #131a3a 100
+
+# id 2 — 활성 창 버튼
+rounded = 3
+border_width = 0
+background_color = #2a3566 100
+border_color = #2a3566 100
+
+#---- 막대 --------------------------------------------------------------
+# 작업표시줄만. 런처·시스템트레이·시계는 단일 앱 세션에서 쓸 일이 없다.
+panel_items = T
+panel_size = 100% 24
+panel_margin = 0 0
+panel_padding = 2 0 2
+panel_position = bottom center horizontal
+panel_layer = top
+panel_background_id = 1
+# **이게 핵심이다.** strut을 잡아야 marco의 최대화가 막대를 비켜 간다 —
+# 없으면 최대화한 앱이 막대를 덮어 복구 수단 자체가 사라진다.
+strut_policy = follow_size
+autohide = 0
+
+#---- 창 목록 -----------------------------------------------------------
+taskbar_mode = single_desktop
+taskbar_padding = 0 0 2
+taskbar_background_id = 0
+
+task_maximum_size = 260 24
+task_padding = 4 0 4
+task_text = 1
+task_icon = 1
+task_centered = 0
+task_font_color = #e8eaf0 100
+task_background_id = 0
+task_active_background_id = 2

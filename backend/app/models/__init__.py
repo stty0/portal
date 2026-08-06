@@ -1,4 +1,4 @@
-"""Portal DB ORM 모델 — db-erd.md의 포털 소유 21개 엔티티와 1:1.
+"""Portal DB ORM 모델 — db-erd.md의 포털 소유 20개 엔티티와 1:1.
 
 경계(db-erd.md §경계): account·QOS·association·slurm user 는 클러스터별
 slurmdbd 소유라 여기에 없다. session/캐시/락은 Redis라 DB 밖이다.
@@ -14,7 +14,7 @@ from app.models.content import (
     PortalSetting,
     Ticket,
 )
-from app.models.identity import Permission, Role, RolePermission, User, UserSshKey
+from app.models.identity import Permission, Role, RolePermission, User
 from app.models.ops import (
     BillingConfig,
     BillingRule,
@@ -32,7 +32,6 @@ __all__ = [
     "Role",
     "Permission",
     "RolePermission",
-    "UserSshKey",
     # 클러스터 · 연동
     "Cluster",
     "ClusterCredential",

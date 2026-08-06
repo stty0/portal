@@ -76,7 +76,16 @@ class AuditLog(Base):
 
 
 class InteractiveSession(Base):
-    """U-IA-04. node_host/node_port는 Job 콜백으로 채워지고 Traefik이 폴링해 라우트를 만든다."""
+    """U-IA-04 세션 대장(臺帳).
+
+    **접속 정보(호스트·포트·비밀번호)는 여기 저장하지 않는다.** 세션 Job이 워커에서
+    기록하는 `connection.json`이 유일한 출처이고(docs/plan.md §3.1), 세션이 살아 있는지는
+    Slurm Job 상태가 권위 있는 출처다 — 노드가 죽으면 파일이 남기 때문이다(T-02 실측).
+    이 표는 "누가 어떤 클러스터에 무엇을 띄웠나"만 기록한다.
+
+    `node_host`/`node_port`/`connect_url`은 초기 설계(Traefik이 폴링해 라우트 생성)의
+    잔재로 **사용하지 않는다**. 채우면 접속 정보의 출처가 둘이 되어 어긋난다.
+    """
 
     __tablename__ = "interactive_session"
 

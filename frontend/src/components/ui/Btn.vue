@@ -21,7 +21,7 @@ const SIZE = { sm: 'text-[13px] px-2.5 py-1', md: 'text-[14.5px] px-3.5 py-2' } 
   <button
     :type="type"
     :disabled="disabled"
-    class="inline-flex items-center justify-center gap-1.5 border rounded-lg font-semibold transition-colors disabled:opacity-45 disabled:cursor-not-allowed"
+    class="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap border rounded-lg font-semibold transition-colors disabled:opacity-45 disabled:cursor-not-allowed"
     :class="[VARIANT[variant], SIZE[size]]"
   >
     <slot />

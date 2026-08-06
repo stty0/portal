@@ -79,6 +79,7 @@ def job_history(
     end_time: str | None = None,
     username: str | None = None,
     state: str | None = None,
+    days: int = 30,
 ) -> JobListResponse:
     """`username` 필터는 ADMIN만 쓸 수 있다 — USER는 서버가 본인으로 강제한다."""
     cluster = service.clusters.get(cid)
@@ -87,6 +88,7 @@ def job_history(
         cluster,
         user=user,
         is_admin=admin,
+        days=days,
         start_time=start_time,
         end_time=end_time,
         users=username if admin else None,

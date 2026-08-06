@@ -12,6 +12,13 @@ class UserRepository(BaseRepository[User]):
     def get_by_guid(self, guid: str) -> User | None:
         return self.session.get(User, guid)
 
+    def by_guids(self, guids) -> list[User]:
+        """GUID 묶음 → 사용자. 감사 로그 화면이 행마다 조회하지 않도록 한 번에 받는다."""
+        ids = [g for g in guids if g]
+        if not ids:
+            return []
+        return list(self.session.scalars(select(User).where(User.ad_object_guid.in_(ids))))
+
     def get_by_username(self, username: str) -> User | None:
         return self.session.scalar(select(User).where(User.username == username))
 

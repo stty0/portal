@@ -26,7 +26,8 @@ const editing = ref<Cluster | null>(null)
 const form = reactive<ClusterCreate>({
   name: '', description: '', slurmrestd_url: '', api_version: 'v0.0.41',
   auth_method: 'jwt', login_node: '', ssh_port: 22, ssh_account: 'svc-portal',
-  group_path_tpl: '/group/{group}', scratch_path_tpl: '/scratch/{user}', is_default: false,
+  group_path_tpl: '/group/{group}', scratch_path_tpl: '/scratch/{user}',
+  desktop_image_ref: '', is_default: false,
 })
 
 const credTarget = ref<Cluster | null>(null)
@@ -56,7 +57,8 @@ function openCreate() {
   Object.assign(form, {
     name: '', description: '', slurmrestd_url: '', api_version: 'v0.0.41',
     auth_method: 'jwt', login_node: '', ssh_port: 22, ssh_account: 'svc-portal',
-    group_path_tpl: '/group/{group}', scratch_path_tpl: '/scratch/{user}', is_default: false,
+    group_path_tpl: '/group/{group}', scratch_path_tpl: '/scratch/{user}',
+  desktop_image_ref: '', is_default: false,
   })
   resetFormNotes()
   showForm.value = true
@@ -74,6 +76,7 @@ function openEdit(c: Cluster) {
     api_version: c.api_version ?? 'v0.0.41', auth_method: c.auth_method ?? 'jwt',
     login_node: c.login_node ?? '', ssh_port: c.ssh_port ?? 22, ssh_account: c.ssh_account ?? '',
     group_path_tpl: c.group_path_tpl ?? '', scratch_path_tpl: c.scratch_path_tpl ?? '',
+    desktop_image_ref: c.desktop_image_ref ?? '',
     is_default: c.is_default,
   })
   resetFormNotes()
@@ -368,6 +371,15 @@ function credentialStatus(kind: 'SLURM_JWT' | 'SSH_KEY'): string {
       </Field>
       <Field label="스크래치 경로 템플릿" full hint="{user} 세션 치환 · 홈은 SSSD/NSS로 자동 인식">
         <input v-model="form.scratch_path_tpl" :class="[inputClass, 'mono']" />
+      </Field>
+      <Field
+        label="데스크톱 이미지 (U-IA-02)" full
+        hint="SIF 경로 / oras:// / docker:// — 이 값만 바꾸면 레지스트리로 전환된다"
+      >
+        <input
+          v-model="form.desktop_image_ref" :class="[inputClass, 'mono']"
+          placeholder="/home/portal/images/rocky9-mate-1.0.sif"
+        />
       </Field>
       <p v-if="!editing" class="sm:col-span-2 text-[13.5px] text-ink-3">
         저장하면 <b>클러스터 등록 → 자격증명 저장 → REST 연결 확인</b>이 이어서 실행됩니다.

@@ -1,63 +1,111 @@
-# Exec Plan: Frontend — Vue 3 + TypeScript + Tailwind
+# Exec Plan: 인터랙티브 앱 — 원격 데스크톱 (SCR-06)
 
 - 근거 plan: [docs/plan.md](plan.md)
 - 담당: 구현·검증 Claude
-
-## 공통 규칙
-- `<script setup lang="ts">` + Composition API. Options API 혼용 금지.
-- 색상·간격은 **Tailwind 테마 토큰만** 쓴다. 임의 hex 금지(정적 프로토타입 규칙 계승).
-- 사이드바/톱바는 `AppShell` 한 곳에만 존재한다. 화면이 복제하지 않는다.
-- 화면 요소에 기능 정의서 ID를 `<Fid id="U-JB-01" />`로 유지(추적성).
-- API 호출은 `src/api/*`를 통해서만. view가 `fetch`를 직접 부르지 않는다.
-- 정적 데이터 화면은 `<StaticNotice />`로 명시한다.
+- 이전 에픽 exec-plan은 git 이력 참조
 
 ## Task 목록
 
-### T-01 프로젝트 스캐폴딩
-- Vite + Vue3 + TS, Tailwind v4, Pinia, vue-router 설치·설정
-- `vite.config.ts` 개발 프록시(`/api` → Traefik 9443)
-- 수용: `npm run dev` 기동, `npm run build` 통과
+### T-01 Rocky 9 + MATE + TigerVNC 이미지
+- 대상 파일: `deploy/images/rocky9-mate/Dockerfile`, `deploy/images/rocky9-mate/start-desktop.sh`, `deploy/images/rocky9-mate/README.md`
+- 내용: EPEL9 + MATE + TigerVNC(`tigervnc-server`) 설치. `start-desktop.sh`가 Xvnc를
+  기동하고 MATE 세션을 붙인다. dev01에 apptainer 설치 후 `docker-daemon://`로 SIF 빌드,
+  `/home/portal/images/rocky9-mate-1.0.sif` 배치. **버전을 파일명에 박는다**(실행 중 세션이 mmap)
+- 의존성: 없음
+- 수용 기준:
+  - [ ] dev01에서 SIF 빌드 성공, 두 노드에서 같은 경로로 보인다
+  - [ ] 노드에서 `apptainer exec`로 Xvnc 기동, 포트 LISTEN 확인
+  - [ ] `/etc/machine-id` 등 쓰기 필요 경로가 `--writable-tmpfs`로 해결된다
+- 검증: 노드에서 수동 실행 → `ss -ltn`으로 포트 확인
+- 위험도: 중간 (노드 디스크 12GB, TMPDIR 유도 필요)
 
-### T-02 디자인 토큰 이관
-- `design/css/style.css` `:root` → `src/assets/main.css`의 `@theme`
-- 브랜드/뉴트럴/사이드바/상태 색, radius, shadow, font
-- 수용: 토큰이 Tailwind 유틸(`bg-brand-700` 등)로 사용 가능
+### T-02 세션 Job 스크립트 + connection.json 규약
+- 대상 파일: `backend/app/services/session_script.py`, `backend/tests/test_session_script.py`
+- 내용: sbatch 스크립트 생성. 빈 display를 **vncserver가 직접 고르게** 하고 그 결과를 읽어
+  기록한다(사전 probe 후 bind는 경쟁 발생). 랜덤 VNC 비밀번호 + view-only 비밀번호 발급.
+  `connection.json`에 `node`($SLURMD_NODENAME)·`ip`·`port`·`password`·`view_password`·`app`·`started_at`
+- 의존성: T-01
+- 수용 기준:
+  - [ ] 폼 값이 `#SBATCH` 지시자로 들어간다 (Job 제출과 동일 규칙)
+  - [ ] 세션 디렉터리 권한 700
+  - [ ] 수동 sbatch로 connection.json 생성 + 포트 LISTEN 확인
+- 검증: 단위 테스트 + 실 클러스터 수동 제출
+- 위험도: 중간
 
-### T-03 API 클라이언트 · 타입
-- `types/api.ts`(백엔드 스키마 대응), `api/client.ts`(토큰 주입·오류 정규화·401 처리)
-- 도메인별: `auth.ts` `clusters.ts` `jobs.ts` `users.ts`
-- 수용: 오류가 `{code,message,detail}`로 정규화되어 표면화
+### T-03 DB 모델 · 마이그레이션
+- 대상 파일: `backend/app/models/session.py`, `backend/app/models/cluster.py`, `backend/alembic/versions/*`, `backend/app/repositories/session.py`
+- 내용: `interactive_session`(cluster_id, user_id, app, job_id, state, created_at, ended_at).
+  `cluster.desktop_image_ref` 컬럼 추가. **포트·비밀번호는 저장하지 않는다** — connection.json이 유일한 출처
+- 의존성: 없음
+- 수용 기준:
+  - [ ] 마이그레이션 up/down 동작
+  - [ ] 컨테이너(Python 3.13)에서 import 검증 — `from __future__ import annotations` 확인
+- 검증: `alembic upgrade head` + `docker run ... python -c "import app.main"`
+- 위험도: 낮음
 
-### T-04 스토어 · 라우터
-- `stores/auth.ts`(로그인/로그아웃/권한), `stores/cluster.ts`(전역 클러스터 스코프)
-- 라우터 가드: 미인증 → 로그인, `admin:access` 없으면 ADMIN 라우트 차단
-- 수용: USER 계정이 ADMIN 경로 접근 시 차단
+### T-04 SessionService
+- 대상 파일: `backend/app/services/session.py`, `backend/tests/test_session_service.py`
+- 내용: 제출(sbatch)·목록·상태·종료(scancel). `connection.json`을 SFTP(`sudo -u user`)로 읽는다.
+  **대상 사용자는 언제나 요청자 본인**(FileService와 같은 원칙). 소유자 검증
+- 의존성: T-02, T-03
+- 수용 기준:
+  - [ ] 남의 세션 조회/종료 시 거부
+  - [ ] Job 상태 → 세션 상태 매핑(PENDING/RUNNING/종료)
+  - [ ] connection.json 미생성 시 "준비 중"으로 구분
+- 검증: 단위 테스트
+- 위험도: **고위험** (impersonation·소유자 검증)
 
-### T-05 공통 UI 컴포넌트
-- `Card` `Table` `Badge` `Chip` `Btn` `Modal` `Field` `Meter` `Fid` `StaticNotice` `PageHead`
-- 수용: 정적 프로토타입과 시각적으로 일치
+### T-05 SSH direct-tcpip 터널 스트림
+- 대상 파일: `backend/app/clients/ssh/tunnel.py`, `backend/tests/test_ssh_tunnel.py`
+- 내용: 로그인 노드에 접속해 `open_channel("direct-tcpip", (worker, port), ...)`.
+  전송 계층을 인터페이스 하나로 뽑아 2단 SSH 교체 여지를 남긴다.
+  **목적지는 인자로만 받고 login_node에서 유도하지 않는다**
+- 의존성: 없음
+- 수용 기준:
+  - [ ] 목적지 ≠ login_node 케이스가 테스트로 고정된다
+  - [ ] 비차단 read/write (PtySession과 동일 패턴)
+- 검증: 단위 테스트 + 실 노드 릴레이 (검증 완료: slurm01 경유 → .202:22 도달)
+- 위험도: **고위험** (터널 목적지 결정)
 
-### T-06 레이아웃 (AppShell)
-- 사이드바(USER 9 / ADMIN 12 메뉴, 접기 상태 localStorage), 톱바(알림·도움말·클러스터 선택·계정), 푸터
-- 수용: 22화면이 이 하나를 공유, 복붙 0
+### T-06 세션 REST + WS 브리지 라우터
+- 대상 파일: `backend/app/routers/sessions.py`, `backend/app/schemas/session.py`, `backend/app/main.py`, `backend/tests/test_sessions.py`
+- 내용: `POST/GET/DELETE /clusters/{cid}/sessions`, `WS /sessions/{sid}/connect`.
+  라우터는 프레임만 다루고 인증·터널은 서비스가 갖는다(레이어링 테스트)
+- 의존성: T-04, T-05
+- 수용 기준:
+  - [ ] subprotocol 인증(`portal.token.<jwt>`) 동작
+  - [ ] 레이어링 테스트 통과
+- 검증: 단위 테스트
+- 위험도: 중간
 
-### T-07 인증 화면 (SCR-01)
-- 로그인 + 최초 부트스트랩(`/auth/setup-status`로 분기)
-- 수용: 실 백엔드로 로그인/로그아웃 동작
+### T-07 프론트 — 앱 런처 · 세션 목록 · noVNC 뷰
+- 대상 파일: `frontend/src/views/user/AppsView.vue`, `frontend/src/views/user/DesktopView.vue`, `frontend/src/api/sessions.ts`, `frontend/src/router/index.ts`, `frontend/package.json`
+- 내용: `@novnc/novnc` 의존성 추가. `RFB`를 WS에 붙인다. 런처(U-IA-01)·세션 목록(U-IA-04)·
+  데스크톱 화면. `staticOnly: true` 제거. `<Fid>` 매핑 유지
+- 의존성: T-06
+- 수용 기준:
+  - [ ] `vue-tsc` + 빌드 통과
+  - [ ] 자원 폼 → 제출 → 세션 목록 → 접속 흐름이 화면에서 완결
+- 검증: 빌드 + 배포 후 실사용
+- 위험도: 중간
 
-### T-08 API 연결 화면
-- USER: 클러스터 현황(SCR-02) · Job 목록(03) · Job 제출(04) · Job 상세(05)
-- ADMIN: 대시보드(10) · 전체 Job(12) · 사용자/AD(13) · 클러스터 관리(18)
-- 수용: 실 API로 조회·제출·취소·역할변경·AD 동기화 동작
-
-### T-09 정적 화면
-- USER: 인터랙티브 앱(06) · 파일(07) · 터미널(08) · 사용량(09) · 공지(16)
-- ADMIN: 노드/파티션(11) · 계정 · QOS · 리포트(14) · 설정(15) · License(17) · Billing(19)
-- 수용: 디자인 재현 + 정적 데이터 표시
-
-### T-10 검증
-- `vue-tsc` 타입체크, `npm run build`, 라우트 도달성, 실 백엔드 연동 확인
-- 수용: plan.md §5 전부
+### T-08 실 클러스터 통합 검증
+- 대상 파일: `docs/progress.md`
+- 내용: 실제 데스크톱 세션 제출·접속·종료. plan §5 수용 기준 전수 확인
+- 의존성: T-07
+- 수용 기준:
+  - [ ] plan §5 항목 전부 통과
+  - [ ] 백엔드 테스트 전체 통과
+- 검증: 실 클러스터 E2E
+- 위험도: 중간
 
 ## 실행 순서
-T-01 → T-02 → T-03 → T-04 → T-05 → T-06 → T-07 → T-08 → T-09 → T-10
+
+```
+T-01 ─┬─ T-02 ─┐
+      │        ├─ T-04 ─┐
+T-03 ─┴────────┘        ├─ T-06 ─ T-07 ─ T-08
+T-05 ───────────────────┘
+```
+
+T-01 → T-02 → T-03 → T-04 → T-05 → T-06 → T-07 → T-08 순으로 진행한다.

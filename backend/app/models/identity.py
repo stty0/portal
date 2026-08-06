@@ -64,15 +64,3 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     role: Mapped[Role | None] = relationship(lazy="joined")
-
-
-class UserSshKey(Base):
-    """U-AC-03 프로필 — 사용자 SSH 공개키."""
-
-    __tablename__ = "user_ssh_key"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_guid: Mapped[str] = mapped_column(ForeignKey("user.ad_object_guid"))
-    label: Mapped[str | None] = mapped_column(String(64))
-    public_key: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

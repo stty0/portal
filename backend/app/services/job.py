@@ -8,6 +8,7 @@
 """
 
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -104,7 +105,7 @@ class JobService:
         return job
 
     def history(
-        self, cluster: Cluster, *, user: User, is_admin: bool, **filters
+        self, cluster: Cluster, *, user: User, is_admin: bool, days: int = 30, **filters
     ) -> tuple[list[dict[str, Any]], str]:
         """완료 Job 이력 = slurmdbd(sacct 상당) (U-JB-09, A-JB-04).
 
@@ -115,6 +116,10 @@ class JobService:
         """
         client = self.clusters.slurm_client(cluster)
         params = {k: v for k, v in filters.items() if v is not None}
+        # slurmdbd는 start_time이 없으면 **오늘 것만** 준다(sacct와 동일 — 실측).
+        # 날짜가 바뀌면 어제 Job이 통째로 사라지므로 기본 조회 구간을 항상 넣는다.
+        # `T00:00:00`을 붙이면 400 "Unable to parse query"가 나므로 날짜만 보낸다.
+        params.setdefault("start_time", str(date.today() - timedelta(days=days)))
         # slurmdbd의 state 필터는 이 빌드에서 항상 0건을 돌려준다(실측) — 서버로 넘기지 않고
         # 받아온 뒤 직접 거른다. users 필터를 한 번 더 거르는 것과 같은 이유다.
         state_filter = params.pop("state", None)

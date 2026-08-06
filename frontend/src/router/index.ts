@@ -75,7 +75,14 @@ const routes: RouteRecordRaw[] = [
     path: '/apps',
     name: 'apps',
     component: () => import('@/views/user/AppsView.vue'),
-    meta: { title: '인터랙티브 앱', scr: 'SCR-06', icon: '▣', group: '작업 환경', staticOnly: true },
+    meta: { title: '인터랙티브 앱', scr: 'SCR-06', icon: '▣', group: '작업 환경' },
+  },
+  {
+    // 세션 화면은 목록에서만 들어간다 — 메뉴에 올리지 않는다(group 없음).
+    path: '/apps/:sid',
+    name: 'desktop',
+    component: () => import('@/views/user/DesktopView.vue'),
+    meta: { title: '원격 데스크톱', scr: 'SCR-06' },
   },
   {
     path: '/files',
@@ -93,7 +100,7 @@ const routes: RouteRecordRaw[] = [
     path: '/usage',
     name: 'usage',
     component: () => import('@/views/user/UsageView.vue'),
-    meta: { title: '사용량 / 프로필', scr: 'SCR-09', icon: '◔', group: '내 정보', staticOnly: true },
+    meta: { title: '사용량 / 프로필', scr: 'SCR-09', icon: '◔', group: '내 정보' },
   },
 
   // ===== 관리자 콘솔 =====
@@ -180,7 +187,7 @@ const routes: RouteRecordRaw[] = [
     path: '/admin/settings',
     name: 'admin-settings',
     component: () => import('@/views/admin/SettingsView.vue'),
-    meta: { admin: true, title: '포털 운영 설정', scr: 'SCR-15', icon: '⚙', group: '운영', staticOnly: true },
+    meta: { admin: true, title: '포털 운영 설정', scr: 'SCR-15', icon: '⚙', group: '운영' },
   },
 
   { path: '/:pathMatch(.*)*', redirect: '/' },

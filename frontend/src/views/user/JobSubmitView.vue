@@ -31,7 +31,7 @@ const form = reactive<JobSubmitRequest>({
   memory_gb: 32,
   walltime: '02:00:00',
   work_dir: null,
-  script: 'srun python train.py',
+  script: '',
   template_id: null,
   template_params: null,
 })
@@ -233,11 +233,7 @@ const inputClass =
             ? '실행할 명령만 쓰세요. 위 폼 값이 #SBATCH 지시자로 자동 생성됩니다.'
             : '#SBATCH 지시자를 포함한 전체 스크립트를 직접 작성합니다. 서버는 손대지 않습니다.'"
         >
-          <textarea
-            v-model="form.script" rows="8"
-            :class="[inputClass, 'mono resize-y']"
-            placeholder="srun python train.py"
-          />
+          <textarea v-model="form.script" rows="8" :class="[inputClass, 'mono resize-y']" />
         </Field>
       </div>
 

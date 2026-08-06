@@ -198,6 +198,18 @@ def set_user_qos(
     )
 
 
+@router.get("/clusters/{cid}/metrics", summary="클러스터 부하 요약 (A-DB-02)")
+def metrics(cid: int, actor: AdminUser, service: ClusterServiceDep) -> dict[str, Any]:
+    return service.metrics(cid)
+
+
+@router.get("/clusters/{cid}/events", summary="최근 이벤트 (A-DB-04)")
+def events(
+    cid: int, actor: AdminUser, service: ClusterServiceDep, limit: int = 20
+) -> list[dict[str, Any]]:
+    return service.events(cid, limit=limit)
+
+
 @router.get("/clusters/{cid}/qos", summary="QOS 목록 (A-US-03)")
 def list_qos(cid: int, actor: AdminUser, service: ClusterServiceDep) -> list[dict[str, Any]]:
     return service.qos(cid)

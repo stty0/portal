@@ -11,6 +11,10 @@ from app.repositories.base import BaseRepository
 class AuditLogRepository(BaseRepository[AuditLog]):
     model = AuditLog
 
+    def distinct_actions(self) -> list[str]:
+        """기록된 액션 종류. 필터 드롭다운을 코드에 하드코딩하지 않기 위해서다."""
+        return sorted(a for (a,) in self.session.execute(select(AuditLog.action).distinct()) if a)
+
     def search(
         self,
         *,

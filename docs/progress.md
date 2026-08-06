@@ -468,3 +468,642 @@ sysadmin 쓰지 않고 처음 접속할 때 AD bind만 되게 하고, AD bind �
 - 정적 프로토타입이므로 수정(edit) 시 실제 값 프리필은 미구현(대표 예시값). 실데이터 바인딩(C-03) 도입 시 처리.
 - 점검 모드 시작(A-ND-05)은 이번 범위 제외(버튼 유지).
 - CLAUDE.md의 "현재 JS 없음" 문구는 실제와 달라 정정함(바닐라 JS 존재).
+
+---
+
+# 인터랙티브 앱 — 원격 데스크톱 (SCR-06)
+
+근거: [plan.md](plan.md) / [exec-plan.md](exec-plan.md) (2026-08-06)
+
+## T-01 Rocky 9 + MATE + TigerVNC 이미지 — 완료
+
+- `deploy/images/rocky9-mate/` (Dockerfile · start-desktop.sh · README.md)
+- dev01에 apptainer 1.5.3 설치 → `docker-daemon://`로 SIF 변환
+- 산출물: `/home/portal/images/rocky9-mate-1.0.sif` (387MB, docker 이미지 1.25GB)
+
+### 겪은 문제
+
+1. **EPEL9에 "MATE Desktop" 그룹이 없다** (EPEL7/8과 다름, Xfce만 있음).
+   → 세션 구성 패키지를 직접 나열.
+2. **스크립트가 출력 없이 rc=141로 죽었다.** `tr < /dev/urandom | head -c 8`에서
+   head가 먼저 끝나 tr이 SIGPIPE → `set -o pipefail`이 잡아 조용히 종료.
+   → 유한 바이트를 먼저 읽고(`head -c 512`) bash 슬라이스로 자른다. 진단용 `trap ... ERR` 추가.
+3. `pkill -f 'mate-session'`이 같은 문자열을 포함한 자기 셸을 죽여 정리가 안 됐다.
+   → `pkill -f '[m]ate-session'`.
+
+### 검증 (실 노드)
+
+```
+apptainer exec / --writable-tmpfs / --fakeroot   전부 동작
+Xvnc TigerVNC 1.15.0 → 0.0.0.0:5901 LISTEN, mate-session 기동
+connection.json 생성 (node/ip/port/password/view_password)
+포털 → SSH(로그인 노드) → direct-tcpip("slurm01", 5901) → "RFB 003.008"
+```
+
+마지막 줄이 핵심 — **프록시 설계 전체가 코드 작성 전에 실측으로 검증됐다.**
+목적지를 Slurm 노드명으로 지정해도 로그인 노드가 해석한다(워커 분리 대비).
+
+테스트 세션은 정리했다(Xvnc 0, 59xx LISTEN 없음).
+
+### T-01 추가 — 컨테이너 AD 연계 / 홈 마운트 (사용자 질문)
+
+Apptainer는 **호출한 사용자 그대로** 실행하므로 AD 신원·홈은 설정 없이 들어온다.
+실 AD 계정으로 컨테이너 안에서 확인:
+
+```
+id      : uid=201106(jungryul0515.park) gid=200513(domain users)
+whoami  : jungryul0515.park
+HOME    : /home/jungryul0515.park   목록·쓰기 OK (NFS 공유 홈)
+```
+
+본인 이름이 풀리는 건 Apptainer가 호출자의 passwd/group 항목을 컨테이너에 주입하기
+때문이다(sssd 불필요). 그러나 **다른 AD 사용자는 안 풀려** 공유 디렉터리에서 숫자 UID로 보인다.
+
+→ 이미지에 `sssd-client` 추가 + `--bind /var/lib/sss/pipes`. 소켓이 `srw-rw-rw-`라
+추가 권한이 필요 없다. 결과적으로 **호스트와 `getent passwd` 결과가 완전히 일치**한다.
+`domain users` 그룹 멤버 목록도 정상 조회된다.
+
+양쪽 모두 안 나오는 `sysadmin`은 SSSD 검색 범위(`OU=people`) 밖이라 컨테이너와 무관하다.
+
+T-02 반영 사항: SSSD가 없는 호스트도 있으므로 **Job 스크립트는 `/var/lib/sss/pipes`가
+존재할 때만** 바인드를 붙인다.
+
+## T-02 세션 Job 스크립트 + connection.json 규약 — 완료
+
+- `backend/app/services/session_script.py` — `SessionSpec` + `build_session_script()`,
+  경로 규칙 헬퍼(`session_dir` / `log_dir` / `log_path`)
+- `backend/tests/test_session_script.py` — 12개 통과
+
+스크립트에 값을 끼워 넣으므로 해상도·앱 이름은 정규식으로 검증하고 전부 `shlex.quote`한다
+(해상도는 사용자 입력, 이미지 참조는 관리자 설정값).
+
+### 겪은 문제 — scancel 후 connection.json이 남았다
+
+죽은 세션에 접속을 시도하게 되는 버그. 원인을 두 단계로 좁혔다.
+
+1. `start-desktop.sh` 마지막의 `exec dbus-launch ...` — **exec이 셸을 대체하면서 정리
+   trap이 사라졌다.** 백그라운드 + `wait`으로 변경.
+2. 그래도 안 지워졌다. 컨테이너 안 bash에 **직접 SIGTERM을 주면 정상 동작**하는 것을
+   확인 → trap은 멀쩡하고 **신호가 안 닿는 것**이 문제.
+   `ps -eo pgid`로 보니 apptainer가 별도 프로세스 그룹(pgid=apptainer)을 만들어
+   `scancel`이 보내는 신호가 컨테이너 안까지 전달되지 않았다.
+
+→ 접속 정보 삭제 책임을 **호스트 쪽 Job 스크립트**로 올렸다(Slurm이 직접 신호를 주는
+대상). 컨테이너 안의 trap은 로그아웃 대비로 남겨 둔다.
+
+**T-04 반영 사항**: 파일 존재 여부만으로 세션 생사를 판단하지 않는다. 노드 장애 시에도
+파일이 남으므로 **Slurm Job 상태를 권위 있는 출처로** 쓰고 connection.json은
+"어디로 붙을지"만 제공한다.
+
+### 검증 (실 클러스터, AD 계정 `jungryul0515.park`)
+
+```
+sbatch 제출 → job 8/9/10/11 RUNNING (partition=cpu, node=slurm01)
+connection.json 생성: node=slurm01 ip=192.168.1.201 port=5901 job_id=8
+Xvnc 0.0.0.0:5901 LISTEN, XDG_RUNTIME_DIR=/tmp/portal-rt-201106-8 (AD uid 반영)
+포털 → SSH(로그인 노드) → direct-tcpip("slurm01", 5901) → "RFB 003.008"
+scancel → connection.json 삭제 확인, 포트 해제 확인
+```
+
+테스트 잔여물은 정리했다(Job 0, Xvnc 0, `~/.portal` 비움).
+
+## T-03 DB 모델·마이그레이션 — 완료
+
+`interactive_session` 테이블은 **이미 존재했다**(초기 ERD 설계분). 새로 만들지 않고 재사용한다.
+다만 docstring이 폐기된 설계(“Traefik이 폴링해 라우트를 만든다”)를 설명하고 있어 바로잡았다.
+
+- `node_host`/`node_port`/`connect_url`은 그 초기 설계의 잔재로 **채우지 않는다** —
+  채우면 접속 정보의 출처가 둘이 되어 어긋난다. 컬럼은 남겨 두고 이유를 모델에 적었다.
+- 새 마이그레이션 `0004_desktop_image_ref` — `cluster.desktop_image_ref` 추가.
+  Apptainer가 SIF 경로·`oras://`·`docker://`를 같은 자리에서 받으므로 이 값 하나로
+  레지스트리 전환이 끝난다(plan §3.5). 스키마 3곳(Create/Update/Out)에도 반영.
+- `backend/app/repositories/session.py` — `owned()`는 **소유자 조건을 조회에 붙인다**.
+  id로 꺼낸 뒤 비교하면 그 검사를 빠뜨린 호출부가 생긴다.
+
+검증: `alembic upgrade head` 정상. `downgrade`는 sqlite가 `DROP COLUMN`을 못 해 실패하는데
+0003과 같은 패턴이고 실제 대상은 MySQL 8이라 문제되지 않는다.
+컨테이너(Python 3.13) `import app.main` 통과 — 3.14 dev venv와 애노테이션 평가가 달라 필수 확인.
+
+## T-04 SessionService — 완료
+
+`backend/app/services/session.py` + 테스트 16개.
+
+두 출처를 섞지 않는 것이 설계의 핵심이다.
+- **살아 있는가** → Slurm Job 상태 (노드 장애 시 파일이 남으므로)
+- **어디로 붙는가** → `connection.json` (포트·비밀번호를 DB에 복제하지 않는다)
+
+SSH 클라이언트에 `read_text()`(없으면 None — 준비 중/종료는 정상 상태다)와
+`makedirs()`(Slurm은 로그 파일만 만들고 상위 디렉터리는 안 만든다)를 추가했다.
+
+테스트로 고정한 규칙:
+- 남의 세션은 조회·접속·종료 전부 `NotFound` (없는 세션과 구분해 주지 않는다)
+- **접속 대상 host는 `connection.json`의 워커 노드이고 `cluster.login_node`가 아니다**
+- Slurm이 모르는 Job은 종료로 간주, slurmrestd가 죽어도 목록은 나온다
+- 자원은 REST 페이로드로 간다(메모리 MB 정수, time_limit 분 정수, environment 비우지 않음)
+
+## T-05 SSH direct-tcpip 터널 — 완료
+
+`backend/app/clients/ssh/tunnel.py` + 테스트 10개.
+
+목적지를 **인자로만** 받는다. `SshTarget.host`(로그인 노드)에서 유도하는 경로를 만들지
+않았고, 그것을 테스트로 고정했다. 이름 해석은 로그인 노드가 하므로 포털이 못 푸는
+클러스터 내부 이름도 그대로 넘어간다.
+
+읽기는 PtySession과 같은 비블로킹 방식이며, `b""`(읽을 것 없음)와 `None`(EOF)을 구분한다 —
+RFB는 스트림이라 EOF를 idle로 오해하면 연결이 끊긴 줄 모른다.
+
+## T-06 세션 REST + WS 브리지 라우터 — 완료
+
+`app/routers/sessions.py`, `app/schemas/session.py` + 테스트 9개. 전체 **204개 통과**,
+컨테이너(3.13) import 및 라우트 등록 확인.
+
+```
+POST   /api/v1/clusters/{cid}/sessions    세션 시작        U-IA-01·02
+GET    /api/v1/clusters/{cid}/sessions    내 세션 목록      U-IA-04
+GET    /api/v1/sessions/{sid}             상태
+GET    /api/v1/sessions/{sid}/connection  RFB 접속 정보
+DELETE /api/v1/sessions/{sid}             종료(scancel)    U-IA-04
+WS     /api/v1/sessions/{sid}/connect     RFB 바이트 중계
+```
+
+**응답에 호스트·포트가 없다.** OnDemand는 `/node/<host>/<port>/`로 라우팅해서 인증된
+사용자면 임의 호스트로 프록시할 수 있는 통로가 생기는데, 우리는 불투명한 세션 ID만
+노출하고 목적지는 백엔드만 안다. 테스트로 고정했다(응답 본문에 node/ip/port 문자열 부재).
+
+비밀번호는 소유자에게 내려간다 — 브라우저가 RFB 인증을 직접 하기 때문이다. 백엔드가
+핸드셰이크를 대신하면 감출 수 있으나 DES 챌린지 구현이 붙는다(향후 강화 여지, 스키마에 기록).
+
+### 곁다리 수정
+
+- 웹소켓 토큰 검증이 터미널·데스크톱 두 곳에 필요해져 `app/services/ws_auth.py`로 뺐다.
+  웹소켓만 검증이 느슨해지면 그쪽이 우회 경로가 되므로 한 곳에 둔다. `TerminalService`는
+  이제 이 함수를 호출한다(동작 동일).
+- 레이어링 가드 `test_no_raw_sql_outside_repositories`가 `read_text(` 안의 `text(`를
+  원문 SQL로 오탐했다. 단순 부분 문자열이라 `get_text(`·`plaintext(`도 걸리는 상태여서
+  단어 경계(`\btext\(`)로 고쳤다. 이름을 피해 가는 대신 가드를 정확하게 만들었다.
+
+## T-07 프론트엔드 — 완료
+
+- `src/api/sessions.ts`, `views/user/AppsView.vue`(런처+세션 목록), `views/user/DesktopView.vue`(noVNC)
+- `@novnc/novnc` 1.7 추가. 타입이 없어 `src/types/novnc.d.ts`에 **쓰는 표면만** 선언했다
+  (전체를 흉내 내면 업스트림이 바뀔 때 거짓말이 된다). RFB 이벤트 map으로 detail 타입 고정.
+- 라우터: `/apps` `staticOnly` 제거, `/apps/:sid` 데스크톱 화면 추가(메뉴에는 안 올림)
+- 관리 화면 클러스터 폼에 **데스크톱 이미지** 필드 추가 — 이 값 하나로 레지스트리 전환
+
+### 겪은 문제
+
+`vite build` 실패: noVNC 1.7이 **top-level await**를 쓰는데(WebCodecs H.264 지원 감지)
+기본 타깃 es2020이 지원하지 않는다. `build.target: 'es2022'`로 올렸다
+(Chrome 89+ · Firefox 89+ · Safari 15+).
+
+## T-08 실 클러스터 통합 검증 — 완료
+
+### 겪은 문제 — Job이 제출 직후 FAILED (1:0)
+
+```
+/var/spool/slurmd/job00012/slurm_script: line 10: HOME: unbound variable
+```
+
+**slurmrestd 제출은 environment를 통째로 교체한다.** 우리가 `environment`에 PATH만 넣었으니
+`$HOME`이 비었고 `set -u`에서 즉사했다. T-02에서 수동 `sbatch`로 검증할 때는 사용자 환경을
+그대로 물려받아 이 차이가 드러나지 않았다 — **제출 경로가 다르면 환경도 다르다.**
+
+두 겹으로 고쳤다.
+1. 제출 시 `environment`에 `HOME`·`USER`·`LOGNAME`을 넣는다(홈은 이미 조회한 값).
+2. 스크립트가 `: "${HOME:=$(getent passwd "$(id -un)" | cut -d: -f6)}"`로 한 번 더 복구한다.
+   `${SLURMD_NODENAME:-?}`도 방어했다.
+
+둘 다 회귀 테스트로 고정했다.
+
+### E2E 결과 (실 클러스터, AD 계정)
+
+```
+[1] 세션 제출            job_id=13 session_id=5
+[2] RUNNING + connection.json   3초 내 준비됨
+[3] 접속 대상 host=slurm01 port=5901
+    login_node=192.168.1.201   <- 목적지가 이 값이 아니다 = 워커 분리 대비 정상
+[4] 터널 RFB 배너        b'RFB 003.008\n'
+[5] 소유자 격리          jooyeong.lee 조회 차단 (NotFound)
+[6] 세션 종료            CANCELLED
+```
+
+[3]이 이 에픽의 핵심 검증이다 — 목적지가 Slurm 노드명(`slurm01`)에서 왔고
+로그인 노드 주소(`192.168.1.201`)가 아니다. 지금은 같은 기계지만 코드 경로가 갈라져 있다.
+
+정리 확인: 잔여 Job 0, Xvnc 0, 59xx LISTEN 0.
+
+백엔드 테스트 **206개 통과**, 프론트 `vue-tsc` + 빌드 통과, 양쪽 배포 완료.
+
+## 남은 것
+
+- **브라우저 실사용 확인** — 화면이 실제로 뜨고 마우스·키보드가 동작하는지는 사용자 확인 필요
+- 노드 사양(2 vCPU / 3.8GB, 클러스터당 1대)이라 데스크톱 세션이 사실상 클러스터를 점유한다
+- Jupyter(U-IA-01)·VS Code(U-IA-03)는 세션/프록시 계층을 그대로 쓰므로 앱 정의만 추가하면 된다
+- U-IA-05 세션 공유: view-only 비밀번호는 이미 발급된다(토큰 발급만 추가하면 됨)
+
+## T-08 후속 — 홈 디렉터리 상태에 따른 실패 두 가지 (사용자 보고)
+
+`jungryul0515.park`은 정상 동작하는데 다른 계정들이 실패했다. 원인이 서로 달랐다.
+
+### ① `jooyeong.lee` — 홈 소유자가 AD UID와 다름 (환경 문제)
+
+```
+/home/jungryul0515.park  201106:200513   AD uid와 일치 (정상)
+/home/jooyeong.lee         2002:2000     dev01 로컬 계정 소유
+/home/jrpark               2001:2000     dev01 로컬 계정 소유
+AD jooyeong.lee = uid 201110
+```
+
+`/home` NFS를 **dev01 로컬 계정과 클러스터 AD 계정이 공유**한다. dev01에 동명 로컬 계정
+(uid 2002, group developers 2000)이 있어 홈이 먼저 자리를 잡았고, AD 계정(201110)이
+자기 홈에 못 쓴다. 인터랙티브 앱만이 아니라 **파일 관리자·터미널·Job 제출도 같이 막힌다.**
+
+포털 코드 문제가 아니라 소유권을 바꿔야 해결된다(그러면 dev01 로컬 계정이 홈을 잃는다).
+근본 해결은 dev01의 `/home`을 클러스터와 분리하는 것 — 이름이 겹칠 때마다 재발한다.
+
+### ② `saeyoun.kang` — 홈이 아예 없음 (**코드 결함이었다**)
+
+```
+saeyoun.kang:*:201112:200513:...:/home/saeyoun.kang:/bin/bash
+ls: cannot access '/home/saeyoun.kang': No such file or directory
+/home  drwxr-xr-x root root
+```
+
+노드에 한 번도 로그인한 적이 없어 `pam_mkhomedir`가 홈을 만들지 않았다.
+그런데 `makedirs()`가 **루트부터 훑으며 없는 경로를 전부 만들려 해서 사용자 홈까지
+만들려 했다.** 홈 생성은 시스템의 몫이고, 포털이 만들면 소유권·권한이 사이트 정책과
+어긋난다.
+
+→ `makedirs(user, base, relative)`로 바꿔 **base(홈) 자체는 만들지 않는다.** 없으면
+"한 번 로그인하면 만들어집니다"라고 그대로 알린다. 두 조건 모두 회귀 테스트로 고정했다.
+
+오류 분류도 고쳤다: `EXTERNAL_SERVICE_ERROR`(포털 장애처럼 보임) → `VALIDATION_FAILED`
++ 확인할 곳 안내. 권한 문제면 Job을 제출하지 않는다 — 어차피 Slurm이 로그를 못 쓴다.
+
+백엔드 **208개 통과**, 배포 완료.
+
+---
+
+# 내 사용량 / 프로필 (SCR-09, U-AC-01·02·03)
+
+- 백엔드: `services/account.py`, `routers/account.py`, `schemas/account.py` + 테스트 12개
+- 프론트: `api/account.ts`, `views/user/UsageView.vue` (`staticOnly` 제거)
+- SSH 클라이언트에 `fairshare()` 추가(`sshare` 래핑)
+
+## 설계 판단
+
+**slurmrestd v0.0.41 association에는 계산된 fairshare가 없다** — 실측으로 확인했다
+(키: account·user·partition·shares_raw·qos·max·min·priority·accounting. `usage`·`level_fs`·
+`fairshare` 키가 아예 없음). 정의서 U-AC-02가 지정한 `sshare`를 SSH로 래핑했고,
+§4.1의 "REST 미지원 op 한정 CLI 래핑"에 해당한다. 실패해도 REST에서 얻은 부분은 그대로 준다.
+
+**QOS 한도는 `{set, infinite, number}` 삼중항**이다. `set=false`거나 `infinite=true`면
+한도 없음이라 `None`으로 접는다 — 0으로 만들면 화면에서 "0개 제한"으로 읽힌다.
+화면에는 "무제한"으로 표시한다.
+
+GPU-시간은 `tres.allocated`에서 `type=gres, name=gpu`를 찾는다. 현 클러스터는 GRES가
+없어 0이 나오며 **그게 사실이다**(가짜 값을 만들지 않는다).
+
+SSH 공개키는 형식을 검사해 **개인키 붙여넣기를 거부**한다. 감사 로그에는 라벨만 남기고
+키 본문은 남기지 않는다.
+
+## 실 클러스터 검증
+
+```
+사용량   2026-07-07~08-06  Job 12건  CPU 0.14h  GPU 0.0h  실패 2건
+         일자별 08-05 6건 / 08-06 6건, 파티션 cpu
+Fairshare  dt-hpc (기본) shares_raw=1, qos=[normal, short, portal-qos-test]
+QOS        normal(무제한) / short(60분, 제출 4개) / portal-qos-test(60분)
+sshare     norm_shares=1.0  effective_usage=0.0  fairshare=1.0
+```
+
+백엔드 **220개 통과**, 프론트 빌드 통과, 배포 완료.
+
+## SSH 공개키(U-AC-03) 전면 제거 — 사용자 결정
+
+**등록만 받고 클러스터에 반영하는 경로가 없어** 사용자가 등록해놓고 SSH가 안 되는 혼란만
+만든다. 그리고 지금 필요하지도 않다는 점이 논의에서 드러났다.
+
+- 로그인 노드가 `PasswordAuthentication yes` → AD 비밀번호로 `ssh`·`scp`·`rsync`가 이미 된다
+- 포털이 터미널·파일 관리자·데스크톱·Job 제출을 모두 덮는다
+- 남는 용도(외부 자동화 / IDE 원격 개발 / `PasswordAuthentication no` 전환)는 아직 없다
+
+제거 범위: 서비스 메서드·라우터 3개·`schemas/account.py`·테스트, 프론트 카드/폼/API,
+`UserSshKey` 모델, `scripts/seed_dev.py` 참조, `db-erd.md`·`class_diagram.puml` 엔티티,
+마이그레이션 `0005`로 `user_ssh_key` 테이블 drop(제거 전 행 수 0 확인).
+엔티티 수 테스트 21 → 20으로 갱신.
+
+되살릴 때는 `0005`의 downgrade가 표를 그대로 복원한다.
+
+## 서비스 계정 sudo 최소 권한 가이드
+
+[docs/portal-sudoers.md](portal-sudoers.md) 작성. **적용은 클러스터 관리자가 한다.**
+
+발견: `ubuntu`가 `(ALL) NOPASSWD: ALL` — 무제한 root다. 정의서 §4.1의
+"제한적 sudo(least privilege) … 전체 root sudo 지양"과 정면으로 어긋난다.
+포털이 이 계정 키를 갖고 있으므로 **포털 침해 = 클러스터 root**다.
+
+포털이 실제로 필요한 것은 6가지뿐이다(코드에서 도출): `sftp-server`, 로그인 셸(`-i`),
+`getent passwd`, `df -P -k`, `quota`, `sshare`. Job·노드·계정·QOS는 전부 REST라 sudo가
+관여하지 않고, 데스크톱 터널도 서비스 계정 자신의 권한으로 열려 sudo를 쓰지 않는다.
+
+가이드의 핵심은 명령 목록이 아니라 **`Runas_Alias`로 대상 사용자를 AD `domain users`
+(gid 200513)로 한정**하는 것이다. 명령을 아무리 좁혀도 대상에 root가 들어가면 의미가 없다.
+웹 터미널용 셸 권한은 좁힐 수 없지만(그게 기능 자체), root를 배제하면 권한 상승 경로는 아니다.
+
+### sudoers 가이드 자체 보안 검토 — 결함 발견 후 개정
+
+가이드대로 적용해도 안전해지지 않는 것이 확인되어 문서를 고쳤다.
+
+1. **가장 큰 결함: 기존 권한 회수를 빠뜨렸다.** `/etc/sudoers.d/90-cloud-init-users`의
+   `ubuntu ALL=(ALL) NOPASSWD:ALL`과 `%sudo` 그룹 멤버십이 살아 있어, 새 파일을 추가해도
+   **목록에 없는 명령은 여전히 root로 실행된다.** sudoers.d는 전부 읽고 마지막 매치가 이긴다.
+   → §2.5 신설(회수 절차 + 잠김 방지 경고), §5 검증에 `sudo -n id` 추가.
+2. **Runas 대상이 `domain users` 전체였다.** 현재 AD 사용자에겐 sudo가 없어 안전하지만,
+   관리자에게 AD 그룹으로 sudo를 주는 순간
+   `포털 → sudo -u <관리자> bash → 그 계정의 sudo → root` 경로가 열린다.
+   → 포털 이용 전용 AD 그룹(`hpc-portal-users`)으로 한정하도록 변경.
+3. **`ubuntu`는 공용 계정이다.** cloud-init 기본 계정이라 관리자도 쓴다.
+   → 전용 서비스 계정(`portalsvc`) + `authorized_keys`의 `from=` 제한 권고.
+4. **OS 레벨 감사가 없었다.** 포털 DB 감사 로그는 포털 침해 시 함께 넘어간다.
+   → `log_output`/`log_input` 추가(보관 정책 선결 조건 명시).
+
+sudoers로 막을 수 없는 것도 명시했다: 셸 허용은 대상 사용자의 SSH 개인키·Kerberos 티켓을
+열고 `authorized_keys`에 백도어를 심을 수 있다(포털 키 교체로도 안 지워진다).
+**sudoers는 "포털이 침해돼도 root는 아니다"까지만 보장하며, 실질 통제선은 포털의 인가 로직이다.**
+
+### sudoers 가이드 — 서버별 런북 추가 및 순서 오류 정정
+
+§8을 "서버별 조치 런북"으로 다시 썼다. 어떤 서버에서 무엇을 하는지 단계마다 명시한다.
+
+**정정한 순서 오류**: 이전 판은 `포털 계정 전환 → sudoers 배치` 순서였는데, 그러면
+`portalsvc`에 sudo 권한이 없는 상태로 전환되어 **파일 관리자·터미널·사용량이 즉시 실패**한다.
+`sudoers 배치 → 포털 전환 → 기존 권한 회수` 순으로 바로잡았다.
+
+**설계 개선**: 서비스 계정 홈을 `/home/portalsvc`가 아니라 `/var/lib/portalsvc`로 둔다.
+`/home`이 NFS 공유라 두 노드가 같은 디렉터리를 보고, 노드별 UID가 다르면 소유권이 어긋난다.
+노드 로컬 경로면 이 문제가 아예 없다.
+
+**실측 반영**: 포털의 SSH 출발지는 파드 IP가 아니라 **k3s 노드 IP(192.168.1.100)**다
+(`SSH_CONNECTION=192.168.1.100 ... 192.168.1.201 22`). `from=` 제한에 이 값을 쓴다.
+추측으로 파드 대역을 적었다면 포털이 잠겼을 부분이다.
+
+런북에 포함: 대상 서버 표, 단계별 검증 명령, 롤백 표, 흔한 실패 5가지와 대처.
+중복이던 §5는 §8 포인터로 축약했다.
+
+### sudoers 문서에 Slurm JWT 조치 추가 (§9)
+
+문서 범위를 "sudo"에서 "sudo + Slurm JWT" 두 경로로 넓혔다. SSH만 잠그면 REST 경로가
+그대로 열려 있기 때문이다.
+
+**실측으로 확정한 것**: impersonation은 `slurm`/root 토큰에서만 된다.
+일반 사용자 토큰(AdminLevel 없음)으로 시험한 결과 —
+본인 Job 조회/제출 성공, slurmdb 계정 조회 성공, **남의 이름으로 제출은 1007
+Protocol authentication error**. AdminLevel을 줘도 impersonation은 안 되므로
+**`slurm`을 대체할 계정은 없다**는 것이 결론이다.
+
+그래서 §9의 목표는 능력 축소가 아니라 노출 축소로 잡았다.
+- 조치 B(§9.3): 관리 작업(A-US-02·03)용 토큰을 `portalsvc`(AdminLevel=Administrator)로 분리.
+  이 토큰은 impersonation이 안 되므로 유출 피해가 작다. 차단 확인 curl까지 문서화.
+- 조치 A(§9.4): `slurm` 토큰을 저장하지 않고 `sudo -u slurm scontrol token ... lifespan=600`으로
+  온디맨드 발급. sudoers는 `token` 하위 명령과 인자까지 명시(통째 허용 금지).
+  포털 코드 변경분을 파일별 표로 정리(미구현).
+
+**정직하게 적은 한계(§9.5)**: `scontrol token username=*` 허용은 임의 사용자 토큰 발급과
+같으므로 **힘은 `slurm` 토큰 보유와 동등**하다. 줄어드는 건 at-rest 자격증명·유효기간·감사
+부재이지 능력이 아니다. 능력까지 없애려면 Job 제출을 `sudo -u <user> sbatch`로 옮겨야 하는데
+JobService 전면 재작성이라 지금은 권하지 않는다.
+
+**가용성 트레이드오프도 명시**: 조치 A 후에는 SSH가 끊기면 Slurm 조회까지 멈춘다.
+
+§7에 V8 항목을 추가해 취약점 목록과 상호참조를 맞췄다.
+
+---
+
+# 포털 운영 설정 (SCR-15, A-OP-01·02·03·04)
+
+- 백엔드: `repositories/content.py`, `services/ops.py`, `routers/ops.py`, `schemas/ops.py` + 테스트 18개
+- 프론트: `api/ops.ts`, `views/admin/SettingsView.vue` (`staticOnly` 제거)
+- 모델(`Notice`·`JobTemplate`·`PortalSetting`·`AuditLog`)과 `AuditLogRepository.search()`는
+  **이미 있어서** 그대로 썼다. 마이그레이션 없음.
+
+```
+GET/PUT    /settings                 A-OP-04
+GET        /notices                  U-CL-03 (인증)   POST/PATCH/DELETE  A-OP-01 (admin)
+GET        /templates                U-JB-03 (인증)   POST/PATCH/DELETE  A-OP-02 (admin)
+GET        /audit-logs               A-OP-03 (admin)
+GET        /audit-logs/actions       필터 드롭다운용
+```
+
+## 설계 판단
+
+**설정 변경 감사에 값을 남기지 않는다.** SMTP 호스트·웹훅 URL이 감사 로그로 새면 안 되므로
+**바뀐 필드 이름만** 기록한다(`target="webhook_url"`). 테스트로 고정했다 —
+비밀 경로가 포함된 URL을 저장한 뒤 로그 전체에 그 문자열이 없는지 확인한다.
+값이 안 바뀌면 아예 기록하지 않는다.
+
+**폴링 주기에 C-04를 강제한다.** 정의서 비기능 요구가 30초 이하인데 화면에서 300초로
+바꿀 수 있으면 요구가 의미를 잃는다. 스키마(5~30)와 서비스 양쪽에서 막는다.
+
+**전체 공지는 클러스터 필터에도 포함시킨다.** `cluster_id`로 조회할 때
+`target_cluster_id IS NULL`(전체 대상)을 함께 준다 — 전체 공지가 클러스터를 고른
+사용자에게 안 보이면 공지의 의미가 없다.
+
+**감사 로그의 actor를 서버가 이름으로 바꾼다.** GUID는 화면에서 쓸모가 없다.
+행마다 조회하지 않도록 `UserRepository.by_guids()`를 추가해 한 번에 받는다(N+1 회피).
+없는 사용자로 필터하면 **0건**을 준다 — 필터를 무시하고 전체를 주면 안 된다(테스트로 고정).
+
+**필터 드롭다운을 하드코딩하지 않는다.** `/audit-logs/actions`가 실제로 기록된 액션만
+돌려준다. 코드에 목록을 박으면 새 액션이 생길 때마다 어긋난다.
+
+## 검증
+
+백엔드 **234개 통과**, 프론트 빌드 통과, 배포 완료.
+운영 DB에 이미 감사 로그 176건이 쌓여 있어 화면에서 바로 보인다
+(LOGIN 29 · TERMINAL_OPEN/CLOSE 각 19 · SESSION_CREATE 13 · AD_SYNC 10 …).
+
+## 범위 밖
+
+A-OP-05 헬프데스크(티켓)는 정의서에서 "선택"이고 `Ticket` 모델만 있다. 이번 범위에서 제외했다.
+
+## ParaView 추가 (인터랙티브 앱 두 번째 버튼)
+
+이미지 `rocky9-mate:1.1` / `/home/portal/images/rocky9-mate-1.1.sif` (387MB → **1.3GB**).
+
+**이미지를 나누지 않고 하나로 유지**하고 `PORTAL_APP`으로 분기한다. 클러스터 설정의
+`desktop_image_ref`가 필드 하나라 앱마다 SIF를 나누면 운영이 복잡해진다.
+
+- `Dockerfile`: EPEL9의 paraview 5.11.1 + glx-utils. 의존성 `python3-pygments`가
+  **CRB 저장소**에 있어 `dnf config-manager --set-enabled crb`가 먼저 필요했다.
+- `start-desktop.sh`: `case "$PORTAL_APP"` 분기. paraview는 **marco(창 관리자)를 함께** 띄운다 —
+  없으면 파일 열기 대화상자를 옮기거나 닫을 수 없어 세션이 그 창에 갇힌다.
+- 프론트: 앱 카드를 눌러 고르는 방식으로 바꾸고 ParaView 카드 추가. 자원 폼·제출 버튼은 공유.
+- **백엔드는 변경 없음** — `SessionSpec.app`·`_APP_RE`·`PORTAL_APP` 경로가 이미 앱을 받고 있었다.
+  회귀 테스트만 추가(`test_app_selection_reaches_the_container`).
+
+### 실측 (노드에서 실제 기동)
+
+```
+PORTAL_APP=paraview → connection.json app=paraview, paraview·marco 프로세스 확인
+OpenGL renderer : llvmpipe (LLVM 21.1.8, 256 bits)
+OpenGL version  : 4.5 (Compatibility Profile) Mesa 25.2.7   ← ParaView 요구(3.2+) 충족
+direct rendering: Yes
+```
+
+GPU가 없어 소프트웨어 렌더링이다. **동작하지만 2 vCPU에서 큰 데이터셋은 실용적이지 않다.**
+GPU 노드가 생기면 VirtualGL을 얹는 것이 정석이다.
+
+두 클러스터의 `desktop_image_ref`를 1.1로 갱신했다. 1.0 SIF는 롤백용으로 남겨 둔다.
+백엔드 **235개 통과**.
+
+### ParaView 단일 앱 모드 — 최소화 함정 수정 (이미지 1.2)
+
+사용자 보고: 창을 최소화하면 되살릴 방법이 없다. 작업표시줄이 없는 단일 앱 모드라
+세션이 사실상 잠긴다.
+
+`start-paraview.sh`가 세 경로를 막는다 — 버튼(`button-layout ":maximize,close"`),
+단축키(`minimize "disabled"`), 제목표시줄 우클릭 메뉴(`action-right-click-titlebar
+"toggle-maximize"`).
+
+**겪은 문제 둘.**
+
+1. 처음에 `minimize "[]"`로 썼더니 marco가
+   `"[]" found in configuration database is not a valid value for keybinding "minimize"`로
+   무시했다. 키바인딩의 "끔" 값은 빈 배열이 아니라 **`"disabled"`** 다.
+2. gsettings는 **사용자 dconf(NFS 홈)에 영구 저장**된다. 그대로 두면 여기서 끈 최소화가
+   다음 데스크톱 세션까지 따라간다. → `start-mate.sh`를 만들어 MATE 기본값을 명시적으로
+   되돌린다. 앱마다 자기 창 정책을 쓰는 구조가 됐다.
+
+검증(slurm02, 이미지 1.2): 세션 기동 후 `~/.config/dconf/user`에
+`button-layout=:maximize,close`, `minimize=disabled`가 실제로 기록됨. marco 경고 없음.
+
+**사용자 화면에 반영이 안 된 진짜 이유는 따로 있었다** — 클러스터
+`desktop_image_ref`가 아직 1.1을 가리키고 있었다. 이미지를 만들고 참조를 안 바꿨다.
+두 클러스터를 1.2로 갱신했다. 실행 중인 세션은 재시작해야 적용된다.
+
+작업표시줄을 원하면 `tint2`(EPEL9)를 넣고 이 설정을 빼는 선택지도 README에 적어 뒀다.
+
+### ParaView 창 버튼 전면 제거 + 시작 시 최대화 (이미지 1.3)
+
+사용자 보고 둘. (1) X 버튼으로 닫아도 최소화와 같은 문제가 난다 — 앱이 끝나면 세션이
+그대로 종료되고 화면만 남는다. (2) 처음 뜰 때 해상도에 맞는 최대 크기여야 한다.
+
+**버튼은 셋 다 없앴다.** `button-layout ":"` 로 제목표시줄을 비우고, 단축키도
+`minimize "disabled"` + `close "disabled"`로 막았다. 제목표시줄 자체는 남긴다 —
+대화상자를 옮기려면 필요하다. `start-mate.sh`에도 `close "<Alt>F4"` 복원을 추가했다
+(dconf가 NFS 홈에 남아 데스크톱 세션까지 따라가므로 대칭이 유지돼야 한다).
+
+닫기까지 막으면 **대화상자를 못 닫는 것 아닌가**가 유일한 위험이었다. 화면 캡처로
+확인 — ParaView Welcome 창은 자체 `Close` 버튼을 갖고 있다. 세션 종료는 포털에서 한다.
+
+**최대화**는 `wmctrl`(EPEL9)을 이미지에 넣고, 창이 뜬 뒤 백그라운드에서 최대화한다.
+ParaView가 지난 세션의 창 크기를 자기 설정에 저장했다가 복원하는데, 홈이 NFS라 그 값이
+노드를 넘어 따라온다. 스플래시가 먼저 뜨므로 **제목이 붙은 첫 창**을 최대 60초 기다린다.
+
+검증은 dev01 docker에서 화면을 직접 캡처해서 했다(노드 SSH 없이 창 정책 전체 확인).
+
+```
+wmctrl -l -G -x
+0x00a00006  0 0 56 1280 772  paraview.ParaView  ParaView 5.11.1   ← 1280x800 가득
+0x00a00022  0 267 144 748 535 paraview.ParaView  Welcome to ParaView
+
+PORTAL_APP=paraview → button-layout ':' / minimize 'disabled' / close 'disabled'
+PORTAL_APP=desktop  → 'menu:minimize,maximize,close' / '<Alt>F9' / '<Alt>F4' 복원 확인
+```
+
+두 클러스터의 `desktop_image_ref`를 1.3으로 갱신했다. 실행 중인 세션은 재시작해야 적용된다.
+
+### 방향 전환 — 창 버튼 원복 + 작업표시줄(tint2) (이미지 1.4)
+
+사용자가 `File → Exit` 스크린샷을 보내왔다. **버튼을 막는 접근 자체가 틀렸다** — 최소화·
+닫기 버튼을 다 지워도 메뉴의 Exit는 막을 수 없다. 막는 대신 **되살릴 수단을 준다**로 바꾼다.
+
+- 창 버튼(최소화·최대화·닫기)은 **전부 원복**한다.
+- 앱을 닫으면 세션(Slurm Job)이 종료되는 지금 동작은 **그대로 둔다**(사용자 결정).
+- 최소화 복구는 컨테이너 안 **작업표시줄(tint2, EPEL9)** 이 맡는다. Alt+Tab은 브라우저·
+  호스트 OS가 가로채는 경우가 많아 의존할 수 없다.
+
+포털(백엔드·프론트엔드) 변경은 **없다**. 컨테이너 이미지만 바뀌었다. 테스트 235개 그대로 통과.
+
+**설정을 빼는 것으로는 원복이 안 된다.** gsettings는 사용자 dconf(NFS 홈)에 영구 저장되므로
+1.2/1.3을 써 본 사용자 홈에는 `button-layout=':'`, `minimize/close='disabled'`가 남아 있다.
+기본값을 명시적으로 다시 쓰는 `reset-window-policy.sh`를 만들고 두 앱 스크립트가 함께 부른다
+(같은 값을 두 곳에 두면 한쪽만 고쳐진다).
+
+`tint2rc`는 이미지에 넣고 `-c`로 지정한다 — 지정하지 않으면 tint2가 사용자 홈에 기본 설정을
+만들고 그것이 세션·노드를 넘어 따라온다. 설정에서 중요한 것은 **`strut_policy = follow_size`**
+하나다. 없으면 최대화한 앱이 막대를 덮어 복구 수단 자체가 사라진다.
+
+**최대화 대상 선택도 고쳤다.** tint2 막대가 `wmctrl` 목록에 나오므로 제목만 보고 첫 창을
+고르면 막대를 최대화할 수 있다 → 클래스가 `paraview`인 창만 고르도록 바꿨다.
+
+검증(dev01 docker + 화면 캡처):
+
+```
+paraview : 'menu:minimize,maximize,close' / '<Alt>F9' / '<Alt>F4' / 'menu'  ← 네 값 원복
+           작업 영역 WA 1280x776 (=800-24), 메인 창 높이 748 → 막대를 안 덮는다
+           xdotool로 최소화 → 캡처에 막대의 "ParaView 5.11.1" 버튼 확인
+           → 활성화하니 최대화 상태 그대로 복귀
+desktop  : 같은 네 값 기본값, tint2 안 뜸(mate-panel 상·하단만)
+```
+
+두 클러스터의 `desktop_image_ref`를 1.4로 갱신했다. 실행 중인 세션은 재시작해야 적용된다.
+
+#### 사고 기록 — 이미지 빌드가 dev01 디스크를 채워 포털 pod이 evict됨
+
+1.4 SIF 변환 직후 `kubectl exec`이 `pod mysql-0 does not have a host assigned`로 실패했다.
+원인은 **내가 쌓아 둔 빌드 산출물**이다. `/` 31GB 중 docker가 이미지 10.9GB + 빌드 캐시
+10.0GB를 쓰고 있었고, 90%를 넘기며 kubelet이 `DiskPressure`를 올려 포털 pod을 전부 evict했다.
+
+조치.
+
+```
+docker builder prune -af        빌드 캐시 10GB 회수
+docker image prune -f           dangling 이미지 정리
+docker rmi rocky9-mate:1.0 1.1 1.2 1.3   → 90% → 66%
+```
+
+SIF는 `/home`(다른 파일시스템)에 있어 **롤백용 1.0~1.4는 그대로 남아 있다.** docker 쪽
+태그만 지웠고 필요하면 Dockerfile로 다시 만든다.
+
+**여파가 하나 더 있었다.** DiskPressure 상황에서 kubelet의 이미지 GC가 containerd에서
+`hpc-portal-backend:0.1.0`·`hpc-portal-frontend:0.1.0`을 지워 버려, 압박이 풀린 뒤에도
+pod이 `ErrImageNeverPull`로 못 떴다(`imagePullPolicy: Never`라 받아올 곳이 없다).
+`deploy/k8s/README.md`의 import 절차로 되살렸다.
+
+```
+sudo docker save hpc-portal-backend:0.1.0 | sudo /usr/local/bin/k3s ctr images import -
+sudo docker save hpc-portal-frontend:0.1.0 | sudo /usr/local/bin/k3s ctr images import -
+```
+
+복구 확인: pod 4개 Running, 프론트 200, API 401(미인증 정상). 현재 `/` 사용률 71%.
+
+**교훈**: 이미지 빌드 뒤에는 반드시 `docker builder prune`을 돌린다. 빌드 캐시가 이미지만큼
+쌓이고, 이 노드는 포털 운영과 이미지 빌드를 같은 31GB 디스크에서 한다.
+
+### 앱을 닫으면 화면도 자동으로 정리된다 (U-IA-02·04)
+
+사용자 확인: ParaView를 끄면 Slurm Job이 cancel된다. 그런데 **브라우저는 그걸 몰랐다.**
+원인은 백엔드에 있었다.
+
+`WS /sessions/{sid}/connect`의 출력 펌프는 원격이 EOF를 주면 루프만 빠져나오고 **웹소켓을
+닫지 않았다.** 입력 루프는 계속 `receive_bytes()`를 기다리므로 연결이 그대로 살아 있고,
+noVNC는 멈춘 화면을 붙잡은 채 `disconnect` 이벤트조차 내지 않는다.
+
+**백엔드** — EOF에서 웹소켓을 닫는다. 닫은 뒤 `receive`를 부르면 starlette이 `RuntimeError`를
+내므로 예외 목록에 추가했다. 회귀 테스트(`test_websocket_closes_when_the_session_dies`)는
+즉시 EOF를 주는 가짜 터널을 물려 `WebSocketDisconnect`를 확인한다 — 수정을 되돌리면 이 테스트는
+**응답 없이 멈춘다**(실제로 확인함). 테스트 236개 통과.
+
+**프론트(DesktopView)** — 끊긴 이유를 웹소켓만 보고 단정하지 않는다. 예상치 못한 끊김이면
+`GET /sessions/{sid}`로 **Slurm 상태를 확인**하고(2초 간격 4회 — 상태 전이에 몇 초 걸린다),
+`is_running=false`면 안내 후 목록으로 보낸다. 아직 살아 있으면 재연결 버튼을 남긴다.
+
+세 가지를 구분해야 해서 표시를 두 개 뒀다.
+
+- `expected` — 사용자가 누른 "연결 끊기", 인증 실패, 화면 이탈. 종료로 오해하면 안 된다.
+- `generation` — 재연결하면 **이전 연결의 뒤늦은 disconnect 이벤트**가 따라온다. 세대가
+  다르면 무시한다. 이걸 안 넣으면 재연결할 때마다 종료 판정 로직이 헛돈다.
+
+배포: 백엔드·프론트 이미지 재빌드 → containerd import → rollout. 이번엔 빌드 후
+`docker builder prune -af`까지 붙였다(앞선 디스크 사고의 후속).

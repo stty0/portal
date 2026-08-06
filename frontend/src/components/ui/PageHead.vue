@@ -10,7 +10,8 @@ defineProps<{ title: string; sub?: string; crumbs?: string[] }>()
         <h1 class="text-[24px] font-bold text-ink tracking-tight">{{ title }}</h1>
         <p v-if="sub" class="mt-1 text-[14px] text-ink-3">{{ sub }}</p>
       </div>
-      <div class="flex items-center gap-2"><slot name="actions" /></div>
+      <!-- 버튼이 눌려 글자가 줄바꿈되지 않도록 축소 대신 줄바꿈으로 흘린다 -->
+      <div class="flex flex-wrap justify-end items-center gap-2"><slot name="actions" /></div>
     </div>
   </div>
 </template>

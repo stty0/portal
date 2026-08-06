@@ -1,57 +1,127 @@
-# Plan: Frontend 구현 — Vue 3 + TypeScript + Tailwind
+# Plan: 인터랙티브 앱 — 원격 데스크톱 (SCR-06)
 
-- 작성일: 2026-08-04
-- 관련 화면/기능 ID: SCR-01~19 전체
-- 상태: Approved (범위=22화면 전부, 사용자 결정)
+- 작성일: 2026-08-06
+- 관련 화면/기능 ID: SCR-06, U-IA-01(앱 런처), U-IA-02(원격 데스크톱), U-IA-04(세션 관리)
+- 상태: Approved (방식=OnDemand형 + 백엔드 프록시, 사용자 결정)
+- 이전 에픽 plan은 git 이력 참조 (프론트엔드 Vue 이관, 2026-08-04)
 
 ## 1. 목표 / 배경
-[design/](../design/)의 정적 프로토타입 22화면을 Vue SPA로 이관한다. 백엔드가 실제로
-지원하는 도메인(인증·사용자/AD·클러스터·Job)은 API에 연결하고, 나머지는 화면을 먼저
-완성해 둔다.
 
-정적 프로토타입의 가장 큰 부채는 **사이드바/톱바가 22개 파일에 복붙**돼 있다는 점이다
-(CLAUDE.md 구조 규칙). 컴포넌트화가 이번 이관의 핵심 이득이다.
+SCR-06은 현재 "아직 제공되지 않는 기능입니다"만 표시한다. 사용자가 브라우저에서
+Linux 데스크톱 세션을 열어 GUI 작업을 하게 만든다.
+
+정의서 §4.1이 이미 방식을 정해두었다 — **Job 제출은 REST(`sbatch`), 세션 연결은
+SSH/프록시**. 이 계획은 그 문장을 구현으로 옮긴 것이다.
 
 ## 2. 범위
 
 **포함**
-- Vite + Vue 3(`<script setup>`) + TypeScript + Tailwind CSS v4 + Pinia + vue-router
-- 디자인 토큰([design/css/style.css](../design/css/style.css) `:root` 330개)을 Tailwind `@theme`로 이관
-- 레이아웃 공통화: `AppShell`(사이드바·톱바·푸터) 1벌 → 22화면이 공유
-- 전역 클러스터 스코프(톱바 선택기) — 정적 프로토타입의 `applyCluster` 동작을 store로
-- 22화면 전부. **API 연결 화면**과 **정적 화면**을 화면 상에서 구분 표시
-- 인증: 로그인/부트스트랩, 라우터 가드(인증·`admin:access`), 401 시 자동 로그아웃
+- Rocky 9 + MATE + TigerVNC 컨테이너 이미지(Apptainer SIF)
+- 세션 = Slurm 배치 Job. 자원(파티션·CPU·메모리·시간) 지정 후 제출
+- 세션 목록·재접속·종료 (U-IA-04)
+- 브라우저 noVNC 접속 (백엔드 WebSocket 브리지 경유)
+- 앱 런처 화면 골격 (U-IA-01) — 데스크톱 카드만 활성
 
 **제외(Non-goals)**
-- 미구현 백엔드 도메인의 API 연결(노드·QOS·계정·파일·터미널·세션·리포트·Billing·License)
-- i18n(C-06) — 정의서상 한국어/영어지만 현재 한국어 하드코딩 유지
-- 실시간 폴링·SSE·WebSocket(C-04) — 터미널·로그 tail은 화면만
-- E2E 브라우저 테스트
+- Jupyter(U-IA-01 본래 대상)·VS Code(U-IA-03) — 세션/프록시 계층을 공유하므로 후속 작업에서 앱 정의만 추가
+- 세션 공유 view-only 링크(U-IA-05) — TigerVNC view-only 비밀번호만 미리 발급해 둔다
+- GPU / VirtualGL — 현 클러스터에 GRES 없음
+- 컨테이너 레지스트리 — 개발 단계는 공유 NFS 배포. `desktop_image_ref` 설정값으로 나중에 전환
 
 ## 3. 설계 / 접근
-- **디자인 충실도**: 정적 프로토타입의 look & feel(Samsung SDS Cloud)을 유지한다.
-  색상·간격을 임의로 바꾸지 않고 토큰을 그대로 옮긴다.
-- **API 연결 여부 표시**: 정적 데이터로 채운 화면은 배지로 명시한다. 그러지 않으면
-  "동작하는 화면"과 "그림"을 구분할 수 없어 이후 작업에서 사고가 난다.
-- **타입**: 백엔드 스키마에 맞춘 `types/api.ts`. OpenAPI 자동생성은 도입하지 않는다
-  (엔드포인트 28개 규모에 빌드 파이프라인을 늘릴 이유가 없다).
-- **상태**: `auth`(세션·권한), `cluster`(선택 클러스터 스코프) 2개만. 나머지는 view local.
-- **에러 처리**: 백엔드 `{code,message,detail}`를 그대로 표면화. 401은 세션 만료로 처리.
+
+### 3.1 전체 흐름 (Open OnDemand 방식)
+
+```
+① 제출   포털 --slurmrestd sbatch--> 클러스터            (기존 JobService 재사용)
+② 기록   Job이 워커에서 Xvnc 기동 후 connection.json 기록 (공유 NFS 홈)
+③ 조회   포털 --SFTP(로그인 노드, sudo -u user)--> connection.json
+④ 접속   브라우저 --wss--> 백엔드 --SSH direct-tcpip(로그인 노드)--> 워커:포트
+```
+
+②의 `connection.json`이 **접속 정보의 유일한 출처**다. 포트·비밀번호를 Portal DB에
+복제하지 않는다 — 비밀을 두 곳에 두지 않기 위해서다.
+
+### 3.2 로그인 노드 / 워커 노드 분리 (필수 규칙)
+
+포털은 **로그인 노드 자격증명만** 가진다. 컨테이너는 워커 노드에서 돈다.
+
+```
+SSH 접속 대상 = cluster.login_node        자격증명이 있는 곳. 고정.
+터널 목적지   = connection.json 의 node   Job이 실제로 뜬 워커. 매번 다름.
+```
+
+SSH `direct-tcpip`의 목적지는 **로그인 노드의 sshd가 해석**하므로 워커 자격증명이
+필요 없다. 실측 확인: 포털 → slurm01 경유 → 192.168.1.202:22 도달, Slurm 노드명으로도
+도달(`allowtcpforwarding yes`, `permitopen any`).
+
+현재 개발 환경은 로그인 노드 = 워커 노드라 **두 값을 혼동해도 동작한다.** 그래서
+지금 틀리기 쉽고 분리 시점에 깨진다. 목적지가 `cluster.login_node`에서 오는 경로를
+만들지 않으며, 이를 테스트로 고정한다(목적지 ≠ login_node인 케이스).
+
+워커 이름은 `$SLURMD_NODENAME`(slurm.conf 등록명)을 쓰고 IP를 폴백으로 함께 기록한다.
+
+### 3.3 websockify를 쓰지 않는다
+
+websockify가 하는 일(WebSocket ↔ raw TCP)을 백엔드 브리지가 이미 한다. noVNC의 `RFB`는
+WebSocket으로 RFB를 직접 말하므로 그대로 붙는다.
+
+- 컨테이너에는 **Xvnc + MATE만** 넣는다. HTTP 서버·noVNC 정적 파일 불필요
+- noVNC는 프론트 번들(`@novnc/novnc`)에서 관리 — 웹 터미널의 xterm.js와 같은 구조
+- 서브패스 프록시 문제(`vnc.html?path=`)가 발생하지 않는다
+
+### 3.4 인증 / 격리
+
+- WS 인증은 웹 터미널과 동일한 subprotocol 방식(`portal.token.<jwt>`)
+- URL에 host:port를 노출하지 않는다. 불투명한 세션 ID로 조회하며 **소유자를 확인**한다
+  (OnDemand의 `/node/<host>/<port>/`는 인증 사용자면 임의 호스트로 프록시되는 통로다)
+- 워커가 분리되면 Xvnc를 localhost에 묶을 수 없다(로그인 노드가 닿아야 함).
+  세션마다 랜덤 VNC 비밀번호를 발급한다. 노드 독점이 필요하면 `--exclusive` 옵션 제공
+
+### 3.5 구조 규칙
+
+- 레이어링: `router → service → repository/client`. 라우터는 WS 프레임만 다루고
+  인증·터널·세션 상태는 `SessionService`가 갖는다 (`terminal.py`와 동일, 레이어링 테스트 통과)
+- 화면 요소에 `<Fid id="U-IA-0X" />` 매핑 유지
+- 이미지 참조는 클러스터 설정값(`desktop_image_ref`). SIF 경로·`oras://`·`docker://`를
+  모두 같은 자리에서 받으므로 레지스트리 전환이 DB 값 변경으로 끝난다
 
 ## 4. 제약 / 리스크
-- 백엔드 미구현 도메인이 많아 **화면 절반 이상이 정적**이다. 나중에 API가 생기면
-  그 화면들은 다시 손봐야 한다(사용자 인지·승인됨).
-- Tailwind v4는 CSS-first 설정이라 v3 문서와 다르다.
-- 정적 프로토타입의 fid 칩(기능 ID 매핑)은 추적성 자산이므로 컴포넌트로 유지한다.
+
+**환경 실측치**
+
+| 항목 | 값 |
+|---|---|
+| 노드 | 클러스터당 1대, 2 vCPU / 3915MB / GPU 없음 |
+| `/` 여유 | 노드 12GB, dev01 20GB |
+| `/home` | `198.19.64.8:/scp_users_tl8g1s` 100TB NFS — dev01·slurm01·slurm02 **동일** |
+| apptainer | 노드 1.5.3, rootless. `exec`·`--writable-tmpfs`·`--fakeroot` 모두 동작 |
+
+**리스크**
+
+- **노드 사양**: MATE 세션만으로 1GB 안팎. 2코어를 점유하면 그 노드에서 다른 Job이 못 돈다.
+  노드가 1대뿐이라 사실상 클러스터 전체를 점유한다. 기능 검증용으로는 충분, 실사용은 증설 전제
+- **userns**: 커널은 `apparmor_restrict_unprivileged_userns=1`로 막혀 있으나
+  `/etc/apparmor.d/apptainer` 프로파일이 바이너리에 예외를 준다. **판정은 `apptainer exec`로만 한다**
+  (`unshare` 테스트는 차단으로 나오며 이는 정상). 호스트 설정을 바꾸지 않는다
+- **디스크**: 노드 `/`가 12GB뿐이라 SIF·캐시·`APPTAINER_TMPDIR`을 `/home`으로 돌린다
+- **공유 FS 전제**: `connection.json`을 워커가 쓰고 로그인 노드가 읽는다. 홈이 노드 로컬이면
+  이 설계는 성립하지 않는다 — 전제 조건으로 문서화
+- **대역폭**: 화면 트래픽이 백엔드 파드와 로그인 노드를 모두 통과한다. 세션이 늘면
+  전용 릴레이 분리가 필요(그때 `relay_host` 필드 추가). 현 규모에서는 문제 없음
+- 고위험 영역: **사용자 impersonation·터널 목적지 결정**. 남의 세션에 붙는 경로가 생기면 안 된다
 
 ## 5. 수용 기준 (Acceptance)
-- [ ] `npm run build`가 타입 에러 없이 통과한다(`vue-tsc`).
-- [ ] 22화면이 라우팅되고 사이드바에서 모두 도달 가능하다.
-- [ ] 로그인 → 토큰 저장 → 인증 API 호출 → 로그아웃이 실제 백엔드로 동작한다.
-- [ ] USER 계정으로 ADMIN 화면에 접근하면 라우터가 막는다.
-- [ ] 클러스터 목록·Job 목록·제출·상세·사용자·AD 연결이 실 API로 동작한다.
-- [ ] 정적 화면에 "정적 데이터" 표시가 있다.
+
+- [ ] dev01에서 SIF 빌드 → `/home` 공유 경로에 배치, 두 노드에서 동일 경로로 보인다
+- [ ] 노드에서 `apptainer exec`로 Xvnc가 뜨고 포트가 LISTEN 된다
+- [ ] 포털에서 데스크톱 세션 제출 → `squeue`에 뜨고 `connection.json`이 생성된다
+- [ ] 브라우저에서 MATE 데스크톱 화면이 보이고 마우스·키보드가 동작한다
+- [ ] 세션 목록에 상태가 표시되고, 재접속·종료(`scancel`)가 동작한다
+- [ ] 남의 세션 ID로 접속 시 거부된다 (소유자 검증 테스트)
+- [ ] 터널 목적지가 `login_node`가 아니라 `connection.json`의 node에서 온다 (테스트로 고정)
+- [ ] 백엔드 테스트 전체 통과 (레이어링 테스트 포함), 프론트 `vue-tsc` + 빌드 통과
 
 ## 6. 승인
-- 검토자: 사용자 (범위=22화면 전부)
-- 승인일: 2026-08-04
+- 검토자: 사용자 (2026-08-06 승인)
+- 승인일: 2026-08-06
