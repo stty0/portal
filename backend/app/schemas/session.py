@@ -20,7 +20,10 @@ class SessionCreate(BaseModel):
     memory_gb: int | None = Field(default=None, ge=1, le=4096)
     walltime: str | None = None
     geometry: str = Field(default="1920x1080", pattern=r"^\d{3,5}x\d{3,5}$")
-    #: 노드 독점. 같은 노드의 다른 사용자가 VNC 포트에 접근하는 것을 막는다.
+    #: 노드 독점(`--exclusive`). **자원 스케줄링 옵션이지 접근 제어가 아니다** —
+    #: 다른 사용자의 Job이 같은 노드에 배정되지 않을 뿐이다. 같은 노드 사용자로부터의
+    #: 방어는 Xvnc의 X 인증 쿠키가 담당한다(docs/plan.md §3.4).
+    #: 켜면 위의 `cpus`·`memory_gb`는 무시하고 노드 전체를 쓴다.
     exclusive: bool = False
 
 
@@ -48,3 +51,16 @@ class SessionConnectInfo(BaseModel):
 
     password: str | None
     geometry: str | None
+
+
+class InteractiveAppOut(BaseModel):
+    """U-IA-01 앱 런처의 선택지. 목록은 코드 카탈로그가 단일 출처다.
+
+    어떤 이미지를 쓰는지는 담지 않는다 — 운영 정보이고 사용자가 고를 값도 아니다.
+    """
+
+    id: str
+    name: str
+    description: str
+    fid: str
+    ready: bool

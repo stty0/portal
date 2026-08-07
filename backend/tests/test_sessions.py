@@ -9,6 +9,8 @@ import pytest
 
 from app.models import InteractiveSession, User
 from app.repositories.session import STATUS_ACTIVE
+from app.core.errors import ValidationFailed
+from app.services import session_apps
 from app.services.session import SessionService
 from tests.conftest import auth_headers
 
@@ -62,7 +64,7 @@ def other_user(db) -> User:
 
 @pytest.fixture
 def desktop_cluster(db, cluster):
-    cluster.desktop_image_ref = "/home/portal/images/rocky9-mate-1.0.sif"
+    cluster.image_repository = "/home/portal/images"
     cluster.login_node = "login01"
     cluster.ssh_account = "svc"
     db.commit()
@@ -99,8 +101,85 @@ def test_create_submits_and_returns_state(
     assert body["state"] == "PENDING"
 
 
-def test_create_without_an_image_is_rejected(client, db, cluster, user_token, fake_ssh):
-    cluster.desktop_image_ref = None
+# --- 앱 → 이미지 (U-IA-01) --------------------------------------------------
+# 클러스터는 이미지가 **있는 곳**만 갖고, 어떤 이미지인지는 앱 카탈로그가 정한다.
+
+
+def test_image_is_resolved_from_the_repository_and_the_app():
+    ref = session_apps.image_ref("/home/portal/images", "desktop")
+    assert ref == f"/home/portal/images/{session_apps.get('desktop').image}"
+
+
+def test_repository_trailing_slash_does_not_double_up():
+    """`/images/` + 파일명이 `/images//파일`이 되면 레지스트리 참조에서 깨진다."""
+    assert "//" not in session_apps.image_ref("/home/portal/images/", "desktop")
+
+
+def test_registry_repositories_are_joined_the_same_way():
+    ref = session_apps.image_ref("docker://reg.example.com/hpc", "desktop")
+    assert ref == f"docker://reg.example.com/hpc/{session_apps.get('desktop').image}"
+
+
+def test_unknown_app_is_rejected():
+    """모르는 앱으로 Job을 던지면 워커에서 죽는다 — 제출 전에 막는다."""
+    with pytest.raises(ValidationFailed):
+        session_apps.image_ref("/home/portal/images", "nope")
+
+
+def test_submitted_script_uses_the_resolved_image(
+    client, desktop_cluster, user_token, fake_ssh, slurm_client
+):
+    """저장소 + 앱이 실제로 제출되는 스크립트까지 이어지는지 확인한다."""
+    client.post(
+        f"/api/v1/clusters/{desktop_cluster.id}/sessions",
+        json={"app": "paraview"},
+        headers=auth_headers(user_token),
+    )
+    spec = [kw["spec"] for name, kw in slurm_client.calls if name == "submit_job"][0]
+    script = json.dumps(spec, ensure_ascii=False)
+    assert f"/home/portal/images/{session_apps.get('paraview').image}" in script
+
+
+def test_each_app_resolves_to_its_own_image(monkeypatch):
+    """앱마다 이미지가 갈리는지 확인한다.
+
+    지금은 두 앱이 **같은 이미지**를 쓰므로(하나의 Rocky 9 이미지에 MATE·ParaView가
+    함께 들어 있다), 실제 카탈로그로는 '앱을 무시하는 구현'과 구분되지 않는다.
+    앱을 나눌 때를 위한 구조가 살아 있는지 여기서 고정한다.
+    """
+    split = (
+        session_apps.InteractiveApp("desktop", "데스크톱", "", "mate.sif", "U-IA-02"),
+        session_apps.InteractiveApp("paraview", "ParaView", "", "paraview.sif", "U-IA-02"),
+    )
+    monkeypatch.setattr(session_apps, "APPS", split)
+    assert session_apps.image_ref("/images", "desktop") == "/images/mate.sif"
+    assert session_apps.image_ref("/images", "paraview") == "/images/paraview.sif"
+
+
+def test_app_catalog_is_listed_for_the_launcher(client, user_token):
+    body = client.get("/api/v1/interactive-apps", headers=auth_headers(user_token)).json()
+    assert {a["id"] for a in body} == {"desktop", "paraview", "jupyter", "code-server"}
+    assert {a["id"] for a in body if a["ready"]} == {"desktop", "paraview"}
+    # 이미지는 운영 정보다 — 사용자에게 내려보내지 않는다.
+    assert all("image" not in a for a in body)
+
+
+def test_app_catalog_requires_auth(client):
+    assert client.get("/api/v1/interactive-apps").status_code == 401
+
+
+def test_planned_apps_cannot_be_launched(client, desktop_cluster, user_token, fake_ssh):
+    """예정된 앱은 이미지가 없다 — 제출되면 워커에서 죽으므로 여기서 막는다."""
+    resp = client.post(
+        f"/api/v1/clusters/{desktop_cluster.id}/sessions",
+        json={"app": "jupyter"},
+        headers=auth_headers(user_token),
+    )
+    assert resp.status_code == 422
+
+
+def test_create_without_an_image_repository_is_rejected(client, db, cluster, user_token, fake_ssh):
+    cluster.image_repository = None
     cluster.login_node = "login01"
     cluster.ssh_account = "svc"
     db.commit()

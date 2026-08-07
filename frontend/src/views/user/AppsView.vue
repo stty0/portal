@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { sessionApi, type Session } from '@/api/sessions'
+import { sessionApi, type InteractiveApp, type Session } from '@/api/sessions'
 import { jobApi } from '@/api/jobs'
 import { useClusterStore } from '@/stores/cluster'
 import Badge from '@/components/ui/Badge.vue'
@@ -39,17 +39,15 @@ const form = ref({
 })
 
 /**
- * 앱 목록. 같은 이미지 안에서 `PORTAL_APP`으로 갈린다 — 세션·프록시 계층은 전부 공유한다.
- * Jupyter·VS Code도 기동 스크립트에 분기만 추가하면 된다.
+ * 앱 목록은 **백엔드 카탈로그**가 준다. 어떤 이미지를 쓰는지는 앱이 알고, 클러스터는
+ * 이미지가 있는 저장소만 갖는다 — 여기에 목록을 또 두면 실행 가능한 앱이 무엇인지에
+ * 대해 앞뒤가 갈린다.
  */
-const APPS = [
-  { id: 'desktop', name: '원격 데스크톱', desc: 'MATE 데스크톱 (Rocky 9)', fid: 'U-IA-02', ready: true },
-  { id: 'paraview', name: 'ParaView', desc: '과학 시각화 5.11 (소프트웨어 렌더링)', fid: 'U-IA-02', ready: true },
-  { id: 'jupyter', name: 'JupyterLab', desc: '노트북 세션', fid: 'U-IA-01', ready: false },
-  { id: 'code-server', name: 'VS Code Server', desc: '웹 코드 편집', fid: 'U-IA-03', ready: false },
-]
+const apps = ref<InteractiveApp[]>([])
 const selectedApp = ref('desktop')
-const selected = computed(() => APPS.find((a) => a.id === selectedApp.value) ?? APPS[0])
+const selected = computed(
+  () => apps.value.find((a) => a.id === selectedApp.value) ?? apps.value[0] ?? null,
+)
 
 const active = computed(() => sessions.value.filter((s) => !s.terminated_at && s.state !== 'ENDED'))
 
@@ -57,9 +55,20 @@ async function load() {
   const cid = clusters.selectedId
   if (!cid) return
   loading.value = true
-  const [s, o] = await Promise.allSettled([sessionApi.list(cid), jobApi.options(cid)])
+  const [s, o, a] = await Promise.allSettled([
+    sessionApi.list(cid),
+    jobApi.options(cid),
+    sessionApi.apps(),
+  ])
   sessions.value = s.status === 'fulfilled' ? s.value : []
   errors.value.list = s.status === 'rejected' ? s.reason : null
+  if (a.status === 'fulfilled') {
+    apps.value = a.value
+    // 고른 앱이 목록에 없으면(카탈로그 변경) 실행 가능한 첫 앱으로 되돌린다.
+    if (!a.value.some((x) => x.id === selectedApp.value && x.ready)) {
+      selectedApp.value = a.value.find((x) => x.ready)?.id ?? ''
+    }
+  }
   if (o.status === 'fulfilled') {
     partitions.value = o.value.partitions ?? []
     if (!form.value.partition && partitions.value.length) form.value.partition = partitions.value[0]
@@ -138,7 +147,7 @@ const inputClass =
       <!-- 카드를 눌러 앱을 고른다. 자원 폼과 제출 버튼은 공유한다. -->
       <div class="grid sm:grid-cols-4 gap-3 p-4 border-b border-line">
         <button
-          v-for="a in APPS"
+          v-for="a in apps"
           :key="a.id"
           type="button"
           :disabled="!a.ready"
@@ -156,7 +165,7 @@ const inputClass =
             <b class="text-[15px]">{{ a.name }}</b>
             <Fid :id="a.fid" />
           </div>
-          <p class="mt-1 text-[13px] text-ink-3">{{ a.desc }}</p>
+          <p class="mt-1 text-[13px] text-ink-3">{{ a.description }}</p>
           <Chip v-if="!a.ready" tone="gray" class="mt-2">준비 중</Chip>
           <Chip v-else-if="selectedApp === a.id" tone="brand" class="mt-2">선택됨</Chip>
         </button>
@@ -170,13 +179,24 @@ const inputClass =
             <option v-for="p in partitions" :key="p" :value="p">{{ p }}</option>
           </select>
         </label>
-        <label class="text-[13px] text-ink-3">
+        <!-- 노드 독점이면 Slurm이 노드 전체를 할당한다 — 여기서 정할 것이 없다 -->
+        <label class="text-[13px] text-ink-3" :class="{ 'opacity-50': form.exclusive }">
           CPU
-          <input v-model.number="form.cpus" type="number" min="1" :class="[inputClass, 'mono mt-1']" />
+          <input
+            v-if="!form.exclusive"
+            v-model.number="form.cpus" type="number" min="1"
+            :class="[inputClass, 'mono mt-1']"
+          />
+          <input v-else disabled :class="[inputClass, 'mono mt-1 bg-bg']" value="노드 전체" />
         </label>
-        <label class="text-[13px] text-ink-3">
+        <label class="text-[13px] text-ink-3" :class="{ 'opacity-50': form.exclusive }">
           메모리 (GB)
-          <input v-model.number="form.memory_gb" type="number" min="1" :class="[inputClass, 'mono mt-1']" />
+          <input
+            v-if="!form.exclusive"
+            v-model.number="form.memory_gb" type="number" min="1"
+            :class="[inputClass, 'mono mt-1']"
+          />
+          <input v-else disabled :class="[inputClass, 'mono mt-1 bg-bg']" value="노드 전체" />
         </label>
         <label class="text-[13px] text-ink-3">
           실행 시간
@@ -192,10 +212,12 @@ const inputClass =
         </label>
         <label class="sm:col-span-4 flex items-center gap-2 text-[13.5px] text-ink-2">
           <input v-model="form.exclusive" type="checkbox" />
-          노드 독점 (--exclusive) — 같은 노드의 다른 사용자가 이 세션에 접근할 수 없습니다
+          노드 독점 (--exclusive) — 워커 노드를 통째로 씁니다. CPU·메모리를 노드 전체로
+          잡고 다른 사용자의 작업이 배정되지 않아 렌더링 성능이 안정적이지만, 대기열이
+          길어질 수 있습니다
         </label>
         <Btn variant="primary" :disabled="submitting" @click="launch">
-          {{ submitting ? '제출 중…' : `${selected.name} 시작` }}
+          {{ submitting ? '제출 중…' : `${selected?.name ?? '앱'} 시작` }}
         </Btn>
       </div>
     </Card>

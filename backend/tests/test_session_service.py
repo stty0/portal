@@ -121,6 +121,23 @@ def test_create_sends_resources_in_the_rest_payload(service, cluster, owner, slu
     assert "USER=jrpark" in job["environment"]
 
 
+def test_exclusive_asks_for_the_whole_node(service, cluster, owner, slurm_client):
+    """독점은 노드 전체를 쓰겠다는 뜻이다 — 폼의 CPU·메모리 값이 그걸 깎으면 안 된다.
+
+    `--mem`은 독점과 무관하게 하드 캡이라, 그냥 두면 16코어 64GB 노드를 막아놓고
+    2코어 3GB만 쓰는 결과가 된다.
+    """
+    service.create(
+        cluster,
+        SessionSpec(image_ref=IMAGE, cpus=2, memory_gb=3, exclusive=True),
+        user=owner,
+    )
+    job = [c for c in slurm_client.calls if c[0] == "submit_job"][0][1]["spec"]["job"]
+    assert job["exclusive"] == "true"
+    assert "cpus_per_task" not in job
+    assert job["memory_per_node"] == 0  # 0 = 노드 메모리 전체
+
+
 def test_create_prepares_the_log_directory_under_the_home(service, cluster, owner):
     """Slurm은 로그 파일만 만들고 상위 디렉터리는 만들지 않는다.
 

@@ -46,6 +46,22 @@ def test_exclusive_is_opt_in():
     assert "#SBATCH --exclusive" in build_session_script(spec(exclusive=True))
 
 
+def test_exclusive_takes_the_whole_node_not_the_form_values():
+    """노드를 독점하면서 자원을 조금만 잡으면 나머지가 놀게 된다.
+
+    `--mem`은 독점과 무관하게 하드 캡이고, 코어 수는 `ConstrainCores` 설정에 따라
+    cpuset을 좁힐 수 있다 — 둘 다 노드를 막아놓고 일부만 쓰는 결과가 된다.
+    """
+    script = build_session_script(spec(exclusive=True, cpus=2, memory_gb=3))
+    assert "#SBATCH --cpus-per-task" not in script
+    assert "#SBATCH --mem=3G" not in script
+    assert "#SBATCH --mem=0" in script  # 0 = 노드 메모리 전체
+    # 독점이 아니면 폼 값을 그대로 쓴다.
+    normal = build_session_script(spec(cpus=2, memory_gb=3))
+    assert "#SBATCH --cpus-per-task=2" in normal
+    assert "#SBATCH --mem=3G" in normal
+
+
 def test_session_dir_is_under_the_home_on_shared_storage():
     # 워커가 쓰고 로그인 노드가 읽으므로 홈(공유 NFS) 아래여야 한다.
     script = build_session_script(spec())

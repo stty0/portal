@@ -40,11 +40,12 @@ from app.repositories.session import (
 )
 from app.services.audit import AuditService
 from app.services.cluster import ClusterService
-from app.services.files import ssh_target_for
+from app.services.files import home_dir_for, ssh_target_for
 from app.services.ws_auth import authenticate_ws_token
 # Job 응답 파싱은 JobService에서 이미 slurmrestd 버전별 형태를 흡수해 두었다.
 # 같은 응답을 다루므로 재사용한다 — 복제하면 한쪽만 고쳐지는 버그가 난다.
 from app.services.job import _as_job_list, _extract_job_id, _state_of, walltime_minutes
+from app.services.session_apps import image_ref as resolve_image_ref
 from app.services.session_script import (
     LOG_SUBDIR,
     SessionSpec,
@@ -89,11 +90,17 @@ class SessionService:
         )
 
     # --- 제출 (U-IA-01) --------------------------------------------------
+    def image_ref(self, cluster: Cluster, app: str) -> str:
+        """앱이 쓸 이미지. 클러스터는 **저장소**만 갖고 파일명은 앱 카탈로그가 안다."""
+        return resolve_image_ref(cluster.image_repository, app)
+
     def create(self, cluster: Cluster, spec: SessionSpec, *, user: User) -> InteractiveSession:
         script = build_session_script(spec)
 
         with self._connect(cluster) as ssh:
-            home = ssh.home_dir(user.username)
+            # 파일 브라우저와 **같은 해석**을 쓴다 — 갈리면 세션 산출물이 브라우저에
+            # 안 보이는 곳에 쌓인다.
+            home = home_dir_for(cluster, ssh, user.username)
             # Slurm은 로그 파일만 만들고 상위 디렉터리는 만들지 않는다.
             # 홈 자체는 만들지 않는다 — 없으면 그 사실이 오류로 올라온다.
             ssh.makedirs(user.username, home, LOG_SUBDIR)
@@ -246,7 +253,7 @@ class SessionService:
     def _connection_file(self, record: InteractiveSession, *, user: User) -> dict[str, Any] | None:
         cluster = self.clusters.get(record.cluster_id)
         with self._connect(cluster) as ssh:
-            home = ssh.home_dir(user.username)
+            home = home_dir_for(cluster, ssh, user.username)
             path = f"{session_dir(home, record.slurm_job_id)}/connection.json"
             raw = ssh.read_text(user.username, path)
         if not raw:
@@ -295,13 +302,20 @@ def _job_properties(spec: SessionSpec, *, home: str, username: str) -> dict[str,
         "standard_output": log_path(home),
         "standard_error": log_path(home),
     }
+    # 노드 독점이면 자원 지정을 **하지 않는다**. Slurm이 노드의 CPU를 통째로 할당하므로
+    # 코어 수는 의미가 없고, `ConstrainCores` 설정에 따라서는 오히려 그 값으로 cpuset이
+    # 좁혀져 16코어 노드를 잡아놓고 2코어만 쓰게 된다.
+    # 메모리는 더 분명하다 — `--mem`은 독점과 무관하게 하드 캡이라 그냥 두면 노드를
+    # 막아놓고 일부만 쓴다. 0이 "노드 메모리 전체"다.
+    cpus = None if spec.exclusive else spec.cpus
+    memory_mb = 0 if spec.exclusive else (spec.memory_gb * 1024 if spec.memory_gb else None)
     for key, value in (
         ("partition", spec.partition),
         ("account", spec.account),
         ("qos", spec.qos),
-        ("cpus_per_task", spec.cpus),
+        ("cpus_per_task", cpus),
         # 메모리는 MB 정수
-        ("memory_per_node", spec.memory_gb * 1024 if spec.memory_gb else None),
+        ("memory_per_node", memory_mb),
         # time_limit은 분 단위 정수 — 문자열이면 9202로 거부된다.
         ("time_limit", walltime_minutes(spec.walltime) if spec.walltime else None),
     ):

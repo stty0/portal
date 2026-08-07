@@ -35,7 +35,19 @@ export interface SessionConnectInfo {
   geometry: string | null
 }
 
+/** U-IA-01 런처의 선택지. 목록은 백엔드 카탈로그가 단일 출처다. */
+export interface InteractiveApp {
+  id: string
+  name: string
+  description: string
+  /** 기능 정의서 ID — 화면의 Fid 매핑에 쓴다. */
+  fid: string
+  /** 아직 제공하지 않는 앱은 보여주되 고를 수 없다. */
+  ready: boolean
+}
+
 export const sessionApi = {
+  apps: () => api.get<InteractiveApp[]>('/interactive-apps'),
   create: (cid: number, payload: SessionCreate) =>
     api.post<Session>(`/clusters/${cid}/sessions`, payload),
   list: (cid: number) => api.get<Session[]>(`/clusters/${cid}/sessions`),

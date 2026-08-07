@@ -75,8 +75,8 @@ def build_session_script(spec: SessionSpec) -> str:
     """
     if not spec.image_ref:
         raise ValidationFailed(
-            "클러스터에 데스크톱 이미지가 설정되어 있지 않습니다.",
-            detail={"field": "desktop_image_ref"},
+            "세션 이미지가 정해지지 않았습니다.",
+            detail={"field": "image_repository"},
         )
     if not _GEOMETRY_RE.match(spec.geometry):
         raise ValidationFailed(
@@ -86,14 +86,18 @@ def build_session_script(spec: SessionSpec) -> str:
     if not _APP_RE.match(spec.app):
         raise ValidationFailed("앱 이름이 올바르지 않습니다.", detail={"app": spec.app})
 
+    # 노드 독점이면 코어 수를 적지 않고 메모리는 0(=노드 전체)으로 연다.
+    # 이유는 `_job_properties`(services/session.py)에 적어 두었다 — 실제 자원은 REST
+    # 페이로드가 정하고, 여기 지시자는 스크립트를 손으로 sbatch할 때를 위한 기록이므로
+    # **양쪽이 같은 규칙을 써야** 결과가 갈리지 않는다.
     directives = ["#!/bin/bash"]
     for flag, value in (
         ("--job-name", f"portal-{spec.app}"),
         ("--partition", spec.partition),
         ("--account", spec.account),
         ("--qos", spec.qos),
-        ("--cpus-per-task", spec.cpus),
-        ("--mem", f"{spec.memory_gb}G" if spec.memory_gb else None),
+        ("--cpus-per-task", None if spec.exclusive else spec.cpus),
+        ("--mem", "0" if spec.exclusive else (f"{spec.memory_gb}G" if spec.memory_gb else None)),
         ("--time", spec.walltime),
     ):
         if value not in (None, ""):

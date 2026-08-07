@@ -22,9 +22,15 @@ from app.core.deps import (
 from app.core.errors import PortalError
 from app.db.session import get_session_factory
 from app.schemas.common import OkResponse
-from app.schemas.session import SessionConnectInfo, SessionCreate, SessionOut
+from app.schemas.session import (
+    InteractiveAppOut,
+    SessionConnectInfo,
+    SessionCreate,
+    SessionOut,
+)
 from app.services.cluster import ClusterService
 from app.services.session import SessionService
+from app.services.session_apps import APPS
 from app.services.session_script import SessionSpec
 
 router = APIRouter(tags=["sessions"])
@@ -44,6 +50,24 @@ def _service(
 SessionServiceDep = Annotated[SessionService, Depends(_service)]
 
 
+@router.get(
+    "/interactive-apps",
+    response_model=list[InteractiveAppOut],
+    summary="인터랙티브 앱 목록 (U-IA-01)",
+)
+def list_interactive_apps(user: CurrentUser) -> list[InteractiveAppOut]:
+    """앱 목록의 단일 출처. 프론트엔드가 같은 배열을 또 갖지 않게 한다.
+
+    예정된 앱(`ready=false`)도 함께 내려보낸다 — 런처가 보여주되 고를 수 없게 한다.
+    """
+    return [
+        InteractiveAppOut(
+            id=a.id, name=a.name, description=a.description, fid=a.fid, ready=a.ready
+        )
+        for a in APPS
+    ]
+
+
 @router.post(
     "/clusters/{cid}/sessions",
     response_model=SessionOut,
@@ -55,7 +79,7 @@ def create_session(
 ) -> SessionOut:
     cluster = service.clusters.get(cid)
     spec = SessionSpec(
-        image_ref=cluster.desktop_image_ref or "",
+        image_ref=service.image_ref(cluster, payload.app),
         app=payload.app,
         partition=payload.partition,
         account=payload.account,

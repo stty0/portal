@@ -29,6 +29,11 @@ export XDG_RUNTIME_DIR="${TMPDIR:-/tmp}/portal-rt-$(id -u)-${SLURM_JOB_ID:-$$}"
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 
+# X 접근 제어 쿠키도 여기 둔다. NFS 홈에 두면 세션끼리 섞이고 xauth 락 파일이 문제가 된다.
+# 디렉터리가 700이라 같은 노드의 다른 사용자는 쿠키를 읽지 못한다.
+# **cleanup보다 먼저 정해야 한다** — set -u 아래에서 trap이 이 변수를 읽는다.
+export XAUTHORITY="$XDG_RUNTIME_DIR/Xauthority"
+
 # machine-id가 비면 dbus가 죽는다. --writable-tmpfs 위에 만든다.
 if [ ! -s /etc/machine-id ]; then
     dbus-uuidgen > /etc/machine-id 2>/dev/null || true
@@ -37,6 +42,8 @@ fi
 cleanup() {
     # 접속 정보를 남겨두면 죽은 세션에 붙으려 한다.
     rm -f "$CONN_FILE"
+    # 쿠키는 자격증명이다 — 세션이 끝나면 남기지 않는다(-l/-c는 xauth 락 파일).
+    rm -f "$XAUTHORITY" "$XAUTHORITY-l" "$XAUTHORITY-c"
     if [ -n "$XVNC_PID" ]; then
         kill "$XVNC_PID" 2>/dev/null || true
     fi
@@ -63,6 +70,18 @@ umask 077
     printf '%s' "$VNC_VIEW_PASSWORD" | vncpasswd -f
 } > "$PASSWD_FILE"
 
+# --- X 접근 제어 ------------------------------------------------------
+# **-auth 없이 띄우면 X 서버가 로컬 연결을 인증 없이 받는다.** 같은 노드에 Job이 있는
+# 다른 사용자가 유닉스 소켓(/tmp/.X11-unix/X<n>, srwxrwxrwx)으로 붙어 화면을 캡처하고
+# 키 입력까지 주입할 수 있다(실측 — 캡처·주입 모두 성공했다).
+#
+# RFB 비밀번호는 이 경로를 막지 못한다. 그건 VNC 프로토콜 인증이고, 여기는 X 프로토콜이다.
+: > "$XAUTHORITY"
+chmod 600 "$XAUTHORITY"
+# 128비트. `/dev/urandom | tr | head` 형태는 쓰지 않는다 — head가 먼저 끝나며 SIGPIPE로
+# 조용히 죽는다(실제로 겪음). od가 -N으로 유한 바이트만 읽는다.
+XCOOKIE="$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+
 # --- Xvnc 기동 --------------------------------------------------------
 # 빈 포트를 미리 탐색하고 나중에 bind하면 그 사이에 경쟁이 난다.
 # Xvnc가 직접 bind하게 하고 실패하면 다음 포트로 넘어간다 — bind는 원자적이다.
@@ -70,9 +89,13 @@ PORT=""
 DISPLAY_NUM=""
 for ((p = PORT_MIN; p <= PORT_MAX; p++)); do
     d=$((p - 5900))
+    # 쿠키는 Xvnc가 뜨기 **전에** 있어야 한다. 포트가 막혀 건너뛴 디스플레이의 잔여
+    # 항목은 무해하다 — 파일이 600이고 세션 전용이며 노드 로컬이다.
+    xauth -q -f "$XAUTHORITY" add ":$d" MIT-MAGIC-COOKIE-1 "$XCOOKIE" 2>/dev/null || true
     Xvnc ":$d" \
         -rfbport "$p" \
         -rfbauth "$PASSWD_FILE" \
+        -auth "$XAUTHORITY" \
         -geometry "$GEOMETRY" \
         -depth 24 \
         -SecurityTypes VncAuth \

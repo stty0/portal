@@ -2,8 +2,12 @@
 
 Rocky 9 + MATE + TigerVNC + ParaView. 워커 노드에서 Apptainer로 실행된다.
 
-**이미지는 하나이고 앱은 `PORTAL_APP`으로 고른다.** 클러스터 설정의 이미지 참조
-(`desktop_image_ref`)가 필드 하나라, 앱마다 SIF를 나누면 운영이 복잡해진다.
+**이 이미지 안에서는 앱을 `PORTAL_APP`으로 고른다.** MATE와 ParaView가 함께 들어 있어
+지금은 두 앱이 같은 SIF를 쓴다 — 데스크톱 위에서 도는 앱이라 기반이 겹치기 때문이다.
+
+앱마다 이미지를 나누는 것도 가능하다. 클러스터 설정은 이미지가 **있는 곳**
+(`image_repository`)만 갖고, 앱↔이미지 매핑은 포털의 앱 카탈로그
+(`backend/app/services/session_apps.py`)에 있다. 나눌 때는 그 표의 `image`만 바꾼다.
 
 | `PORTAL_APP` | 실행되는 것 |
 |---|---|
@@ -20,12 +24,12 @@ dev01에서 빌드한다. `/home`이 dev01·slurm01·slurm02에서 같은 NFS라
 노드에서 같은 경로로 바로 보인다(개발 단계 배포 = 복사 불필요).
 
 ```bash
-sudo docker build -t rocky9-mate:1.4 deploy/images/rocky9-mate/
+sudo docker build -t rocky9-mate:1.5 deploy/images/rocky9-mate/
 
 sudo APPTAINER_TMPDIR=/home/portal/.tmp \
   apptainer build --force \
-  /home/portal/images/rocky9-mate-1.4.sif \
-  docker-daemon://rocky9-mate:1.4
+  /home/portal/images/rocky9-mate-1.5.sif \
+  docker-daemon://rocky9-mate:1.5
 ```
 
 **버전을 파일명에 박는다.** 실행 중인 세션이 SIF를 mmap하고 있어 같은 경로에 덮어쓰면
@@ -39,7 +43,7 @@ sudo APPTAINER_TMPDIR=/home/portal/.tmp \
 ```bash
 export PORTAL_SESSION_DIR=$HOME/.portal/sessions/$SLURM_JOB_ID
 apptainer exec --writable-tmpfs --bind /var/lib/sss/pipes \
-  /home/portal/images/rocky9-mate-1.4.sif \
+  /home/portal/images/rocky9-mate-1.5.sif \
   /opt/portal/start-desktop.sh
 ```
 
@@ -118,7 +122,39 @@ Rocky 9의 `/etc/nsswitch.conf`는 이미 `passwd: sss files systemd`라 수정�
   `scancel`의 SIGTERM이 컨테이너 안까지 닿지 않는다(실측 — 직접 SIGTERM을 주면 동작).
   접속 정보 삭제는 Slurm이 직접 신호를 주는 **호스트 쪽 Job 스크립트**가 책임진다.
 - Xvnc는 `-localhost no`로 연다. 워커가 분리되면 로그인 노드에서 닿아야 하기 때문이다
-  (§3.4). 방어는 세션별 랜덤 비밀번호다.
+  (§3.4). 방어는 세션별 랜덤 비밀번호다. **노드를 분리하기 전에 재검토해야 한다** —
+  로그인 노드→워커 구간이 평문이라 그때부터 화면·키 입력이 네트워크에 노출된다
+  (docs/plan.md §3.4 "전제조건").
+- **`-auth`를 빼면 안 된다.** 아래 "X 접근 제어" 참조 — 빼는 순간 같은 노드의 다른
+  사용자가 인증 없이 화면을 보고 키를 넣을 수 있다.
+
+## X 접근 제어 (MIT-MAGIC-COOKIE)
+
+**RFB 비밀번호는 X 프로토콜을 막지 못한다.** 그건 VNC 접속 인증이고, X 서버에는 유닉스
+소켓(`/tmp/.X11-unix/X<n>`, `srwxrwxrwx`)이라는 별도 입구가 있다. `-auth` 없이 띄우면
+X 서버는 그 입구로 오는 로컬 연결을 **인증 없이 받는다.** 1.4까지가 그랬고, 실측 결과다.
+
+```
+1.4 (-auth 없음)                     1.5 (-auth 있음)
+intruder 계정 xdpyinfo    → 성공      → unable to open display ":1"
+화면 캡처                 → 성공(191KB) → unable to open X server
+키 입력 주입              → 성공      → Failed creating new xdo instance
+쿠키 파일 읽기            → (해당 없음) → Permission denied
+```
+
+그래서 `start-desktop.sh`가 Xvnc를 띄우기 전에 128비트 쿠키를 만들어 `-auth`로 넘긴다.
+
+- 쿠키는 **노드 로컬**(`$XDG_RUNTIME_DIR/Xauthority`, 파일 600 / 디렉터리 700)에 둔다.
+  NFS 홈에 두면 세션끼리 섞이고 xauth 락 파일이 문제가 된다.
+- **포트 탐색 루프 안에서** 시도할 디스플레이마다 등록한다 — 포트가 막히면 다음 후보로
+  넘어가는 구조라 쿠키가 Xvnc보다 먼저 있어야 한다. 건너뛴 디스플레이의 잔여 항목은 무해하다.
+- `XAUTHORITY`를 export하므로 marco·tint2·ParaView·mate-session이 그대로 물려받는다.
+  **이걸 못 물려받으면 GUI가 아예 안 뜬다** — 이 부분을 건드릴 때의 주된 회귀 위험이다.
+- 세션이 끝나면 쿠키를 지운다(자격증명이다).
+
+`--exclusive`는 **자원 옵션이지 접근 제어가 아니다.** 1.4까지는 그것이 사실상 유일한
+방어선이었지만(같은 노드에 다른 사용자가 없으면 노출도 없으므로), 그건 인과가 뒤바뀐
+상태였다. 이제 방어는 쿠키가 하고 `--exclusive`는 성능 옵션으로 돌아갔다.
 
 ## 무해한 경고
 
@@ -221,4 +257,10 @@ PORTAL_APP=paraview → paraview + marco 프로세스 확인, GLX llvmpipe OpenG
              xdotool로 최소화 → 막대에 "ParaView 5.11.1" 버튼 남음 → 활성화하니
              최대화 상태 그대로 복귀
   desktop  : 같은 네 값 기본값, tint2 안 뜸(mate-panel 상·하단만)
+
+1.5 X 접근 제어 (dev01 docker, 1.4에서 성공했던 공격을 그대로 재현)
+  다른 사용자: xdpyinfo·화면 캡처·키 입력 주입·쿠키 파일 읽기 전부 거부됨
+  세션 본인  : Xvnc·paraview·marco·tint2 정상 기동, 쿠키를 주면 wmctrl 정상
+  desktop    : mate-session·mate-panel 정상 기동
+  쿠키 600 / XDG_RUNTIME_DIR 700
 ```
