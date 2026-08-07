@@ -28,6 +28,13 @@ KIND_SLURM_JWT = "SLURM_JWT"
 KIND_SSH_KEY = "SSH_KEY"
 
 
+#: 포털이 노출하는 노드 상태 전이. Slurm은 더 많은 값을 받지만, 운영 화면에서 필요한
+#: 것만 연다 — 넓게 열면 오타 하나로 노드를 이상한 상태에 빠뜨릴 수 있다.
+NODE_STATES = {"DRAIN", "RESUME", "DOWN", "UNDRAIN"}
+#: 사유 없이는 나중에 "왜 빠져 있지?"에 답할 수 없는 전이.
+NODE_STATES_NEEDING_REASON = {"DRAIN", "DOWN"}
+
+
 class ClusterService:
     def __init__(
         self,
@@ -54,14 +61,17 @@ class ClusterService:
         return cluster
 
     # --- 등록/수정 ------------------------------------------------------
-    def create(self, *, actor: User, name: str, **fields) -> Cluster:
-        if self.clusters.get_by_name(name):
-            raise Conflict("같은 이름의 클러스터가 이미 등록되어 있습니다.", detail={"name": name})
-        cluster = Cluster(name=name, **{k: v for k, v in fields.items() if v is not None})
+    def create(self, *, actor: User, alias: str, **fields) -> Cluster:
+        """이름 없이 등록한다 — slurm.conf `ClusterName`은 REST 연결 테스트가 채운다.
+
+        중복 검사도 그때 걸린다(`name`이 UNIQUE). 등록 시점에 사람이 지은 이름으로
+        중복을 판정하면, 정작 실제 이름이 겹치는 경우를 못 잡는다.
+        """
+        cluster = Cluster(alias=alias, **{k: v for k, v in fields.items() if v is not None})
         self.clusters.add(cluster)
         if cluster.is_default:
             self.clusters.clear_default(except_id=cluster.id)
-        self.audit.record(actor=actor, action="CLUSTER_CREATE", target=name, cluster_id=cluster.id)
+        self.audit.record(actor=actor, action="CLUSTER_CREATE", target=alias, cluster_id=cluster.id)
         self.session.commit()
         return cluster
 
@@ -80,7 +90,7 @@ class ClusterService:
         self.audit.record(
             actor=actor,
             action="CLUSTER_UPDATE",
-            target=cluster.name,
+            target=label_of(cluster),
             cluster_id=cluster.id,
             detail=", ".join(changed),
         )
@@ -94,7 +104,7 @@ class ClusterService:
         cluster.is_default = False
         self.clients.invalidate(cluster.id)
         self.audit.record(
-            actor=actor, action="CLUSTER_DEACTIVATE", target=cluster.name, cluster_id=cluster.id
+            actor=actor, action="CLUSTER_DEACTIVATE", target=label_of(cluster), cluster_id=cluster.id
         )
         self.session.commit()
 
@@ -117,14 +127,14 @@ class ClusterService:
                 detail=references,
             )
 
-        name = cluster.name
+        label = label_of(cluster)
         # cluster_credential 행은 관계의 cascade가 지운다. 여기선 Secret 저장소의 실값을 파기한다.
         for credential in self.credentials.list_for_cluster(cluster_id):
             self.secrets.delete(credential.secret_ref)
         self.clients.invalidate(cluster_id)
         self.clusters.delete(cluster)
         # 삭제 기록 자체는 cluster_id를 남기지 않는다 — 방금 지운 행을 가리킬 수 없다.
-        self.audit.record(actor=actor, action="CLUSTER_PURGE", target=name)
+        self.audit.record(actor=actor, action="CLUSTER_PURGE", target=label)
         self.session.commit()
 
     # --- 자격증명 -------------------------------------------------------
@@ -149,7 +159,7 @@ class ClusterService:
         self.audit.record(
             actor=actor,
             action="CLUSTER_CREDENTIAL_PUT",
-            target=cluster.name,
+            target=label_of(cluster),
             cluster_id=cluster.id,
             detail=f"kind={kind}",  # 값은 기록하지 않는다
         )
@@ -178,7 +188,17 @@ class ClusterService:
             raise
         detected = _extract_cluster_name(payload)
         if detected and cluster.name != detected:
-            # 손 입력 불일치 제거: slurm.conf의 ClusterName을 정본으로 삼는다.
+            # slurm.conf의 ClusterName이 정본이다. 이름은 여기서 처음 정해진다.
+            # **중복 판정도 여기다** — 사람이 지은 이름이 아니라 실제 이름이 겹치는지가
+            # 문제이고, 그건 연결해 보기 전에는 알 수 없다.
+            other = self.clusters.get_by_name(detected)
+            if other is not None and other.id != cluster.id:
+                self._record_health(cluster, ok=True, actor=actor)
+                self.session.commit()
+                raise Conflict(
+                    f"'{detected}' 클러스터가 이미 등록되어 있습니다.",
+                    detail={"cluster_name": detected, "registered_id": other.id},
+                )
             cluster.name = detected
         self._record_health(cluster, ok=True, actor=actor)
         return {"ok": True, "cluster_name": cluster.name, "api_version": cluster.api_version}
@@ -192,6 +212,70 @@ class ClusterService:
 
     def reservations(self, cluster_id: int) -> list[dict[str, Any]]:
         return _items(self.slurm_client(self.get(cluster_id)).get_reservations(), "reservations")
+
+    # --- 노드 상태 제어 (A-ND-01) ----------------------------------------
+    def set_node_state(
+        self, cluster_id: int, name: str, *, actor: User, state: str, reason: str | None
+    ) -> dict[str, Any]:
+        """노드를 drain / resume / down 시킨다.
+
+        `DRAIN`·`DOWN`은 **사유를 요구한다** — Slurm이 사유를 노드에 붙여 두고,
+        나중에 "왜 빠져 있지?"를 답하는 유일한 단서가 된다. 여기서 막지 않으면
+        slurmrestd가 거부하거나 빈 사유가 그대로 남는다.
+        """
+        cluster = self.get(cluster_id)
+        target = state.upper()
+        if target not in NODE_STATES:
+            raise ValidationFailed(
+                "지원하지 않는 노드 상태입니다.",
+                detail={"state": state, "supported": sorted(NODE_STATES)},
+            )
+        text = (reason or "").strip()
+        if target in NODE_STATES_NEEDING_REASON and not text:
+            raise ValidationFailed("사유를 입력하세요.", detail={"state": target})
+
+        patch: dict[str, Any] = {"state": [target]}
+        if text:
+            patch["reason"] = text
+        payload = self.slurm_client(cluster).update_node(name, patch)
+        _raise_on_errors(payload)
+        self.audit.record(
+            actor=actor,
+            action="NODE_STATE",
+            target=name,
+            cluster_id=cluster.id,
+            detail=f"{target}{f' — {text}' if text else ''}",
+        )
+        self.session.commit()
+        return {"ok": True, "node": name, "state": target}
+
+    # --- 예약 (A-ND-04) ---------------------------------------------------
+    def create_reservation(
+        self, cluster_id: int, *, actor: User, name: str, desc: dict[str, Any], summary: str
+    ) -> dict[str, Any]:
+        """예약 생성. 요청 본문 조립·검증은 스키마가 끝내고 여기는 호출과 기록만 한다."""
+        cluster = self.get(cluster_id)
+        payload = self.slurm_client(cluster).create_reservation(desc)
+        _raise_on_errors(payload)
+        self.audit.record(
+            actor=actor,
+            action="RESERVATION_CREATE",
+            target=name,
+            cluster_id=cluster.id,
+            detail=summary,
+        )
+        self.session.commit()
+        return {"ok": True, "name": name}
+
+    def delete_reservation(self, cluster_id: int, name: str, *, actor: User) -> dict[str, Any]:
+        cluster = self.get(cluster_id)
+        payload = self.slurm_client(cluster).delete_reservation(name)
+        _raise_on_errors(payload)
+        self.audit.record(
+            actor=actor, action="RESERVATION_DELETE", target=name, cluster_id=cluster.id
+        )
+        self.session.commit()
+        return {"ok": True, "name": name}
 
     def accounts(self, cluster_id: int) -> list[dict[str, Any]]:
         """Slurm 계정과 소속 사용자 매핑 (A-US-02).
@@ -462,7 +546,7 @@ class ClusterService:
         self.audit.record(
             actor=actor,
             action="CLUSTER_TEST_REST",
-            target=cluster.name,
+            target=label_of(cluster),
             cluster_id=cluster.id,
             detail="ok" if ok else "failed",
         )
@@ -476,6 +560,15 @@ def _dig(source: Any, *keys: str) -> Any:
             return None
         source = source.get(key)
     return source
+
+
+def label_of(cluster: Cluster) -> str:
+    """감사 로그·오류 메시지에 쓸 표시명.
+
+    이름은 REST 연결 테스트 전까지 비어 있으므로 별칭이 대신한다. 둘 다 없으면
+    행 번호라도 남긴다 — 감사 기록에 빈 대상이 남으면 나중에 추적할 수 없다.
+    """
+    return cluster.name or cluster.alias or f"cluster#{cluster.id}"
 
 
 def _number(value: Any) -> int | float | None:

@@ -20,7 +20,10 @@ export const useClusterStore = defineStore('cluster', () => {
   const selected = computed(
     () => clusters.value.find((c) => c.id === selectedId.value) ?? null,
   )
-  const selectedName = computed(() => selected.value?.name ?? '—')
+  /** 화면 부제목용 표시명. 이름은 REST 연결 전까지 없으므로 별칭이 먼저다. */
+  const selectedName = computed(
+    () => selected.value?.alias || selected.value?.name || '—',
+  )
 
   async function load(): Promise<void> {
     clusters.value = await clusterApi.list()

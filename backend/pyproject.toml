@@ -9,6 +9,8 @@ description = "Slurm HPC Portal — FastAPI backend"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
+    # multipart 업로드(U-FM-02). FastAPI의 Form/File은 이게 없으면 기동 시점에 죽는다.
+    "python-multipart>=0.0.9",
     "uvicorn[standard]>=0.30",
     "sqlalchemy>=2.0",
     "alembic>=1.13",

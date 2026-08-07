@@ -22,7 +22,7 @@ class SlurmrestdClient(BaseHttpClient):
         base_url: str,
         *,
         token_provider,
-        api_version: str = "v0.0.41",
+        api_version: str = "v0.0.43",
         timeout: float = 10.0,
         max_retries: int = 2,
         transport: httpx.BaseTransport | None = None,
@@ -78,11 +78,31 @@ class SlurmrestdClient(BaseHttpClient):
     def get_node(self, name: str, *, as_user: str | None = None) -> Any:
         return self._call("GET", "slurm", f"/node/{name}", as_user=as_user)
 
+    def update_node(self, name: str, patch: dict[str, Any]) -> Any:
+        """노드 상태 변경 (A-ND-01).
+
+        **사용자로 위장하지 않는다** — 노드 제어는 운영자 권한이 필요해서 일반 사용자로
+        위장하면 거부된다(계정 쓰기와 같은 이유). 토큰 소유자 권한으로 수행하고
+        "누가 시켰는가"는 포털 RBAC(ADMIN 전용)와 감사 로그가 남긴다.
+        """
+        return self._call("POST", "slurm", f"/node/{name}", as_user=None, json=patch)
+
     def get_partitions(self, *, as_user: str | None = None) -> Any:
         return self._call("GET", "slurm", "/partitions", as_user=as_user)
 
     def get_reservations(self, *, as_user: str | None = None) -> Any:
         return self._call("GET", "slurm", "/reservations", as_user=as_user)
+
+    def create_reservation(self, desc: dict[str, Any]) -> Any:
+        """예약 생성 (A-ND-04). **v0.0.43에만 있는 엔드포인트다** — 0.0.40~0.0.42는
+        조회·삭제만 연다(실측). 포털이 0.0.43에 고정된 이유가 이것이다.
+
+        노드 제어와 같이 **위장하지 않는다** — 운영자 권한이 필요하다.
+        """
+        return self._call("POST", "slurm", "/reservation", as_user=None, json=desc)
+
+    def delete_reservation(self, name: str) -> Any:
+        return self._call("DELETE", "slurm", f"/reservation/{name}", as_user=None)
 
     # --- slurmdbd 그룹 (Architecture.md §2.2, = sacct/sacctmgr/sreport) --
     def get_accounting_jobs(self, *, as_user: str | None = None, **params) -> Any:

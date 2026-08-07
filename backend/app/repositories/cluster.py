@@ -2,14 +2,14 @@
 
 from sqlalchemy import func, select
 
-from app.models import AdConnection, AuditLog, Cluster, ClusterCredential, InteractiveSession, Notice, User
+from app.models import AdConnection, AuditLog, Cluster, ClusterCredential, InteractiveSession, User
 from app.repositories.base import BaseRepository
 
 #: 완전 삭제를 막는 참조들. cluster_credential은 클러스터 소유물이라 제외한다.
+#: 공지는 **포털 전체 대상**이라 클러스터를 참조하지 않는다 — 여기서 빠진 이유다.
 CLUSTER_REFERENCES: tuple[tuple[str, type, object], ...] = (
     ("감사 로그", AuditLog, AuditLog.target_cluster_id),
     ("인터랙티브 세션", InteractiveSession, InteractiveSession.cluster_id),
-    ("공지", Notice, Notice.target_cluster_id),
     ("기본 클러스터로 지정한 사용자", User, User.default_cluster_id),
 )
 

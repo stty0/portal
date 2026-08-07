@@ -186,7 +186,7 @@ def cluster(db, secret_store) -> Cluster:
     c = Cluster(
         name="seoul-hpc",
         slurmrestd_url="http://slurmrestd.local:6820",
-        api_version="v0.0.41",
+        api_version="v0.0.43",
         auth_method="jwt",
         is_default=True,
         is_active=True,

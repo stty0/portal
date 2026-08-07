@@ -62,7 +62,23 @@ export interface ClusterEvent {
   detail: string | null
 }
 
+export interface ReservationCreate {
+  name: string
+  /** epoch 초. 화면은 로컬 시각 입력을 변환해 보낸다. */
+  start_time: number
+  duration_minutes: number
+  node_list?: string | null
+  node_count?: number | null
+  partition?: string | null
+  users?: string | null
+  accounts?: string | null
+  flags?: string[]
+  comment?: string | null
+}
+
 export const clusterApi = {
+  /** 등록 폼의 API 버전 선택지. 목록은 서버가 단일 출처다. */
+  apiVersions: () => api.get<string[]>('/cluster-api-versions'),
   /** includeInactive는 관리 화면 전용 — 사용자 선택 목록에는 활성 클러스터만 내려온다. */
   list: (includeInactive = false) =>
     api.get<ClusterSummary[]>(`/clusters${includeInactive ? '?include_inactive=true' : ''}`),
@@ -77,6 +93,22 @@ export const clusterApi = {
   testRest: (cid: number) => api.post<RestTestResult>(`/clusters/${cid}/test-rest`),
   /** slurmrestd 원본을 그대로 받는다 — 필드가 버전마다 달라 타입을 고정하지 않는다. */
   nodes: (cid: number) => api.get<SlurmRecord[]>(`/clusters/${cid}/nodes`),
+  /**
+   * A-ND-04 예약 생성. 숫자는 서버가 slurmrestd의 `{set,infinite,number}` 래퍼로 감싼다.
+   * `node_list`나 `node_count` 중 하나는 필수다(없으면 클러스터 전체를 잡을 수 있다).
+   */
+  createReservation: (cid: number, body: ReservationCreate) =>
+    api.post<{ ok: boolean; name: string }>(`/clusters/${cid}/reservations`, body),
+  deleteReservation: (cid: number, name: string) =>
+    api.del<{ ok: boolean; name: string }>(
+      `/clusters/${cid}/reservations/${encodeURIComponent(name)}`,
+    ),
+  /** A-ND-01 노드 상태 제어. drain·down은 사유가 필수다(서버가 강제). */
+  setNodeState: (cid: number, name: string, state: string, reason?: string) =>
+    api.post<{ ok: boolean; node: string; state: string }>(
+      `/clusters/${cid}/nodes/${encodeURIComponent(name)}/state`,
+      { state, reason: reason || null },
+    ),
   partitions: (cid: number) => api.get<SlurmRecord[]>(`/clusters/${cid}/partitions`),
   reservations: (cid: number) => api.get<SlurmRecord[]>(`/clusters/${cid}/reservations`),
   accounts: (cid: number) => api.get<SlurmAccount[]>(`/clusters/${cid}/accounts`),

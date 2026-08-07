@@ -104,6 +104,10 @@ class FakeSlurmClient:
         self.jobs = list(jobs or [])
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.cancelled: list[str] = []
+        #: 테스트가 갈아끼울 수 있게 필드로 둔다(GPU 파티션 판별 등).
+        self.nodes_payload: dict[str, Any] = {
+            "nodes": [{"name": "cn01", "state": ["IDLE"], "cpus": 8}], "errors": []
+        }
         self.next_job_id = "90001"
         # slurmdbd 쓰기는 HTTP 200으로도 본문 errors로 실패를 알린다 — 그 상황 재현용
         self.write_errors: list[dict[str, Any]] = []
@@ -138,7 +142,19 @@ class FakeSlurmClient:
 
     def get_nodes(self, *, as_user=None):
         self._record("get_nodes", as_user=as_user)
-        return {"nodes": [{"name": "cn01", "state": ["IDLE"], "cpus": 8}], "errors": []}
+        return self.nodes_payload
+
+    def update_node(self, name, patch):
+        self._record("update_node", node=name, patch=patch)
+        return {"errors": [], "warnings": []}
+
+    def create_reservation(self, desc):
+        self._record("create_reservation", desc=desc)
+        return {"errors": [], "warnings": []}
+
+    def delete_reservation(self, name):
+        self._record("delete_reservation", reservation=name)
+        return {"errors": [], "warnings": []}
 
     def get_partitions(self, *, as_user=None):
         self._record("get_partitions", as_user=as_user)

@@ -17,12 +17,15 @@ from app.core.deps import (
     is_admin,
 )
 from app.schemas.cluster import (
+    SUPPORTED_API_VERSIONS,
     ClusterCreate,
     ClusterOut,
     ClusterSummary,
     ClusterUpdate,
     CredentialOut,
     CredentialPut,
+    NodeStateIn,
+    ReservationSpec,
     RestTestResult,
 )
 from app.schemas.cluster import (
@@ -44,6 +47,19 @@ def _service(
 
 
 ClusterServiceDep = Annotated[ClusterService, Depends(_service)]
+
+
+@router.get(
+    "/cluster-api-versions",
+    response_model=list[str],
+    summary="지원하는 slurmrestd API 버전 (A-CL-02)",
+)
+def list_api_versions(actor: AdminUser) -> list[str]:
+    """등록 폼의 선택지. 화면이 목록을 따로 갖지 않게 서버가 준다.
+
+    응답 파싱이 버전에 묶여 있어 늘리려면 코드 변경이 따라온다 — 그래서 상수다.
+    """
+    return list(SUPPORTED_API_VERSIONS)
 
 
 @router.get("/clusters", response_model=list[ClusterSummary], summary="클러스터 목록")
@@ -235,6 +251,31 @@ def delete_qos(
     cid: int, name: str, actor: AdminUser, service: ClusterServiceDep
 ) -> dict[str, Any]:
     return service.delete_qos(cid, name, actor=actor)
+
+
+@router.post("/clusters/{cid}/nodes/{name}/state", summary="노드 상태 제어 (A-ND-01)")
+def set_node_state(
+    cid: int, name: str, payload: NodeStateIn, actor: AdminUser, service: ClusterServiceDep
+) -> dict[str, Any]:
+    return service.set_node_state(
+        cid, name, actor=actor, state=payload.state, reason=payload.reason
+    )
+
+
+@router.post("/clusters/{cid}/reservations", status_code=201, summary="예약 생성 (A-ND-04)")
+def create_reservation(
+    cid: int, payload: ReservationSpec, actor: AdminUser, service: ClusterServiceDep
+) -> dict[str, Any]:
+    return service.create_reservation(
+        cid, actor=actor, name=payload.name, desc=payload.to_slurm(), summary=payload.summary()
+    )
+
+
+@router.delete("/clusters/{cid}/reservations/{name}", summary="예약 삭제 (A-ND-04)")
+def delete_reservation(
+    cid: int, name: str, actor: AdminUser, service: ClusterServiceDep
+) -> dict[str, Any]:
+    return service.delete_reservation(cid, name, actor=actor)
 
 
 @router.get("/clusters/{cid}/reservations", summary="예약 목록 (A-ND-04)")

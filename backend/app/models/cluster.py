@@ -16,19 +16,27 @@ class Cluster(Base):
     __tablename__ = "cluster"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(64), unique=True)  # slurm.conf ClusterName
-    description: Mapped[str | None] = mapped_column(String(255))
+    # slurm.conf ClusterName. **등록 시점에는 비어 있다** — REST 연결 테스트가
+    # slurmrestd에서 읽어 채우고, 그 뒤로는 포털에서 수정할 수 없다.
+    name: Mapped[str | None] = mapped_column(String(64), unique=True)
+    # 사람이 붙이는 이름. 이름이 확인되기 전까지 화면에서 클러스터를 가리키는 값이다.
+    alias: Mapped[str | None] = mapped_column(String(255))
     slurmrestd_url: Mapped[str | None] = mapped_column(String(255))
-    api_version: Mapped[str | None] = mapped_column(String(16))  # v0.0.41
-    auth_method: Mapped[str | None] = mapped_column(String(16))  # jwt / munge
+    api_version: Mapped[str | None] = mapped_column(String(16))  # v0.0.43
+    # jwt 고정. munge는 포털이 클러스터의 munge.key를 갖게 되어 범위 밖이다.
+    # 컬럼은 남긴다 — 나중에 다른 방식이 생기면 여기가 자리다.
+    auth_method: Mapped[str | None] = mapped_column(String(16))
     login_node: Mapped[str | None] = mapped_column(String(128))  # SSH (웹터미널·SFTP 공용)
     ssh_port: Mapped[int | None] = mapped_column(Integer, default=22)
     ssh_account: Mapped[str | None] = mapped_column(String(64))  # 서비스 계정 (제한 sudo)
-    # U-IA-02 세션 컨테이너. SIF 경로 / oras:// / docker:// 를 모두 받는다 —
-    # 이 값만 바꾸면 공유 NFS 배포에서 레지스트리로 전환된다(plan §3.5).
-    desktop_image_ref: Mapped[str | None] = mapped_column(String(255))
-    group_path_tpl: Mapped[str | None] = mapped_column(String(255))  # /group/{group}
-    scratch_path_tpl: Mapped[str | None] = mapped_column(String(255))  # /scratch/{user}
+    # 홈의 **상위** 경로(예: /home). 사용자 홈은 이 아래 사용자명이다 — 사용자명은
+    # 서버가 인증 정보에서 채우므로 설정에 자리표시자를 두지 않는다.
+    # 비우면 NSS(`getent passwd`)로 사용자별 자동 인식한다.
+    home_base: Mapped[str | None] = mapped_column(String(255))
+    # U-IA-01·02 세션 컨테이너가 **들어 있는 곳**. 이미지 파일명은 앱 카탈로그가
+    # 갖는다(services/session_apps.py). 공유 SIF 디렉터리(/home/portal/images)와
+    # OCI 레지스트리(docker://, oras://)를 모두 받는다 — apptainer가 둘 다 실행한다.
+    image_repository: Mapped[str | None] = mapped_column(String(255))
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     # A-CL-01 "마지막 헬스체크" — 상태 컬럼이 스스로 말하게 한다. NULL = 아직 확인 안 함.

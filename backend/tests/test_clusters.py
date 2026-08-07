@@ -10,9 +10,9 @@ from tests.conftest import auth_headers
 
 def _create(client, token, **overrides):
     body = {
-        "name": "pangyo-gpu",
+        "alias": "판교 GPU",
         "slurmrestd_url": "http://pangyo:6820",
-        "api_version": "v0.0.41",
+        "api_version": "v0.0.43",
         "login_node": "login.pangyo",
         "ssh_account": "svc-portal",
         **overrides,
@@ -25,15 +25,19 @@ def test_user_can_list_but_not_create(client, cluster, user_token):
     assert _create(client, user_token).status_code == 403
 
 
-def test_admin_creates_cluster(client, admin_token):
+def test_admin_creates_cluster_without_a_name(client, admin_token):
+    """이름은 받지 않는다 — slurm.conf ClusterName이 정본이고 REST 테스트가 채운다."""
     resp = _create(client, admin_token)
     assert resp.status_code == 201
-    assert resp.json()["name"] == "pangyo-gpu"
+    body = resp.json()
+    assert body["alias"] == "판교 GPU"
+    assert body["name"] is None
 
 
-def test_duplicate_name_conflicts(client, cluster, admin_token):
-    resp = _create(client, admin_token, name="seoul-hpc")
-    assert resp.status_code == 409
+def test_alias_is_required(client, admin_token):
+    """이름이 없는 동안 클러스터를 가리킬 값이 하나는 있어야 한다."""
+    resp = client.post("/api/v1/clusters", json={}, headers=auth_headers(admin_token))
+    assert resp.status_code == 422
 
 
 def test_credential_value_never_returned_or_stored_in_db(client, db, cluster, admin_token, secret_store):
@@ -77,6 +81,48 @@ def test_cluster_detail_has_no_secret_fields(client, cluster, admin_token):
         assert not any(forbidden in key.lower() for key in body)
 
 
+def test_api_version_choices_come_from_the_server(client, admin_token, user_token):
+    """등록 폼의 선택지는 서버가 준다 — 화면이 목록을 따로 갖지 않는다."""
+    resp = client.get("/api/v1/cluster-api-versions", headers=auth_headers(admin_token))
+    assert resp.status_code == 200
+    assert resp.json() == ["v0.0.43"]
+    # 클러스터 설정이므로 관리자만 본다.
+    assert client.get(
+        "/api/v1/cluster-api-versions", headers=auth_headers(user_token)
+    ).status_code == 403
+
+
+def test_unsupported_api_version_is_rejected(client, cluster, admin_token):
+    """드롭다운으로 좁혀도 API가 열려 있으면 반쪽이다.
+
+    응답 파싱이 버전에 묶여 있어(`time_limit`은 분 단위 정수) 다른 버전을
+    저장하면 호출이 조용히 404를 맞거나 잘못 파싱된다.
+    """
+    assert _create(client, admin_token, api_version="v0.0.40").status_code == 422
+    resp = client.patch(
+        f"/api/v1/clusters/{cluster.id}",
+        json={"api_version": "v0.0.40"},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 422
+
+
+def test_munge_auth_is_rejected(client, cluster, admin_token):
+    """고를 수 있는데 안 되는 값은 API도 받지 않는다.
+
+    munge는 포털 파드가 클러스터의 `munge.key`를 갖게 되어 범위 밖이다. 화면에서만
+    빼면 PATCH로 여전히 넣을 수 있고, 그러면 저장은 되는데 호출은 JWT로 나가는
+    앞뒤 안 맞는 상태가 된다 — 클라이언트는 `auth_method`를 읽지 않는다.
+    """
+    assert _create(client, admin_token, auth_method="munge").status_code == 422
+    resp = client.patch(
+        f"/api/v1/clusters/{cluster.id}",
+        json={"auth_method": "munge"},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 422
+
+
 def test_rest_test_syncs_cluster_name(client, db, cluster, admin_token, slurm_client):
     """이름은 손 입력이 아니라 slurmrestd에서 조회한 값이 정본이다(A-CL-02)."""
     cluster.name = "wrong-name"
@@ -88,6 +134,203 @@ def test_rest_test_syncs_cluster_name(client, db, cluster, admin_token, slurm_cl
     assert resp.status_code == 200
     assert resp.json()["cluster_name"] == "seoul-hpc"
     assert any(call[0] == "ping" for call in slurm_client.calls)
+
+
+def test_rest_test_names_a_cluster_registered_without_one(
+    client, db, cluster, admin_token, slurm_client
+):
+    """등록 직후 이름이 없다가 REST 연결로 정해진다."""
+    cluster.name = None
+    db.commit()
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/test-rest", headers=auth_headers(admin_token)
+    )
+    assert resp.status_code == 200
+    assert resp.json()["cluster_name"] == "seoul-hpc"
+
+
+def test_rest_test_rejects_a_cluster_that_is_already_registered(
+    client, db, cluster, admin_token, slurm_client
+):
+    """중복 판정은 **여기서** 일어난다.
+
+    이름을 등록 폼에서 받지 않게 되면서 중복 검사가 이 시점으로 옮겨왔다. 사람이 지은
+    별칭이 아니라 실제 ClusterName이 겹치는지가 문제이고, 그건 연결해 보기 전에는
+    알 수 없다. 놓치면 UNIQUE 제약에 걸려 500이 난다.
+    """
+    duplicate = _create(client, admin_token, alias="같은 클러스터를 또 등록").json()
+    client.put(
+        f"/api/v1/clusters/{duplicate['id']}/credentials",
+        json={"kind": "SLURM_JWT", "value": "dup.jwt"},
+        headers=auth_headers(admin_token),
+    )
+    resp = client.post(
+        f"/api/v1/clusters/{duplicate['id']}/test-rest", headers=auth_headers(admin_token)
+    )
+    assert resp.status_code == 409
+    assert "seoul-hpc" in resp.json()["message"]
+    # 헬스 결과는 남는다 — 연결 자체는 성공했다.
+    db.expire_all()
+    from app.models import Cluster
+
+    assert db.get(Cluster, duplicate["id"]).last_health_ok is True
+
+
+# --- 노드 상태 제어 (A-ND-01) -----------------------------------------------
+# 계정 쓰기와 같은 원칙이다: **사용자로 위장하지 않는다.** 노드 제어는 운영자 권한이라
+# 위장하면 거부되고, "누가 시켰는가"는 포털 RBAC와 감사 로그가 남긴다.
+
+
+def test_drain_sends_state_and_reason_without_impersonation(
+    client, db, cluster, admin_token, slurm_client
+):
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/nodes/cn01/state",
+        json={"state": "drain", "reason": "디스크 교체"},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 200
+    call = [kw for name, kw in slurm_client.calls if name == "update_node"][0]
+    assert call["node"] == "cn01"
+    assert call["patch"] == {"state": ["DRAIN"], "reason": "디스크 교체"}
+    # 감사 로그에 사유까지 남는다 — 나중에 "왜 빠져 있지?"를 답할 단서다.
+    from app.models import AuditLog
+
+    entry = db.query(AuditLog).filter_by(action="NODE_STATE").one()
+    assert entry.target == "cn01" and "디스크 교체" in entry.detail
+
+
+def test_drain_without_a_reason_is_rejected(client, cluster, admin_token, slurm_client):
+    """사유 없이 빼면 나중에 왜 빠졌는지 아무도 모른다."""
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/nodes/cn01/state",
+        json={"state": "drain"},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 422
+    assert not [kw for name, kw in slurm_client.calls if name == "update_node"]
+
+
+def test_resume_does_not_require_a_reason(client, cluster, admin_token, slurm_client):
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/nodes/cn01/state",
+        json={"state": "resume"},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 200
+    assert [kw for name, kw in slurm_client.calls if name == "update_node"][0]["patch"] == {
+        "state": ["RESUME"]
+    }
+
+
+def test_unsupported_node_state_is_rejected(client, cluster, admin_token, slurm_client):
+    """Slurm은 더 많은 값을 받지만 화면이 여는 것만 허용한다."""
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/nodes/cn01/state",
+        json={"state": "future"},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 422
+
+
+def test_node_state_requires_admin(client, cluster, user_token):
+    assert client.post(
+        f"/api/v1/clusters/{cluster.id}/nodes/cn01/state",
+        json={"state": "resume"},
+        headers=auth_headers(user_token),
+    ).status_code == 403
+
+
+# --- 예약 (A-ND-04) ---------------------------------------------------------
+# 생성은 **v0.0.43에만 있는 엔드포인트**다(0.0.40~0.0.42는 조회·삭제만 — 실측).
+# 포털이 0.0.43에 고정된 이유가 이것이다.
+
+
+def test_reservation_numbers_use_the_no_val_wrapper(
+    client, db, cluster, admin_token, slurm_client
+):
+    """맨 숫자를 보내면 slurmrestd가 거부한다 — 요청 스키마가 `{set,infinite,number}`다."""
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/reservations",
+        json={
+            "name": "maint-1", "start_time": 1786147200, "duration_minutes": 120,
+            "node_list": "slurm[01-02]", "flags": ["maint"], "users": "root",
+        },
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 201, resp.text
+    desc = [kw["desc"] for name, kw in slurm_client.calls if name == "create_reservation"][0]
+    assert desc["start_time"] == {"set": True, "infinite": False, "number": 1786147200}
+    assert desc["duration"] == {"set": True, "infinite": False, "number": 120}
+    # 스펙은 배열을 요구한다 — 문자열을 보내면 경고가 붙는다(실측).
+    assert desc["node_list"] == ["slurm[01-02]"]
+    assert desc["flags"] == ["MAINT"]  # 대문자로 정규화된다
+
+    from app.models import AuditLog
+
+    entry = db.query(AuditLog).filter_by(action="RESERVATION_CREATE").one()
+    assert entry.target == "maint-1" and "MAINT" in entry.detail
+
+
+def test_reservation_requires_an_owner(client, cluster, admin_token, slurm_client):
+    """Slurm이 요구한다 — 없으면 2053으로 거부된다(실측). 서버까지 가기 전에 막는다."""
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/reservations",
+        json={"name": "no-owner", "start_time": 1786147200, "duration_minutes": 60,
+              "node_count": 1},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 422
+    assert not [1 for n, _ in slurm_client.calls if n == "create_reservation"]
+
+
+def test_reservation_requires_nodes(client, cluster, admin_token, slurm_client):
+    """둘 다 없으면 Slurm이 클러스터 전체를 잡아 버릴 수 있다."""
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/reservations",
+        json={"name": "maint-2", "start_time": 1786147200, "duration_minutes": 60,
+              "users": "root"},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 422
+    assert not [kw for name, kw in slurm_client.calls if name == "create_reservation"]
+
+
+def test_unknown_reservation_flag_is_rejected(client, cluster, admin_token, slurm_client):
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/reservations",
+        json={"name": "m3", "start_time": 1786147200, "duration_minutes": 60,
+              "node_count": 1, "flags": ["NUKE"], "users": "root"},
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 422
+
+
+def test_reservation_delete_is_audited(client, db, cluster, admin_token, slurm_client):
+    resp = client.delete(
+        f"/api/v1/clusters/{cluster.id}/reservations/maint-1",
+        headers=auth_headers(admin_token),
+    )
+    assert resp.status_code == 200
+    assert [kw["reservation"] for n, kw in slurm_client.calls if n == "delete_reservation"] == [
+        "maint-1"
+    ]
+    from app.models import AuditLog
+
+    assert db.query(AuditLog).filter_by(action="RESERVATION_DELETE").one().target == "maint-1"
+
+
+def test_reservation_writes_require_admin(client, cluster, user_token):
+    cid = cluster.id
+    assert client.post(
+        f"/api/v1/clusters/{cid}/reservations",
+        json={"name": "x", "start_time": 1, "duration_minutes": 1, "node_count": 1,
+              "users": "root"},
+        headers=auth_headers(user_token),
+    ).status_code == 403
+    assert client.delete(
+        f"/api/v1/clusters/{cid}/reservations/x", headers=auth_headers(user_token)
+    ).status_code == 403
 
 
 def test_deactivate_keeps_row_and_is_audited(client, db, cluster, admin_token):
@@ -139,7 +382,7 @@ def test_purge_removes_unreferenced_cluster_and_its_secrets(
 ):
     from app.models import AuditLog, Cluster, ClusterCredential
 
-    created = _create(client, admin_token, name="typo-cluster").json()
+    created = _create(client, admin_token, alias="오타 클러스터").json()
     cid = created["id"]
     client.put(
         f"/api/v1/clusters/{cid}/credentials",
@@ -169,7 +412,8 @@ def test_purge_removes_unreferenced_cluster_and_its_secrets(
 
     # 삭제 기록은 남되, 방금 지운 행을 FK로 가리키지 않는다
     entry = db.query(AuditLog).filter_by(action="CLUSTER_PURGE").one()
-    assert entry.target == "typo-cluster"
+    # 이름이 아직 없으므로 별칭이 표시명이 된다 — 빈 대상은 추적이 안 된다.
+    assert entry.target == "오타 클러스터"
     assert entry.target_cluster_id is None
 
 
@@ -488,16 +732,16 @@ def test_dashboard_endpoints_are_admin_only(client, cluster, user_token):
         ).status_code == 403
 
 
-def test_desktop_image_ref_round_trips(client, admin_token, cluster):
-    """U-IA-02 세션 이미지는 관리자가 설정한다 — 이 값 하나로 레지스트리 전환이 끝난다."""
-    ref = "oras://reg.example.com/hpc/rocky9-mate:1.0"
+def test_image_repository_round_trips(client, admin_token, cluster):
+    """세션 이미지 **저장소**는 관리자가 설정한다 — 이미지 파일명은 앱 카탈로그가 안다."""
+    ref = "oras://reg.example.com/hpc"
     resp = client.patch(
         f"/api/v1/clusters/{cluster.id}",
-        json={"desktop_image_ref": ref},
+        json={"image_repository": ref},
         headers=auth_headers(admin_token),
     )
     assert resp.status_code == 200
-    assert resp.json()["desktop_image_ref"] == ref
+    assert resp.json()["image_repository"] == ref
     assert client.get(
         f"/api/v1/clusters/{cluster.id}", headers=auth_headers(admin_token)
-    ).json()["desktop_image_ref"] == ref
+    ).json()["image_repository"] == ref

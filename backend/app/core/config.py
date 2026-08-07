@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     setup_token: str = ""
 
     # --- 외부 연동 ---
-    slurm_api_version: str = "v0.0.41"  # 정의서 §4.1 각주: 버전 고정
+    slurm_api_version: str = "v0.0.43"  # 정의서 §4.1 각주: 버전 고정
     http_timeout_seconds: float = 10.0
     http_max_retries: int = 2  # 멱등 op 한정
     ad_timeout_seconds: float = 10.0
@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     # 자동 수락은 중간자 공격을 그대로 통과시킨다.
     ssh_known_hosts: str | None = None
     ssh_timeout_seconds: float = 10.0
+    # 업로드 상한 (U-FM-02). 스트리밍이라 메모리는 안 늘지만, 실수로 홈을 채우는 것과
+    # 무한 전송을 막는다. 대용량은 여전히 scp/rsync가 맞다.
+    file_upload_max_mb: int = 2048
 
     # --- Secret 저장소 (§9 미확정 — 현재 환경변수 구현) ---
     secret_env_prefix: str = "PORTAL_SECRET_"

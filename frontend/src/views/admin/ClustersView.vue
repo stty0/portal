@@ -24,11 +24,13 @@ const notice = ref('')
 const showForm = ref(false)
 const editing = ref<Cluster | null>(null)
 const form = reactive<ClusterCreate>({
-  name: '', description: '', slurmrestd_url: '', api_version: 'v0.0.41',
-  auth_method: 'jwt', login_node: '', ssh_port: 22, ssh_account: 'svc-portal',
-  group_path_tpl: '/group/{group}', scratch_path_tpl: '/scratch/{user}',
-  desktop_image_ref: '', is_default: false,
+  alias: '', slurmrestd_url: '', api_version: '',
+  login_node: '', ssh_port: 22, ssh_account: 'svc-portal',
+  home_base: '', image_repository: '', is_default: false,
 })
+
+/** API 버전 선택지. 서버가 지원하는 것만 고를 수 있게 목록을 받아 온다. */
+const apiVersions = ref<string[]>([])
 
 const credTarget = ref<Cluster | null>(null)
 const cred = reactive({ kind: 'SLURM_JWT' as 'SLURM_JWT' | 'SSH_KEY', value: '' })
@@ -50,15 +52,18 @@ async function load() {
     loading.value = false
   }
 }
-onMounted(load)
+onMounted(async () => {
+  // 선택지를 못 받아도 목록은 보여야 한다 — 등록 폼에서만 필요한 값이다.
+  apiVersions.value = await clusterApi.apiVersions().catch(() => [])
+  await load()
+})
 
 function openCreate() {
   editing.value = null
   Object.assign(form, {
-    name: '', description: '', slurmrestd_url: '', api_version: 'v0.0.41',
-    auth_method: 'jwt', login_node: '', ssh_port: 22, ssh_account: 'svc-portal',
-    group_path_tpl: '/group/{group}', scratch_path_tpl: '/scratch/{user}',
-  desktop_image_ref: '', is_default: false,
+    alias: '', slurmrestd_url: '', api_version: apiVersions.value[0] ?? '',
+    login_node: '', ssh_port: 22, ssh_account: 'svc-portal',
+    home_base: '', image_repository: '', is_default: false,
   })
   resetFormNotes()
   showForm.value = true
@@ -72,15 +77,22 @@ function resetFormNotes() {
 function openEdit(c: Cluster) {
   editing.value = c
   Object.assign(form, {
-    name: c.name, description: c.description ?? '', slurmrestd_url: c.slurmrestd_url ?? '',
-    api_version: c.api_version ?? 'v0.0.41', auth_method: c.auth_method ?? 'jwt',
+    alias: c.alias ?? '', slurmrestd_url: c.slurmrestd_url ?? '',
+    api_version: c.api_version ?? apiVersions.value[0] ?? '',
     login_node: c.login_node ?? '', ssh_port: c.ssh_port ?? 22, ssh_account: c.ssh_account ?? '',
-    group_path_tpl: c.group_path_tpl ?? '', scratch_path_tpl: c.scratch_path_tpl ?? '',
-    desktop_image_ref: c.desktop_image_ref ?? '',
+    home_base: c.home_base ?? '', image_repository: c.image_repository ?? '',
     is_default: c.is_default,
   })
   resetFormNotes()
   showForm.value = true
+}
+
+/**
+ * 화면에 클러스터를 가리키는 말. 이름은 REST 연결 전까지 **없다** —
+ * 그대로 끼워 넣으면 "undefined: 삭제했습니다" 같은 문구가 나온다.
+ */
+function label(c: { name: string | null; alias: string | null }): string {
+  return c.alias || c.name || '이름 미확인 클러스터'
 }
 
 async function save() {
@@ -88,8 +100,7 @@ async function save() {
   notice.value = ''
   try {
     if (editing.value) {
-      const { name: _ignored, ...patch } = form
-      await clusterApi.update(editing.value.id, patch)
+      await clusterApi.update(editing.value.id, { ...form })
       showForm.value = false
       await load()
       await store.load()
@@ -127,7 +138,7 @@ async function createCluster() {
   }
   if (failed.length) {
     notice.value =
-      `${created.name}: 클러스터는 등록됐지만 ${failed.join('·')} 저장에 실패했습니다 — [수정]에서 다시 등록하세요.`
+      `${label(created)}: 클러스터는 등록됐지만 ${failed.join('·')} 저장에 실패했습니다 — [수정]에서 다시 등록하세요.`
   }
 
   await load()
@@ -142,7 +153,7 @@ async function testRest(c: Cluster) {
   try {
     const res = await clusterApi.testRest(c.id)
     // 이름은 손 입력이 아니라 slurmrestd가 알려준 값이 정본이다(A-CL-02).
-    notice.value = `${c.name}: 연결 성공 — ClusterName=${res.cluster_name}, API=${res.api_version}`
+    notice.value = `${label(c)}: 연결 성공 — ClusterName=${res.cluster_name}, API=${res.api_version}`
     await load()
   } catch (e) {
     error.value = e
@@ -151,12 +162,12 @@ async function testRest(c: Cluster) {
 
 /** 완전 삭제 — 비활성 상태이고 참조 이력이 없을 때만 서버가 허용한다. */
 async function purge(c: Cluster) {
-  if (!confirm(`${c.name} 을(를) 완전히 삭제할까요?\n등록 정보와 자격증명이 되돌릴 수 없이 사라집니다.`)) return
+  if (!confirm(`${label(c)} 을(를) 완전히 삭제할까요?\n등록 정보와 자격증명이 되돌릴 수 없이 사라집니다.`)) return
   error.value = null
   notice.value = ''
   try {
     await clusterApi.purge(c.id)
-    notice.value = `${c.name}: 삭제했습니다.`
+    notice.value = `${label(c)}: 삭제했습니다.`
     await load()
     await store.load()
   } catch (e) {
@@ -165,7 +176,7 @@ async function purge(c: Cluster) {
 }
 
 async function remove(c: Cluster) {
-  if (!confirm(`${c.name} 을(를) 비활성화할까요? (행은 남습니다)`)) return
+  if (!confirm(`${label(c)} 을(를) 비활성화할까요? (행은 남습니다)`)) return
   try {
     await clusterApi.remove(c.id)
     await load()
@@ -188,7 +199,7 @@ async function saveCredential() {
   error.value = null
   try {
     await clusterApi.putCredential(credTarget.value.id, cred.kind, cred.value)
-    notice.value = `${credTarget.value.name}: ${cred.kind} 등록 완료 (값은 Secret 저장소에만 보관)`
+    notice.value = `${label(credTarget.value)}: ${cred.kind} 등록 완료 (값은 Secret 저장소에만 보관)`
     const cid = credTarget.value.id
     credTarget.value = null
     cred.value = ''
@@ -203,8 +214,12 @@ async function saveCredential() {
 const inputClass =
   'w-full px-3 py-2 rounded-lg border border-line-dark text-[14.5px] outline-none focus:border-brand-500'
 
-const sectionClass =
-  'sm:col-span-2 mt-2 pt-4 border-t border-line flex items-center gap-3 text-[13px] font-bold text-ink-3'
+/**
+ * 구역 머리말. 폼이 길어 **무엇을 설정하는 구역인지**가 보여야 한다.
+ * 첫 구역은 위에 선을 긋지 않는다 — 모달 제목 아래 선과 겹쳐 이중선이 된다.
+ */
+const sectionHeadClass = 'sm:col-span-2 flex items-center gap-3 text-[13px] font-bold text-ink-3'
+const sectionClass = `${sectionHeadClass} mt-2 pt-4 border-t border-line`
 
 /** "5분 전" 형태의 상대 시각 — 마지막 헬스체크가 언제였는지가 핵심이라 절대시각보다 읽기 쉽다. */
 function ago(iso?: string | null): string {
@@ -276,9 +291,12 @@ function credentialStatus(kind: 'SLURM_JWT' | 'SSH_KEY'): string {
     >
       <tr v-for="c in rows" :key="c.id" class="border-b border-line last:border-0 hover:bg-bg">
         <td class="px-3.5 py-2.5">
-          <b class="mono">{{ c.name }}</b>
+          <b>{{ label(c) }}</b>
           <Chip v-if="c.is_default" tone="brand" class="ml-1.5">기본</Chip>
-          <p class="text-[13px] text-ink-3">{{ c.description }}</p>
+          <!-- 이름은 REST 연결 전까지 없다 — 비었다고 숨기면 왜 없는지 알 수 없다 -->
+          <p class="text-[13px] text-ink-3 mono">
+            {{ c.name ?? '이름 미확인 — REST 연결 테스트 필요' }}
+          </p>
         </td>
         <td class="px-3.5 py-2.5 mono text-[13.5px]">{{ c.slurmrestd_url ?? '—' }}</td>
         <td class="px-3.5 py-2.5 mono">{{ c.api_version ?? '—' }}</td>
@@ -312,13 +330,22 @@ function credentialStatus(kind: 'SLURM_JWT' | 'SSH_KEY'): string {
   <Modal v-if="showForm" :title="editing ? '클러스터 수정' : '클러스터 등록'" wide @close="showForm = false">
     <template #title-extra><Fid id="A-CL-02" /></template>
     <div class="grid sm:grid-cols-2 gap-4">
-      <Field
-        label="클러스터 이름" required
-        :hint="editing ? '이름은 수정할 수 없습니다' : 'REST 연결 테스트 시 slurm.conf ClusterName으로 자동 정정됩니다'"
-      >
-        <input v-model="form.name" :disabled="!!editing" :class="[inputClass, 'mono', editing ? 'bg-bg' : '']" />
+      <div :class="sectionHeadClass"><span class="flex-1">기본</span></div>
+      <Field label="클러스터 별칭" required hint="화면에 표시할 이름. 자유롭게 지어도 됩니다">
+        <input v-model="form.alias" :class="inputClass" placeholder="판교 GPU" />
       </Field>
-      <Field label="설명"><input v-model="form.description" :class="inputClass" /></Field>
+      <!-- 이름은 slurm.conf ClusterName이 정본이라 입력받지 않는다. 수정 화면에서만
+           지금 값이 무엇인지 보여 준다(A-CL-02). -->
+      <Field
+        v-if="editing"
+        label="클러스터 이름"
+        hint="slurm.conf ClusterName — REST 연결 테스트가 정하며 수정할 수 없습니다"
+      >
+        <input
+          :value="editing.name ?? '아직 확인되지 않음'" disabled
+          :class="[inputClass, 'mono bg-bg']"
+        />
+      </Field>
 
       <!-- REST 제어 계열과 SSH 계열은 연동 대상이 다르므로 구분선으로 나눈다 -->
       <div :class="sectionClass">
@@ -329,12 +356,15 @@ function credentialStatus(kind: 'SLURM_JWT' | 'SSH_KEY'): string {
           <Btn size="sm" @click="openCred('SLURM_JWT')">교체</Btn>
         </template>
       </div>
-      <Field label="slurmrestd URL" full required hint="포털 백엔드만 접근 — 네트워크 직접 노출 금지">
+      <Field label="slurmrestd URL" required hint="포털 백엔드만 접근 — 네트워크 직접 노출 금지">
         <input v-model="form.slurmrestd_url" :class="[inputClass, 'mono']" placeholder="http://slurmrestd:6820" />
       </Field>
-      <Field label="API 버전"><input v-model="form.api_version" :class="[inputClass, 'mono']" /></Field>
-      <Field label="인증 방식">
-        <select v-model="form.auth_method" :class="inputClass"><option>jwt</option><option>munge</option></select>
+      <!-- 응답 파싱이 버전에 묶여 있어 아무 값이나 받으면 안 된다. 선택지는 서버가 준다.
+           인증 방식은 폼에 없다 — JWT 하나뿐이라 보여줄 것이 없다(정의서 §4.1). -->
+      <Field label="API 버전" hint="slurmrestd data_parser 버전 — 포털이 지원하는 것만 고를 수 있습니다">
+        <select v-model="form.api_version" :class="[inputClass, 'mono']">
+          <option v-for="v in apiVersions" :key="v" :value="v">{{ v }}</option>
+        </select>
       </Field>
       <Field
         v-if="!editing" label="SLURM JWT" full
@@ -344,7 +374,7 @@ function credentialStatus(kind: 'SLURM_JWT' | 'SSH_KEY'): string {
       </Field>
 
       <div :class="sectionClass">
-        <span class="flex-1">로그인 노드 · 파일시스템</span>
+        <span class="flex-1">로그인 노드 (SSH)</span>
         <template v-if="editing">
           <span class="font-normal normal-case">SSH 개인키 {{ credentialStatus('SSH_KEY') }}</span>
           <Btn size="sm" @click="openCred('SSH_KEY')">교체</Btn>
@@ -366,29 +396,34 @@ function credentialStatus(kind: 'SLURM_JWT' | 'SSH_KEY'): string {
           placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
         />
       </Field>
-      <Field label="그룹 경로 템플릿" hint="{group} 세션 치환">
-        <input v-model="form.group_path_tpl" :class="[inputClass, 'mono']" />
-      </Field>
-      <Field label="스크래치 경로 템플릿" full hint="{user} 세션 치환 · 홈은 SSSD/NSS로 자동 인식">
-        <input v-model="form.scratch_path_tpl" :class="[inputClass, 'mono']" />
+      <!-- 여기부터는 접속 방법이 아니라 **어디를 쓰는가**다 — 구역을 나눈다 -->
+      <div :class="sectionClass"><span class="flex-1">파일시스템 · 세션 이미지</span></div>
+      <Field
+        label="홈 상위 경로" full
+        hint="예: /home — 사용자 홈은 이 아래 사용자명이다(사용자명은 서버가 채운다). 비우면 getent passwd로 자동 인식"
+      >
+        <input v-model="form.home_base" :class="[inputClass, 'mono']" placeholder="/home" />
       </Field>
       <Field
-        label="데스크톱 이미지 (U-IA-02)" full
-        hint="SIF 경로 / oras:// / docker:// — 이 값만 바꾸면 레지스트리로 전환된다"
+        label="이미지 저장소 (U-IA-01·02)" full
+        hint="이미지가 있는 곳만 지정한다 — 어떤 이미지를 쓸지는 앱이 정한다. 공유 SIF 디렉터리 또는 oras:// · docker:// 레지스트리"
       >
         <input
-          v-model="form.desktop_image_ref" :class="[inputClass, 'mono']"
-          placeholder="/home/portal/images/rocky9-mate-1.0.sif"
+          v-model="form.image_repository" :class="[inputClass, 'mono']"
+          placeholder="/home/portal/images"
         />
       </Field>
-      <p v-if="!editing" class="sm:col-span-2 text-[13.5px] text-ink-3">
-        저장하면 <b>클러스터 등록 → 자격증명 저장 → REST 연결 확인</b>이 이어서 실행됩니다.
-        자격증명 값은 Secret 저장소에만 보관되고 DB·응답·감사 로그 어디에도 남지 않습니다.
-      </p>
-      <label class="sm:col-span-2 flex items-center gap-2 text-[14.5px] text-ink-2">
-        <input v-model="form.is_default" type="checkbox" class="w-4 h-4 accent-brand-700" />
-        기본 클러스터로 지정
-      </label>
+      <!-- 설정이 아니라 '저장하면 무슨 일이 일어나는가'라서 본문과 가른다 -->
+      <div class="sm:col-span-2 mt-2 pt-4 border-t border-line space-y-3">
+        <p v-if="!editing" class="text-[13.5px] text-ink-3">
+          저장하면 <b>클러스터 등록 → 자격증명 저장 → REST 연결 확인</b>이 이어서 실행됩니다.
+          자격증명 값은 Secret 저장소에만 보관되고 DB·응답·감사 로그 어디에도 남지 않습니다.
+        </p>
+        <label class="flex items-center gap-2 text-[14.5px] text-ink-2">
+          <input v-model="form.is_default" type="checkbox" class="w-4 h-4 accent-brand-700" />
+          기본 클러스터로 지정
+        </label>
+      </div>
     </div>
     <template #foot>
       <Btn @click="showForm = false">취소</Btn>
@@ -396,7 +431,7 @@ function credentialStatus(kind: 'SLURM_JWT' | 'SSH_KEY'): string {
     </template>
   </Modal>
 
-  <Modal v-if="credTarget" :title="`자격증명 등록 — ${credTarget.name}`" @close="credTarget = null">
+  <Modal v-if="credTarget" :title="`자격증명 등록 — ${label(credTarget)}`" @close="credTarget = null">
     <div class="px-3.5 py-2.5 rounded-lg bg-warn-bg text-warn text-[14px] mb-4">
       값은 <b>Secret 저장소에만</b> 저장되고 DB·응답·감사 로그 어디에도 남지 않습니다.
       화면에 다시 표시되지 않습니다.
