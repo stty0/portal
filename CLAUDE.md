@@ -3,18 +3,39 @@
 Claude가 이 프로젝트에서 세션마다 읽는 기본 컨텍스트 파일이다.
 
 ## 프로젝트 개요
-- **대상**: Slurm 기반 HPC 클러스터 웹 포털 프론트엔드
-- **현재 상태**: SCR-01~19 화면을 순수 HTML/CSS로 구현한 정적 프로토타입 (`design/`)
+- **대상**: Slurm 기반 HPC 클러스터 웹 포털 (백엔드 + 프론트엔드)
+- **현재 상태**: 실 클러스터에 연동되어 동작 중. 미구현은 **License 관리(SCR-17)** 와
+  헬프데스크 티켓(A-OP-05·U-AC-04)뿐이다.
 - **기능 정의서**: [정의서.md](정의서.md) — 화면(SCR)·기능(U-/A-) ID의 단일 출처(SoT)
-- **개발 노트**: [notes.md](notes.md) — 구현 히스토리·검증 방법
+- **진행 기록**: [docs/progress.md](docs/progress.md) — 구현 경위·실측 결과·미해결 이슈
+- **개발 노트**: [notes.md](notes.md) — 정적 프로토타입 시기의 히스토리
+
+### 스택
+| 영역 | 구성 |
+|---|---|
+| 백엔드 | FastAPI + SQLAlchemy + Alembic, MySQL 8.4, Redis. `router → service → repository/client` |
+| 프론트엔드 | Vue 3 + TypeScript + Tailwind CSS v4 + Vite (SPA) |
+| 외부 연동 | slurmrestd **v0.0.41**(REST), AD(LDAP), 로그인 노드 SSH/SFTP(paramiko), SCP Billing |
+| 배포 | k3s(네임스페이스 `hpc-portal`) + Traefik. `https://www.dt-hpc.net:9443` |
+| 클러스터 | dev01 192.168.1.100 / slurm01 .201 / slurm02 .202 (현재 로그인=워커 동일 기계) |
+
+`design/`는 최초 정적 프로토타입이다. **제품이 아니라 디자인 원본**이며, Vue 이관 후에는
+동기화 의무가 없다(톱바 검색창 제거 시 의도적으로 Vue만 수정한 전례가 있다).
 
 ## 구조 규칙 (수정 시 반드시 유지)
-- 사이드바/톱바 마크업은 페이지마다 복붙되어 있음(정적 사이트라 include 불가).
-  메뉴 변경 시 `design/user/` 9개 + `design/admin/` 12개 파일을 **모두** 수정해야 한다.
-- 디자인 토큰은 [design/css/style.css](design/css/style.css) 상단 `:root`에 정의 (Samsung SDS Cloud 포털 look & feel).
-  - 브랜드 블루 `--brand-700: #1428A0`, 배경 `#f4f6fa`, 사이드바 네이비 `#131a3a`.
-- 각 UI 요소는 기능 정의서 ID를 `<span class="fid">U-XX-00</span>` 칩 또는 HTML 주석으로 매핑 (리뷰/추적용).
-- 바닐라 JS만 사용(프레임워크·빌드도구 없음): 페이지별 사이드바 접기·톱바 드롭다운·클러스터 선택 스크립트, 등록/수정 **모달 open/close**(`.modal-backdrop.hidden` 토글, `data-open-modal` 트리거). 한국어 하드코딩. i18n(C-06)·데이터 바인딩(slurmrestd v0.0.41, C-03)은 미도입.
+- **계층 방향은 문서가 아니라 테스트가 강제한다** — [backend/tests/test_layering.py](backend/tests/test_layering.py).
+  라우터에서 repository/client 직접 호출 금지.
+- **대상 사용자는 언제나 요청자 본인이다.** 클라이언트가 사용자명을 넘길 수 없고,
+  Slurm impersonation(`X-SLURM-USER-NAME`)은 서버가 인증된 본인으로만 채운다.
+- **파일 조작은 조회와 같은 경계를 쓴다** — 허용 루트(**홈뿐이다**)를 벗어나는
+  생성·삭제·이동·다운로드는 경로 정규화 **뒤에** 차단한다. 스크래치·그룹 공유
+  디렉터리는 포털 범위 밖이다(정의서 §4.1, 마이그레이션 `0006`).
+- 디자인 토큰은 [frontend/src/assets/main.css](frontend/src/assets/main.css)의 `@theme`
+  블록에만 정의한다(Tailwind v4 방식). 색상·간격을 컴포넌트에서 하드코딩하지 말 것.
+  브랜드 블루 `--color-brand-700: #1428a0`, 배경 `--color-bg: #f4f6fa`,
+  사이드바 네이비 `--color-side-bg: #131a3a`.
+- 각 UI 요소는 기능 정의서 ID를 `<Fid id="U-XX-00" />` 컴포넌트로 매핑 (리뷰/추적용).
+- 한국어 하드코딩. i18n(C-06)은 미도입.
 
 ---
 
@@ -55,12 +76,21 @@ Claude가 계획·구현·검증을 모두 담당한다. 전체 흐름과 상세
 | Git 작업 | Claude | claude-haiku-4.5 |
 | 코드 리뷰 | Claude | claude-opus-5 |
 
-## 검증 방법 (재사용)
-notes.md의 검증 스크립트 패턴 유지: (1) 태그 균형 (2) 내부 href/src 링크 존재 (3) 기능 ID grep 커버리지 + negative control.
+## 검증 방법
+```bash
+cd backend  && .venv/bin/python -m pytest -q   # 261개. 외부 환경 불필요(SQLite+fake)
+cd frontend && npm run build                    # vue-tsc 타입체크 + 빌드
+```
+- 배포 확인: `curl -sk -H 'Host: www.dt-hpc.net' https://127.0.0.1:9443/` → 200,
+  `/api/v1/clusters` → 401(미인증 정상). **공인 IP로는 hairpin NAT 때문에 안 닿는다.**
+- **이미지 빌드 뒤에는 반드시 `docker builder prune -af`.** 캐시와 apptainer 캐시가 쌓여
+  dev01이 DiskPressure에 걸리고 포털 pod이 evict된 사고가 있었다(progress.md 참조).
+  SIF 변환 시 `APPTAINER_TMPDIR`·`APPTAINER_CACHEDIR`을 둘 다 `/home` 아래로 돌린다.
+- 정적 프로토타입(`design/`) 검증 패턴은 notes.md 참조 — 지금은 쓰지 않는다.
 
 ## 프로젝트 전용 서브에이전트 (.claude/agents/)
 Claude의 검토·검증을 돕는 에이전트. Agent 툴로 호출한다.
 | 에이전트 | 용도 |
 |---|---|
-| `portal-verifier` | 기계적 검증(태그 균형·내부 링크·ID 커버리지+negative control) 실행·보고 |
+| `portal-verifier` | 기계적 검증(pytest·타입체크·계층 규칙·코드↔문서 정합성) 실행·보고 |
 | `portal-reviewer` | 변경을 정의서·구조 규칙 대비 검토, 계획 이탈·고위험 신호 지적 |

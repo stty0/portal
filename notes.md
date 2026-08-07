@@ -1,11 +1,28 @@
-# 프로젝트 노트 — Slurm HPC Portal 프론트엔드
+# 프로젝트 노트 — Slurm HPC Portal
 
-## 2026-07-15: 기능 정의서 v0.1 기반 정적 프로토타입 완성
-- **요약**: SCR-01~15 전체 15화면을 순수 HTML/CSS로 구현 (`portal/`). JS 없음 — 탭은 CSS radio 트릭(`#tab-a~c`), 나머지는 정적.
-- **디자인 기준**: Samsung SDS Cloud 서비스포털 look & feel → 토큰화해 둠 (`portal/css/style.css` 상단 `:root`).
-  - 브랜드 블루 `--brand-700: #1428A0`, 배경 `#f4f6fa`, 사이드바 네이비 `#131a3a`, 히어로 그라데이션 `--grad-hero`.
-- **구조 규칙 (수정 시 유지할 것)**:
-  - 사이드바/톱바 마크업은 페이지마다 복붙되어 있음(정적 사이트라 include 불가). 메뉴 변경 시 user 8개 / admin 6개 파일 모두 수정 필요.
-  - 각 화면 UI 요소에 기능 정의서 ID를 `<span class="fid">U-XX-00</span>` 칩 또는 HTML 주석으로 매핑해 둠 → 리뷰/추적용.
-- **검증 방법 (재사용 가능)**: python 스크립트로 (1) 태그 균형 (2) 내부 href/src 링크 존재 (3) 기능 ID 62종 grep 커버리지 + negative control. 전부 통과 확인함.
-- **다음 단계 후보**: 실제 데이터 바인딩 시 slurmrestd(v0.0.41) 연동 전제(C-03), 폴링 30초(C-04). 다국어(C-06)는 현재 한국어 하드코딩 — i18n 도입 시 텍스트 추출 필요.
+> 이 파일은 **초기 히스토리**다. 현재 상태·스택은 [CLAUDE.md](CLAUDE.md),
+> 구현 경위와 실측 기록은 [docs/progress.md](docs/progress.md)를 본다.
+
+## 2026-08-04 이후: 제품 구현으로 전환
+
+정적 프로토타입을 원본 삼아 **FastAPI 백엔드 + Vue 3 프론트엔드**로 이관했다.
+현재는 실 클러스터(slurm01·slurm02)에 연동되어 동작한다. 아래 2026-07-15 항목의
+"정적 사이트" 전제는 더 이상 유효하지 않다 — `design/`는 디자인 원본으로만 남는다.
+
+진행 경위·설계 판단·실측 결과는 전부 `docs/progress.md`에 시간순으로 있다.
+
+---
+
+## 2026-07-15: 기능 정의서 v0.1 기반 정적 프로토타입 완성 (히스토리)
+
+- **요약**: SCR-01~15를 순수 HTML/CSS로 구현. JS 없음 — 탭은 CSS radio 트릭(`#tab-a~c`),
+  나머지는 정적. 이후 화면이 SCR-19까지 늘었고 디렉터리는 `design/`으로 정리됐다.
+- **디자인 기준**: Samsung SDS Cloud 서비스포털 look & feel → 토큰화
+  (`design/css/style.css` 상단 `:root`). 브랜드 블루 `--brand-700: #1428A0`,
+  배경 `#f4f6fa`, 사이드바 네이비 `#131a3a`, 히어로 그라데이션 `--grad-hero`.
+  → **현재 제품의 토큰은 `frontend/src/assets/main.css`의 `@theme`로 옮겨졌다.**
+- **당시 구조 규칙**: 사이드바/톱바 마크업이 페이지마다 복붙되어 있어 메뉴 변경 시 전
+  파일을 수정해야 했다. Vue 이관 후에는 `components/layout/`의 단일 컴포넌트가 담당한다.
+- **당시 검증 방법**: python 스크립트로 (1) 태그 균형 (2) 내부 href/src 링크 존재
+  (3) 기능 ID grep 커버리지 + negative control. **`design/`를 손볼 때만 유효한 패턴이다.**
+  제품 검증은 pytest + `vue-tsc`가 대신한다.

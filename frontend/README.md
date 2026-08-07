@@ -1,7 +1,7 @@
 # Frontend — Slurm HPC Portal
 
 Vue 3 + TypeScript + Tailwind CSS v4 SPA. 화면 SoT: [../정의서.md](../정의서.md),
-디자인 원본: [../design/](../design/) 정적 프로토타입.
+디자인 원본: [../design/](../design/) 정적 프로토타입(**동기화 의무 없음** — 제품은 이쪽이다).
 
 ## 실행
 
@@ -22,7 +22,7 @@ npm run typecheck
 
 | 디렉토리 | 역할 |
 |---|---|
-| `views/` | 화면(SCR) 단위 페이지. `user/` 9개 + `admin/` 12개 + 로그인·최초설정 |
+| `views/` | 화면(SCR) 단위 페이지. `user/` 10개 + `admin/` 12개 + 로그인·최초설정 |
 | `components/layout/` | `AppShell`(사이드바·톱바·푸터) — **22화면이 공유** |
 | `components/ui/` | `Card` `Table` `Badge` `Chip` `Btn` `Modal` `Field` `Meter` `Fid` 등 |
 | `router/` | 라우팅 + 인증/권한 가드. 사이드바 메뉴는 라우터 meta에서 파생 |

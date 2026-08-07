@@ -3,7 +3,10 @@
 FastAPI 기반 백엔드의 아키텍처·외부 연동·권한·인프라 설계를 정리한다.
 프론트/기능 SoT는 [정의서.md](../정의서.md), 연동 경계는 정의서 §4.1(C-03) 참조. 본 문서는 그 백엔드 대응 설계다.
 
-> 상태: 설계(구현 전). 값·수치는 결정 사항이며, 미확정 항목은 §9에 명시.
+> **상태(2026-08-06): 구현 완료분을 반영해 갱신함.** 계층·경계·보안 원칙은 코드와 일치하며
+> [backend/tests/test_layering.py](../backend/tests/test_layering.py)가 계층 방향을 강제한다.
+> 취소선 항목은 **설계했으나 채택하지 않은 것**이다(대체안을 함께 적었다).
+> 미확정 항목은 §9 참조 — Secret 저장소 구체(현재 `EnvSecretStore`)가 대표적이다.
 
 ---
 
@@ -192,7 +195,7 @@ for s in r.smembers(f"user_sessions:{guid}"): r.delete(f"session:{s}")
 - Backend(FastAPI) + Frontend(Vue+Nginx) 모두 컨테이너 → K8s 배포.
 - Docker(이미지 빌드)와 Helm(배포 정의)은 계층이 다른 개념, 함께 사용.
 - Frontend Ingress: **Traefik**(K8s Ingress 또는 Traefik `IngressRoute` CRD).
-- **인터랙티브 세션 동적 라우트(§7)**: Traefik이 백엔드의 `/internal/gateway/dynamic-config`를 HTTP provider로 폴링하도록 설정 — K8s Service/Endpoints/IngressRoute·RBAC 불필요(pull 방식). 폴링 엔드포인트는 공유 시크릿 또는 네트워크 정책으로 Traefik만 접근하도록 제한(§9).
+- ~~**인터랙티브 세션 동적 라우트(§7)**: Traefik HTTP provider 폴링~~ — **채택하지 않음.** Traefik에는 경로에서 노드·포트를 뽑는 수단이 없다(OnDemand의 `ProxyPassMatch` 상당물 부재). 백엔드가 `WS /sessions/{sid}/connect`에서 RFB 바이트를 중계한다(docs/plan.md §3.3, Architecture.md §1).
 
 ### 5.3 데이터베이스 (MySQL)
 - **소규모 권장**: RDS 단일 인스턴스 + 자동 백업(Multi-AZ는 비용 2배, 초기 불필요).
@@ -248,7 +251,7 @@ def redis_lock(key, timeout=300):
 - **SSH/SFTP**: 파일 관리(U-FM)·웹 터미널(U-SH) → `clients/ssh`(서비스 계정 + 키, 제한 sudo impersonation). **인터랙티브 세션(U-IA)의 sbatch 제출은 REST**, 세션 접속 트래픽은 아래 K8s API 경로(SSH 아님, §1 참조).
 - **LDAP**: 인증 bind·사용자 조회 → `clients/ad`.
 - **FlexLM(lmutil, TCP 직접)**: 라이선스 서버 조회(A-LM-01·02·05) → `clients/license` — SSH 아님, 클러스터 무관 독립 client. A-LM-03(Slurm 반영)만 대상 클러스터의 `clients/slurm` 경유.
-- **Traefik HTTP provider(폴링)**: 인터랙티브 세션 접속 게이트웨이(U-IA-01~05) — 별도 client 없이 `services/gateway`가 세션 상태(DB)만 관리, Traefik이 `/internal/gateway/dynamic-config`를 주기 폴링해 라우트를 직접 구성(pull 방식, K8s API·RBAC 불필요). 실제 세션 트래픽은 Traefik→컴퓨트 노드 직결, FastAPI 미경유(Open OnDemand Apache 프록시 모듈과 동일 패턴).
+- **SSH `direct-tcpip`(구현됨)**: 인터랙티브 세션 접속(U-IA-01·02·04) — `services/session`이 세션 대장을 관리하고, `clients/ssh/tunnel.py`의 `TcpTunnel`이 로그인 노드를 거쳐 워커 Xvnc로 TCP 스트림을 연다. **목적지는 로그인 노드의 sshd가 해석**하므로 워커 자격증명이 필요 없다. 라우터는 WebSocket 프레임 ↔ TCP 바이트 변환만 한다(websockify 불필요).
 - **기타**: 메트릭(Prometheus)·알림(SMTP/Webhook)·Portal DB.
 
 ---
@@ -270,6 +273,6 @@ def redis_lock(key, timeout=300):
 - 파일/터미널/인터랙티브의 SSH 서비스 계정 sudoers 최소 권한 범위 (정의서 §4.1).
 - Secret 저장소 구체(K8s Secret / Vault / SCP Secret Manager 등).
 - Redis 영속성(AOF) 필요 여부, 세션 TTL 정책.
-- **인터랙티브 세션 게이트웨이 폴링 보호**: `/internal/gateway/dynamic-config`를 Traefik만 호출하도록 공유 시크릿 헤더 vs 네트워크 정책 중 선택, Traefik 폴링 주기(지연-부하 트레이드오프)(§5.2, §7).
+- ~~인터랙티브 세션 게이트웨이 폴링 보호~~ — 해당 없음(게이트웨이 미채택). 대신 **로그인 노드→워커 구간이 평문**이라는 미결 항목이 있다 → docs/session-transport-security.md.
 - **`sbatch --test-only` REST 동등 기능**: slurmrestd v0.0.41에 대기시간 예측(U-JB-12) 지원 여부 확인 필요 — 없으면 CLI(SSH) 폴백.
 - **클러스터 간 비교 추천 기능**: "선택된 클러스터 스코프" 원칙과의 배치 여부 재검토(api.md §미결).

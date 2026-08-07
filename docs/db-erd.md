@@ -57,16 +57,16 @@ entity "role_permission" as rp {
 entity "cluster" as cluster {
   *id : INT <<PK>>
   --
-  *name : VARCHAR(64) <<UNIQUE>>       ' slurm.conf ClusterName
-  description : VARCHAR(255)
+  name : VARCHAR(64) <<UNIQUE,NULL>>   ' slurm.conf ClusterName — 등록 시엔 NULL, REST 연결 테스트가 채운다
+  alias : VARCHAR(255)                 ' 사람이 붙인 이름. 이름이 확인되기 전까지의 표시명
   slurmrestd_url : VARCHAR(255)
-  api_version : VARCHAR(16)            ' v0.0.41
-  auth_method : VARCHAR(16)            ' jwt / munge
+  api_version : VARCHAR(16)            ' v0.0.41 — 포털이 지원하는 값만 (SUPPORTED_API_VERSIONS)
+  auth_method : VARCHAR(16)            ' jwt 고정 (munge는 범위 밖 — 정의서 §4.1)
   login_node : VARCHAR(128)           ' SSH (웹터미널·SFTP 공용)
   ssh_port : INT                      ' 기본 22
   ssh_account : VARCHAR(64)           ' 서비스 계정 (제한 sudo)
-  group_path_tpl : VARCHAR(255)       ' /group/{group}
-  scratch_path_tpl : VARCHAR(255)     ' /scratch/{user}
+  home_base : VARCHAR(255)            ' 홈의 상위 경로(예: /home). 홈 = 이 아래 사용자명. NULL이면 NSS 자동 인식
+  image_repository : VARCHAR(255)     ' U-IA-01·02 세션 이미지가 있는 곳 (SIF 디렉터리 또는 레지스트리). 이미지명은 앱 카탈로그 소유
   is_default : BOOL
   is_active : BOOL
   last_health_at : DATETIME           ' A-CL-01 마지막 헬스체크 (NULL=미확인)
@@ -109,25 +109,11 @@ entity "notice" as notice {
   --
   title : VARCHAR(255)
   body : TEXT
-  target_cluster_id : INT <<FK,NULL>>  ' NULL=전체
   banner_enabled : BOOL
   start_at : DATETIME
   end_at : DATETIME
   created_by : CHAR(36) <<FK>>
   created_at : DATETIME
-}
-
-entity "job_template" as tpl {
-  *id : INT <<PK>>
-  --
-  name : VARCHAR(128)
-  type : VARCHAR(16)                   ' interactive / batch
-  version : VARCHAR(16)
-  params : JSON
-  is_public : BOOL
-  created_by : CHAR(36) <<FK>>
-  created_at : DATETIME
-  updated_at : DATETIME
 }
 
 entity "ticket" as ticket {
@@ -194,12 +180,12 @@ entity "interactive_session" as isession {
   --
   *user_guid : CHAR(36) <<FK>>
   *cluster_id : INT <<FK>>
-  app_type : VARCHAR(16)               ' jupyter / vnc / code-server
-  slurm_job_id : VARCHAR(32)           ' 백엔드 Job (종료=scancel via REST)
-  status : VARCHAR(16)                 ' starting / running / terminated
-  node_host : VARCHAR(128)             ' Job 콜백 보고(POST /internal/sessions/{id}/ready)
-  node_port : INT
-  connect_url : VARCHAR(255)           ' Traefik 동적 라우트 접속 경로
+  app_type : VARCHAR(16)               ' desktop / paraview (PORTAL_APP)
+  slurm_job_id : VARCHAR(32)           ' 세션 Job (종료=scancel via REST)
+  status : VARCHAR(16)                 ' active / ended
+  node_host : VARCHAR(128)             ' [미사용] 초기 설계 잔재
+  node_port : INT                      ' [미사용]
+  connect_url : VARCHAR(255)           ' [미사용]
   created_at : DATETIME
   terminated_at : DATETIME <<NULL>>
 }
@@ -273,7 +259,6 @@ cluster ||--o{ ccred : cluster_id
 cluster |o--o{ notice : target_cluster_id
 cluster |o--o{ audit : target_cluster_id
 user ||--o{ notice : created_by
-user ||--o{ tpl : created_by
 user ||--o{ ticket : requester_guid
 user |o--o{ ticket : assignee_guid
 user ||--o{ audit : actor_guid
@@ -327,8 +312,7 @@ end note
 | 테이블 | 목적 | 근거 |
 |---|---|---|
 | `notice` | 공지(대상 클러스터 nullable=전체, 배너). | U-CL-03 / A-OP-01 |
-| `job_template` | Job/인터랙티브 앱 템플릿(파라미터 JSON). | U-JB-03 / A-OP-02 |
-| `interactive_session` | 인터랙티브 앱 세션 메타. `node_host/node_port`는 Job 콜백으로 채워짐 — Traefik이 이 값을 **HTTP provider로 주기 폴링**해 라우트를 직접 구성(K8s API 불필요), `connect_url`은 그 경로를 가리킴. 세션 트래픽은 FastAPI를 거치지 않고 Traefik→컴퓨트 노드 직결. 종료는 REST `scancel` + 상태 변경(다음 폴링에 라우트 자연 소멸). | U-IA-04, Architecture.md §1 |
+| `interactive_session` | 인터랙티브 앱 세션 **대장(臺帳)** — "누가 어떤 클러스터에 무엇을 띄웠나"만 기록한다. **접속 정보(호스트·포트·비밀번호)는 저장하지 않는다**: 유일한 출처는 세션 Job이 워커에 남기는 `connection.json`(공유 홈)이고, 살아 있는지는 **Slurm Job 상태**가 권위 있는 출처다(노드가 죽으면 정리 훅이 안 돌아 파일이 남는다 — 실측). `node_host`/`node_port`/`connect_url`은 채택하지 않은 초기 설계(Traefik 폴링 라우트)의 **잔재로 사용하지 않는다** — 채우면 출처가 둘이 되어 어긋난다. 종료는 REST `scancel` + 상태 변경. | U-IA-04, Architecture.md §1 |
 | `ticket` | 헬프데스크 티켓(요청자/담당자). | U-AC-04 / A-OP-05 |
 | `audit_log` | 제어성 액션 감사. | C-05 / A-OP-03 |
 | `portal_setting` | 세션 정책(폴링 주기·타임아웃)·알림 채널(SMTP/웹훅). 단일 행. | A-OP-04 |

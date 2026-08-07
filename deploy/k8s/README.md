@@ -144,7 +144,7 @@ kubectl -n hpc-portal get secret redis-credentials -o jsonpath='{.data.password}
 ```bash
 cd ../../backend
 set -a && . ./.env.dev && set +a     # 자격증명 포함 — .gitignore 처리됨
-.venv/bin/alembic upgrade head       # 스키마 21테이블 + RBAC seed(운영에도 필요)
+.venv/bin/alembic upgrade head       # 20개 테이블(+alembic_version) + RBAC seed(운영에도 필요)
 .venv/bin/python scripts/seed_dev.py # 개발용 예시 데이터 (멱등, --reset 지원)
 ```
 

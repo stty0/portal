@@ -3,7 +3,9 @@
 백엔드의 **컴포넌트 구조**와 **클래스 구조**를 다이어그램으로 정리한다.
 설계 근거는 [backend-design.md](backend-design.md), 데이터 모델은 [db-erd.md](db-erd.md), 기능 SoT는 [정의서.md](../정의서.md)(특히 §4.1 연동 경로 매핑).
 
-> 상태: 설계(구현 전). 클래스·메서드는 정의서 기능 ID와 slurmrestd v0.0.41 API 면에 근거한 **설계 초안**이며, 시그니처·전체 목록은 구현 시 확정한다.
+> **상태(2026-08-06): 구현 완료분을 반영해 갱신함.** 컴포넌트 경계와 외부 연동 경로는 실제
+> 코드와 일치한다. 클래스 다이어그램의 시그니처는 여전히 설계 수준이며 정본은 코드다.
+> 미구현 컴포넌트: `LicenseClient`/`LicenseService`(A-LM 전부), 티켓(A-OP-05).
 
 ---
 
@@ -19,7 +21,7 @@ skinparam roundcorner 6
 title Slurm HPC Portal — Backend Component
 
 actor "사용자 / 관리자" as user
-node "Traefik\n(Ingress + 세션 동적 라우트)" as traefik
+node "Traefik\n(Ingress)" as traefik
 node "Frontend\n(Vue + Nginx)" as fe
 
 package "Backend (FastAPI · 모듈러 모놀리스)" {
@@ -81,14 +83,26 @@ cslurm --> slurm : X-SLURM-USER-TOKEN(JWT)\nX-SLURM-USER-NAME(impersonation)
 cscp --> scpapi : Access/Secret Key
 cssh --> loginnode : 서비스 계정 + 키 (제한 sudo)
 clicense --> flexlm : lmutil (TCP, 벤더 데몬 포트 직접 접속)
-traefik ..> routers : GET /internal/gateway/dynamic-config\n(폴링, 활성 세션 라우트 조합)
-traefik ..> computenode : 세션 트래픽 직접 프록시\n(동적 라우트, FastAPI 미경유)
-computenode ..> routers : POST /internal/sessions/{id}/ready\n(host:port 보고, Job 전용 1회성 토큰)
+routers ..> cssh : WS /sessions/{sid}/connect\n(RFB 바이트 중계)
+cssh ..> computenode : SSH direct-tcpip\n(로그인 노드 경유, 워커 Xvnc)
 
 @enduml
 ```
 
-> **인터랙티브 세션 트래픽 경로(중요, Traefik HTTP provider)**: Job(sbatch)이 `/internal/sessions/{id}/ready`로 자신의 host:port를 백엔드에 보고하면 `interactive_session`에 기록된다(K8s API 호출 없음, DB 갱신만). Traefik은 **HTTP provider로 백엔드의 `/internal/gateway/dynamic-config`를 주기적으로 폴링**해, 상태=running인 세션들을 라우터/서비스(`url: http://{node_host}:{node_port}`)로 직접 구성한다 — K8s Service/Endpoints/IngressRoute·RBAC이 전혀 필요 없다(pull 방식, K8s CRD 아님). 이후 **실제 세션 데이터(Jupyter/VNC/code-server 트래픽)는 Traefik → 컴퓨트 노드로 직접 흐르며 FastAPI 백엔드를 거치지 않는다** — Open OnDemand의 Apache 프록시 모듈과 동일한 패턴. 세션 종료는 DB 상태 변경만으로 충분하며, 다음 폴링 주기에 라우트가 자연히 사라진다(명시적 삭제 호출 불필요, 최대 폴링 간격만큼의 지연 존재). 이 폴링 엔드포인트는 Traefik만 호출하도록 공유 시크릿 헤더 또는 네트워크 정책으로 제한한다(§9).
+> **인터랙티브 세션 트래픽 경로(중요, 백엔드 WebSocket 브리지)**: 브라우저의 noVNC가
+> `WS /sessions/{sid}/connect`로 백엔드에 붙고, 백엔드가 **로그인 노드 SSH의 `direct-tcpip`
+> 채널로 워커의 Xvnc(5901~)에 연결해 RFB 바이트를 그대로 중계**한다. 접속 정보의 유일한
+> 출처는 세션 Job이 워커에 남기는 `connection.json`이며(홈=공유 NFS), 세션이 살아 있는지는
+> **Slurm Job 상태**가 권위 있는 출처다. `interactive_session` 표는 "누가 어떤 클러스터에
+> 무엇을 띄웠나"만 기록한다.
+>
+> **초기 설계(Traefik HTTP provider 폴링 → 컴퓨트 노드 직결)는 채택하지 않았다.**
+> Open OnDemand는 정적 프록시 규칙 하나(`ProxyPassMatch ^/node/([^/]+)/(\d+)`)로 경로에서
+> 노드·포트를 뽑지만 **Traefik에는 그에 상응하는 수단이 없다**(docs/plan.md §3.3).
+> 백엔드가 중계하는 방식은 부수적으로 두 가지를 얻는다 — 워커 host/port가 브라우저에
+> 노출되지 않아 열린 프록시가 되지 않고, 소유자 확인을 서버가 매 연결마다 강제한다.
+> 그래서 `/internal/gateway/dynamic-config`·`/internal/sessions/{id}/ready`는 **구현되지
+> 않았고**, `interactive_session.node_host/node_port/connect_url`도 쓰지 않는다.
 > **License 수집 경로**: `license` client는 SSH를 거치지 않고 **백엔드 컨테이너에 내장된 lmutil**로 고객의 FlexLM 벤더 서버(`port@host`)에 직접 TCP 접속한다 — 클러스터 스코프와 무관한 독립 client. 단, A-LM-03(Slurm Licenses 동기화, `sacctmgr add resource`)은 반영 대상 클러스터의 `slurm` client(REST/CLI 폴백)를 통해 이뤄지므로 A-LM-02(수집)와 실행 경로가 다르다.
 
 ---
@@ -130,7 +144,7 @@ computenode ..> routers : POST /internal/sessions/{id}/ready\n(host:port 보고,
 | LDAP | A-US-01, C-01 | AdClient | AuthService / UserService(sync) |
 | REST(SCP Billing API) | A-BL-01~04 | ScpBillingClient | BillingService |
 | FlexLM(lmutil, TCP 직접) | A-LM-01·02·05 | LicenseClient | LicenseService |
-| Traefik HTTP provider(폴링) | U-IA-01~05 | — (외부 client 없음, DB 상태 읽기) | GatewayService |
+| SSH direct-tcpip(RFB 중계) | U-IA-01·02·04 | `TcpTunnel`(paramiko) | SessionService |
 
 > **License 실행 경로 이원화**: A-LM-01·02·05(라이선스 서버 등록·lmstat 수집·사용 모니터링)는 클러스터 무관 — `LicenseClient`가 백엔드에서 FlexLM 벤더 서버로 직접 TCP 접속. **A-LM-03(Slurm Licenses 동기화)만 예외** — 가용 수량을 반영할 **대상 클러스터**의 `SlurmrestdClient`(REST 미지원 시 CLI 폴백)를 통해 `sacctmgr add resource`를 수행하므로 클러스터 스코프.
 
@@ -150,8 +164,20 @@ slurm client는 **클러스터 단위로 구성**되므로(§2.2) `ClusterClient
 - **세션·권한 캐시**: `require_permission` = 포털 세션 JWT 검증 + Redis `SessionStore`(키 = 난수 `sid`, 신원은 세션 레코드의 `user_guid`가 정본 — username 재사용 시 세션 혼선 방지, 기기별/전체 강제 로그아웃 즉시 반영) + `PermissionCache`(rolePerm TTL 캐시)(§4). 라우터는 `require_permission("qos:modify")`류 permission 문법 유지 → dict→DB 전환에도 무수정(§3.4). 로그인(AD bind→JIT→세션 등록)은 `AuthService`(§3.3·§3.6).
 - **REST 미지원 폴백**: `sreport`/`sshare`/일부 `sacctmgr` op·`slurm.conf` 영속화는 `SshClient.exec` CLI 래핑으로 분리 — §2.2 각주.
 - **RBAC 초기 상태**: role = `USER`·`ADMIN` 2행, permission = `admin:access`(ADMIN 페이지 접근 여부) 1행, 매핑 = ADMIN→admin:access뿐. 테이블 구조(N:M)는 향후 role 추가(예: PI)·`resource:action` 세분화를 **행 추가만으로** 수용(§3.4) — 라우터가 처음부터 permission 문법이므로 세분화 시에도 무수정.
-- **경계 유지**: account/qos/association은 slurmdbd 소유(Portal DB 아님). `models`는 db-erd.md의 **포털 소유 21개 엔티티와 1:1 동기**(속성 포함). 타입/길이·인덱스·관계(FK) 상세의 SoT는 db-erd.md다.
-- **인터랙티브 세션 게이트웨이(신규, K8s 비의존)**: 외부 client 없이 `GatewayService`가 **DB 상태만으로** 동작. Job이 `POST /internal/sessions/{id}/ready`로 `host`/`port`를 콜백 보고(Job 전용 1회성 토큰) → `InteractiveSession.node_host/node_port`에 기록 → `connect_url` 발급. Traefik이 **HTTP provider로 `dynamic_config()`를 폴링**해 활성 세션을 라우터로 직접 구성(pull 방식, K8s Service/Endpoints/IngressRoute·RBAC 불필요). 실제 세션 트래픽은 Traefik이 컴퓨트 노드로 **직접** 프록시하며 FastAPI를 거치지 않는다(Open OnDemand의 Apache 프록시 모듈과 동일 패턴). 세션 종료는 DB 상태 변경만으로 다음 폴링에 자연히 라우트가 사라짐(명시적 삭제 없음). U-IA-05(공유)는 같은 라우트에 view 스코프 토큰만 다르게 발급.
+- **경계 유지**: account/qos/association은 slurmdbd 소유(Portal DB 아님). `models`는 db-erd.md의 **포털 소유 20개 엔티티와 1:1 동기**(속성 포함). 타입/길이·인덱스·관계(FK) 상세의 SoT는 db-erd.md다.
+- **인터랙티브 세션(구현됨, `SessionService`)**: 세션은 **Slurm 배치 Job**이다. 제출은
+  slurmrestd, 컨테이너는 워커에서 apptainer로 뜨고, 접속 정보는 Job이 워커에 남기는
+  `connection.json`(공유 홈)을 로그인 노드 경유 SFTP로 읽는다. 브라우저 noVNC ↔ 워커 Xvnc
+  사이는 **백엔드가 `WS /sessions/{sid}/connect`에서 RFB 바이트를 중계**한다
+  (`TcpTunnel` = SSH `direct-tcpip`). 두 출처를 섞지 않는다 — **살아 있는가는 Slurm Job
+  상태**, **어디로 붙는가는 `connection.json`**. 노드가 죽으면 정리 훅이 돌지 않아 파일이
+  남기 때문이다(실측).
+  - **워커 자격증명이 필요 없다**: `direct-tcpip`의 목적지는 로그인 노드의 sshd가 해석한다
+    (`ssh -L`과 같은 원리). 포털은 로그인 노드 자격증명만 갖는다.
+  - **접속 위치는 브라우저에 내보내지 않는다**(열린 프록시 방지). 세션 ID만 받고 서버가
+    소유자를 확인한 뒤 터널을 연다.
+  - U-IA-03(JupyterLab)·U-IA-05(공유)는 미구현. 앱 추가는 컨테이너 기동 스크립트의
+    `PORTAL_APP` 분기만 늘리면 되고 세션·프록시 계층은 공유한다.
 - **License(신규)**: `LicenseService`가 `LicenseClient`(독립, REST도 SSH도 아님)로 고객 FlexLM 서버에 **직접 TCP 접속**(`lmutil`은 백엔드 컨테이너에 내장된 배포 단위 바이너리, 서버별 경로 설정 아님). A-LM-03만 예외로 대상 클러스터의 `SlurmrestdClient`를 사용(§2.3 각주).
 - **부트스트랩 상태 확인(신규)**: `AuthService.is_bootstrapped()` — `ad_connection.seed_admin_guid` 존재 여부로 판정, `GET /auth/setup-status`(공개)로 노출. 판정 후 `bootstrap_required=false`면 `POST /auth/setup`은 서버측에서 하드 거부(1회용 잠금).
 - **Job 사전검증(신규)**: `JobService.validate(user, spec)` — 신규 Slurm 호출 없이 `SlurmrestdClient.ping()`(연결성) + 로컬 `#SBATCH` 파서 + 기존 `AccountService`/`QosService`의 association·AllowAccounts 조회(파티션 권한) + `PartitionService.get_partitions()`의 MaxTime(walltime 한도)을 조합. **예상 대기시간**(`sbatch --test-only` 상당)은 slurmrestd v0.0.41 REST 지원 여부 **미확인**(§9 폴백 후보) — 확인 전까지 `JobService`에 포함하지 않는다. **클러스터 간 비교 추천**은 "선택된 클러스터로 스코프" 원칙과 배치되어 **범위 결정 보류**, 이번 설계에 포함하지 않는다.
