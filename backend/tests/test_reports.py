@@ -47,6 +47,53 @@ def test_usage_aggregates_cpu_hours(client, cluster, admin_token, jobs):
     assert by_user["opadmin"]["cpu_hours"] == 2.0
 
 
+def test_usage_reports_node_hours_separately_from_cpu_hours(
+    client, cluster, admin_token, slurm_client
+):
+    """노드-시간은 CPU-시간과 다른 이야기다.
+
+    노드를 통째로 잡고 코어를 조금만 쓰면 CPU-시간은 작아도 노드-시간은 크다 —
+    한 값만 보면 그 낭비가 안 보인다.
+    """
+    slurm_client.jobs = [
+        {"user": "jrpark", "partition": "cpu", "account": "", "state": {"current": ["COMPLETED"]},
+         "time": {"submission": BASE, "start": BASE, "end": BASE + 7200, "elapsed": 7200},
+         "tres": {"allocated": [{"type": "cpu", "count": 1}, {"type": "node", "count": 2}]}},
+    ]
+    row = client.get(
+        f"/api/v1/clusters/{cluster.id}/reports/usage", headers=auth_headers(admin_token)
+    ).json()["by_user"][0]
+    assert row["cpu_hours"] == 2.0    # 1 CPU × 2시간
+    assert row["node_hours"] == 4.0   # 2 노드 × 2시간
+
+
+def test_usage_reports_last_activity(client, cluster, admin_token, jobs):
+    """'누가 아직 쓰고 있나'는 누적 사용량만으로는 안 보인다."""
+    from datetime import datetime, timezone
+
+    row = client.get(
+        f"/api/v1/clusters/{cluster.id}/reports/usage", headers=auth_headers(admin_token)
+    ).json()["by_user"][0]
+    latest = max(BASE + 3600, BASE + 120 + 1800)
+    expected = datetime.fromtimestamp(latest, tz=timezone.utc).astimezone().date().isoformat()
+    assert row["last_active"] == expected
+
+
+def test_usage_last_activity_ignores_the_time_sentinel(
+    client, cluster, admin_token, slurm_client
+):
+    """종료 시각에도 센티넬이 온다 — 2106년이 '최근 활동'이 되면 안 된다."""
+    slurm_client.jobs = [
+        {"user": "jrpark", "partition": "cpu", "account": "", "state": {"current": ["CANCELLED"]},
+         "time": {"submission": BASE, "start": BASE, "end": 0xFFFFFFFF, "elapsed": 0},
+         "tres": {"allocated": []}},
+    ]
+    row = client.get(
+        f"/api/v1/clusters/{cluster.id}/reports/usage", headers=auth_headers(admin_token)
+    ).json()["by_user"][0]
+    assert row["last_active"] is None
+
+
 def test_usage_groups_missing_account_as_default(client, cluster, admin_token, jobs):
     body = client.get(
         f"/api/v1/clusters/{cluster.id}/reports/usage", headers=auth_headers(admin_token)
@@ -76,6 +123,59 @@ def test_wait_time_skips_jobs_that_never_started(client, cluster, admin_token, s
         f"/api/v1/clusters/{cluster.id}/reports/wait-time", headers=auth_headers(admin_token)
     ).json()
     assert body["samples"] == 0 and body["avg_seconds"] is None
+
+
+# slurmdbd는 "값 없음"을 0이 아니라 센티넬로 준다 — NO_VAL(0xFFFFFFFE)·INFINITE(0xFFFFFFFF).
+# 실측으로 시작하지 못한 Job의 `time.start`가 0xFFFFFFFF로 와서 대기시간이
+# 696938시간(79년)으로 집계됐다. 0만 거르는 검사로는 못 잡는다.
+SENTINEL = 0xFFFFFFFF
+
+
+@pytest.mark.parametrize("start", [SENTINEL, 0xFFFFFFFE])
+def test_wait_time_skips_the_slurm_no_value_sentinel(
+    client, cluster, admin_token, slurm_client, start
+):
+    slurm_client.jobs = [
+        {"user": "jrpark", "partition": "cpu", "state": {"current": ["CANCELLED"]},
+         "time": {"submission": BASE, "start": start, "elapsed": 0}, "tres": {"allocated": []}},
+    ]
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/reports/wait-time", headers=auth_headers(admin_token)
+    ).json()
+    assert body["samples"] == 0
+    assert body["max_seconds"] is None
+
+
+def test_wait_time_keeps_real_jobs_alongside_sentinel_ones(
+    client, cluster, admin_token, slurm_client
+):
+    """센티넬만 빠지고 정상 Job은 남아야 한다 — 전부 버리면 표본이 사라진다."""
+    slurm_client.jobs = [
+        _job("jrpark", "cpu", cpus=2, elapsed=3600, wait=300),
+        {"user": "jrpark", "partition": "cpu", "state": {"current": ["CANCELLED"]},
+         "time": {"submission": BASE, "start": SENTINEL, "elapsed": 0}, "tres": {"allocated": []}},
+    ]
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/reports/wait-time", headers=auth_headers(admin_token)
+    ).json()
+    assert body["samples"] == 1
+    assert body["max_seconds"] == 300.0
+
+
+def test_utilization_ignores_the_sentinel_start_date(
+    client, cluster, admin_token, slurm_client
+):
+    """센티넬을 날짜로 바꾸면 2106년이 된다 — 집계 대상에서 빠져야 한다."""
+    slurm_client.jobs = [
+        {"user": "jrpark", "partition": "cpu", "state": {"current": ["CANCELLED"]},
+         "time": {"submission": BASE, "start": SENTINEL, "elapsed": 3600},
+         "tres": {"allocated": [{"type": "cpu", "count": 2}]}},
+    ]
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/reports/utilization?days=2",
+        headers=auth_headers(admin_token),
+    ).json()
+    assert all(d["cpu_hours"] == 0 for d in body["daily"])
 
 
 def test_utilization_uses_node_cpu_capacity(client, cluster, admin_token, jobs):

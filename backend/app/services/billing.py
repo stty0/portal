@@ -148,7 +148,9 @@ class BillingService:
             "start": str(start),
             "end": str(end),
             "total_krw": round(sum(by_category.values())),
-            "daily": [{"date": d, "krw": round(v)} for d, v in sorted(by_day.items()) if d],
+            # 조회 구간의 **모든 날짜**를 채운다. 데이터가 있는 날만 주면 차트의 가로축이
+            # 실제 기간보다 짧아져 "30일"을 골랐는데 9칸만 그려진다(가동률과 같은 규칙).
+            "daily": _daily_series(by_day, start=start, end=end),
             "by_category": _top(by_category),
             "by_item": _top(by_item),
             "record_count": len(rows),
@@ -180,6 +182,22 @@ class BillingService:
         self.session.delete(rule)
         self.audit.record(actor=actor, action="BILLING_RULE_DELETE", target=rule.condition)
         self.session.commit()
+
+
+def _daily_series(
+    by_day: dict[str, float], *, start: date, end: date
+) -> list[dict[str, Any]]:
+    """구간의 모든 날짜 × 금액. 청구가 없던 날은 0이다.
+
+    "비용이 0인 날"과 "데이터가 없는 날"을 화면에서 구분할 필요는 없다 — 둘 다 그날
+    쓴 돈이 없다는 뜻이다.
+    """
+    series: list[dict[str, Any]] = []
+    cursor = start
+    while cursor <= end:
+        series.append({"date": str(cursor), "krw": round(by_day.get(str(cursor), 0.0))})
+        cursor += timedelta(days=1)
+    return series
 
 
 def _krw(usage: dict[str, Any]) -> float:

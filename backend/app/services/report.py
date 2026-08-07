@@ -46,6 +46,8 @@ class ReportService:
         by_partition: dict[str, dict[str, float]] = collections.defaultdict(_bucket)
         for job in jobs:
             hours = _cpu_hours(job)
+            node_hours = _node_hours(job)
+            finished = _finished_at(job)
             for group, key in (
                 (by_user, str(job.get("user") or "—")),
                 (by_account, str(job.get("account") or "(기본)")),
@@ -53,6 +55,9 @@ class ReportService:
             ):
                 group[key]["jobs"] += 1
                 group[key]["cpu_hours"] += hours
+                group[key]["node_hours"] += node_hours
+                if finished:
+                    group[key]["last_end"] = max(group[key]["last_end"], finished)
                 if _is_failed(job):
                     group[key]["failed"] += 1
 
@@ -153,14 +158,22 @@ class ReportService:
 
 
 def _bucket() -> dict[str, float]:
-    return {"jobs": 0, "cpu_hours": 0.0, "failed": 0}
+    return {"jobs": 0, "cpu_hours": 0.0, "failed": 0, "node_hours": 0.0, "last_end": 0}
 
 
 def _rows(group: dict[str, dict[str, float]]) -> list[dict[str, Any]]:
     return sorted(
         (
-            {"key": key, "jobs": int(v["jobs"]), "failed": int(v["failed"]),
-             "cpu_hours": round(v["cpu_hours"], 2)}
+            {
+                "key": key,
+                "jobs": int(v["jobs"]),
+                "failed": int(v["failed"]),
+                "cpu_hours": round(v["cpu_hours"], 2),
+                # 노드-시간은 CPU-시간과 다른 이야기다 — 노드를 통째로 잡고 코어를 조금만
+                # 쓴 Job은 CPU-시간이 작아도 노드-시간이 크다.
+                "node_hours": round(v["node_hours"], 2),
+                "last_active": _as_date(int(v["last_end"])),
+            }
             for key, v in group.items()
         ),
         key=lambda row: row["cpu_hours"],
@@ -168,19 +181,59 @@ def _rows(group: dict[str, dict[str, float]]) -> list[dict[str, Any]]:
     )
 
 
-def _allocated_cpus(job: dict[str, Any]) -> int:
+def _allocated(job: dict[str, Any], kind: str) -> int:
     tres = job.get("tres")
     allocated = tres.get("allocated") if isinstance(tres, dict) else None
     for entry in allocated or []:
-        if isinstance(entry, dict) and entry.get("type") == "cpu":
+        if isinstance(entry, dict) and entry.get("type") == kind:
             return int(entry.get("count") or 0)
     return 0
 
 
-def _cpu_hours(job: dict[str, Any]) -> float:
+def _elapsed(job: dict[str, Any]) -> int:
     time = job.get("time")
-    elapsed = int(time.get("elapsed") or 0) if isinstance(time, dict) else 0
-    return _allocated_cpus(job) * elapsed / 3600
+    return int(time.get("elapsed") or 0) if isinstance(time, dict) else 0
+
+
+def _cpu_hours(job: dict[str, Any]) -> float:
+    return _allocated(job, "cpu") * _elapsed(job) / 3600
+
+
+def _node_hours(job: dict[str, Any]) -> float:
+    return _allocated(job, "node") * _elapsed(job) / 3600
+
+
+def _finished_at(job: dict[str, Any]) -> int:
+    """마지막 활동 판정용 종료 시각(epoch). 없으면 0."""
+    time = job.get("time")
+    return (_epoch(time.get("end")) if isinstance(time, dict) else None) or 0
+
+
+def _as_date(epoch: int) -> str | None:
+    if not epoch:
+        return None
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).astimezone().date().isoformat()
+
+
+#: Slurm이 "값 없음"을 나타내는 센티넬(`NO_VAL`=0xFFFFFFFE, `INFINITE`=0xFFFFFFFF).
+#: **0이 아니다.** 시작하지 못한 Job의 `time.start`로 이 값이 오는데 `not start` 검사에
+#: 걸리지 않아, 그런 Job이 "79년 대기"로 집계됐다(실측: 최대 대기 696938시간 =
+#: 0xFFFFFFFF − 제출시각). 64비트 센티넬(`NO_VAL64` 등)은 더 크므로 같은 비교에 걸린다.
+_TIME_SENTINEL = 0xFFFFFFFE
+
+
+def _epoch(value: Any) -> int | None:
+    """slurmdbd 시각 → epoch 초. 미설정·센티넬은 None.
+
+    시각을 읽는 곳이 **모두 이걸 거쳐야 한다** — 한 곳만 빠뜨리면 센티넬이 2106년
+    날짜나 수십 년짜리 구간으로 조용히 흘러든다.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    seconds = int(value)
+    if seconds <= 0 or seconds >= _TIME_SENTINEL:
+        return None
+    return seconds
 
 
 def _wait_seconds(job: dict[str, Any]) -> float | None:
@@ -188,18 +241,17 @@ def _wait_seconds(job: dict[str, Any]) -> float | None:
     time = job.get("time")
     if not isinstance(time, dict):
         return None
-    submission, start = time.get("submission"), time.get("start")
-    if not submission or not start or start < submission:
+    submission = _epoch(time.get("submission"))
+    start = _epoch(time.get("start"))
+    if submission is None or start is None or start < submission:
         return None
     return float(start - submission)
 
 
 def _started_on(job: dict[str, Any]) -> str | None:
     time = job.get("time")
-    start = time.get("start") if isinstance(time, dict) else None
-    if not start:
-        return None
-    return datetime.fromtimestamp(int(start), tz=timezone.utc).astimezone().date().isoformat()
+    start = _epoch(time.get("start")) if isinstance(time, dict) else None
+    return _as_date(start or 0)
 
 
 def _is_failed(job: dict[str, Any]) -> bool:

@@ -5,15 +5,22 @@
 
 import pytest
 
+from datetime import date, timedelta
+
 from app.services.billing import SCP_ACCESS_KEY_REF, SCP_SECRET_KEY_REF, BillingService
 from tests.conftest import auth_headers
 
+# 조회 구간은 `오늘 − N일`이라 **고정 날짜를 쓰면 언젠가 구간 밖으로 밀려난다.**
+# 오늘 기준 상대 날짜로 둬야 시간이 지나도 같은 것을 검증한다.
+PAID_DAY = str(date.today() - timedelta(days=2))
+FREE_DAY = str(date.today() - timedelta(days=1))
+
 USAGES = [
-    {"usage_date": "2026-08-01T00:00:00", "service_category": "COMPUTE",
+    {"usage_date": f"{PAID_DAY}T00:00:00", "service_category": "COMPUTE",
      "billing_item_id": "VM", "amounts": {"krw": "1000.5"}, "account_id": "acct-1"},
-    {"usage_date": "2026-08-01T00:00:00", "service_category": "STORAGE",
+    {"usage_date": f"{PAID_DAY}T00:00:00", "service_category": "STORAGE",
      "billing_item_id": "BLOCK_STORAGE", "amounts": {"krw": "500"}, "account_id": "acct-1"},
-    {"usage_date": "2026-08-02T00:00:00", "service_category": "COMPUTE",
+    {"usage_date": f"{FREE_DAY}T00:00:00", "service_category": "COMPUTE",
      "billing_item_id": "VM", "amounts": {"krw": None}, "account_id": "acct-1"},
 ]
 
@@ -46,7 +53,15 @@ def test_trend_aggregates_by_day_and_category(client, admin_token, scp):
     body = client.get("/api/v1/billing/trend", headers=auth_headers(admin_token)).json()
     # 1000.5 + 500 + (null→0) = 1500.5 → 파이썬 round는 짝수로 내림(1500)
     assert body["total_krw"] == 1500
-    assert body["daily"] == [{"date": "2026-08-01", "krw": 1500}, {"date": "2026-08-02", "krw": 0}]
+    # 구간의 모든 날짜가 채워진다 — 청구가 없던 날은 0이다.
+    # 데이터 있는 날만 주면 "30일"을 골랐는데 차트 가로축이 9칸만 그려진다.
+    days = {d["date"]: d["krw"] for d in body["daily"]}
+    assert len(body["daily"]) == 31  # start~end 포함
+    assert body["daily"][0]["date"] == body["start"]
+    assert body["daily"][-1]["date"] == body["end"]
+    assert days[PAID_DAY] == 1500
+    assert days[FREE_DAY] == 0
+    assert sum(days.values()) == 1500  # 나머지 날은 전부 0
     assert body["by_category"][0] == {"label": "COMPUTE", "krw": 1000}
     assert body["record_count"] == 3
 

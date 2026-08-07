@@ -16,6 +16,10 @@ export interface UsageRow {
   jobs: number
   failed: number
   cpu_hours: number
+  /** 노드 × 시간. 노드를 통째로 잡고 코어를 조금만 쓴 경우 CPU-시간과 크게 벌어진다. */
+  node_hours: number
+  /** 마지막 Job 종료일. 종료된 Job이 없으면 null. */
+  last_active: string | null
 }
 
 export interface UtilizationReport {
