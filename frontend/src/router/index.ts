@@ -47,12 +47,9 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/user/ClusterView.vue'),
     meta: { title: '클러스터', scr: 'SCR-02', icon: '◈', group: '클러스터' },
   },
-  {
-    path: '/notices',
-    name: 'notices',
-    component: () => import('@/views/user/NoticesView.vue'),
-    meta: { title: '공지사항', scr: 'SCR-16', icon: '📢', group: '클러스터', staticOnly: true },
-  },
+  // 공지는 톱바 메뉴(NoticeMenu)로 옮겼다 — 클러스터에 종속되지 않아 사이드바
+  // (클러스터 스코프 화면들)에 두면 어긋난다. 기존 링크만 살려 둔다.
+  { path: '/notices', redirect: '/cluster' },
   {
     path: '/jobs',
     name: 'jobs',
@@ -88,13 +85,13 @@ const routes: RouteRecordRaw[] = [
     path: '/files',
     name: 'files',
     component: () => import('@/views/user/FilesView.vue'),
-    meta: { title: '파일 관리자', scr: 'SCR-07', icon: '▤', group: '작업 환경', staticOnly: true },
+    meta: { title: '파일 관리자', scr: 'SCR-07', icon: '▤', group: '작업 환경' },
   },
   {
     path: '/terminal',
     name: 'terminal',
     component: () => import('@/views/user/TerminalView.vue'),
-    meta: { title: '웹 터미널', scr: 'SCR-08', icon: '❯', group: '작업 환경', staticOnly: true },
+    meta: { title: '웹 터미널', scr: 'SCR-08', icon: '❯', group: '작업 환경' },
   },
   {
     path: '/usage',
@@ -112,82 +109,71 @@ const routes: RouteRecordRaw[] = [
     path: '/admin/dashboard',
     name: 'admin-dashboard',
     component: () => import('@/views/admin/DashboardView.vue'),
-    meta: { admin: true, title: '대시보드', scr: 'SCR-10', icon: '▦', group: '모니터링' },
+    meta: { admin: true, console: 'cluster', title: '대시보드', scr: 'SCR-10', icon: '▦', group: '모니터링' },
   },
   {
     path: '/admin/clusters',
     name: 'admin-clusters',
     component: () => import('@/views/admin/ClustersView.vue'),
-    meta: { admin: true, title: '클러스터 관리', scr: 'SCR-18', icon: '◈', group: '자원 관리' },
+    meta: { admin: true, console: 'portal', title: '클러스터 등록', scr: 'SCR-18', icon: '◈', group: '연결' },
   },
   {
     path: '/admin/nodes',
     name: 'admin-nodes',
     component: () => import('@/views/admin/NodesView.vue'),
-    meta: {
-      admin: true, title: '노드 / 파티션', scr: 'SCR-11', icon: '▤',
-      group: '자원 관리', staticOnly: true,
-    },
+    meta: { admin: true, console: 'cluster', title: '노드 / 파티션', scr: 'SCR-11', icon: '▤', group: '자원' },
   },
   {
     path: '/admin/jobs',
     name: 'admin-jobs',
     component: () => import('@/views/admin/JobsView.vue'),
-    meta: { admin: true, title: '전체 Job 관리', scr: 'SCR-12', icon: '☰', group: '자원 관리' },
+    meta: { admin: true, console: 'cluster', title: '전체 Job 관리', scr: 'SCR-12', icon: '☰', group: '자원' },
   },
   {
     path: '/admin/users',
     name: 'admin-users',
     component: () => import('@/views/admin/UsersView.vue'),
-    meta: { admin: true, title: '사용자', scr: 'SCR-13', icon: '👥', group: '사용자 / 정책' },
+    meta: { admin: true, console: 'portal', title: '사용자', scr: 'SCR-13', icon: '👥', group: '연결' },
   },
-  {
-    path: '/admin/ad',
-    name: 'admin-ad',
-    component: () => import('@/views/admin/AdView.vue'),
-    meta: { admin: true, title: 'AD 연결', scr: 'SCR-13', icon: '🔗', group: '사용자 / 정책' },
-  },
+  // AD 연결은 사용자 화면(SCR-13)에 합쳤다 — 동기화(원인)와 사용자 목록(결과)이
+  // 갈려 있으면 "동기화했는데 왜 안 늘지?"를 두 페이지를 오가며 확인해야 한다.
+  // meta.group이 없으므로 사이드바에도 뜨지 않는다. 기존 링크만 살려 둔다.
+  { path: '/admin/ad', redirect: '/admin/users' },
   {
     path: '/admin/accounts',
     name: 'admin-accounts',
     component: () => import('@/views/admin/AccountsView.vue'),
-    meta: {
-      admin: true, title: '계정', scr: 'SCR-13', icon: '▩',
-      group: '사용자 / 정책', staticOnly: true,
-    },
+    meta: { admin: true, console: 'cluster', title: '계정', scr: 'SCR-13', icon: '▩', group: '정책' },
   },
   {
     path: '/admin/qos',
     name: 'admin-qos',
     component: () => import('@/views/admin/QosView.vue'),
-    meta: {
-      admin: true, title: 'QOS', scr: 'SCR-13', icon: '⚖',
-      group: '사용자 / 정책', staticOnly: true,
-    },
+    meta: { admin: true, console: 'cluster', title: 'QOS', scr: 'SCR-13', icon: '⚖', group: '정책' },
   },
   {
     path: '/admin/reports',
     name: 'admin-reports',
     component: () => import('@/views/admin/ReportsView.vue'),
-    meta: { admin: true, title: '통계 / 리포트', scr: 'SCR-14', icon: '◔', group: '운영', staticOnly: true },
+    meta: { admin: true, console: 'cluster', title: '통계 / 리포트', scr: 'SCR-14', icon: '◔', group: '모니터링' },
   },
   {
     path: '/admin/billing',
     name: 'admin-billing',
     component: () => import('@/views/admin/BillingView.vue'),
-    meta: { admin: true, title: '비용 / Billing', scr: 'SCR-19', icon: '₩', group: '운영', staticOnly: true },
+    meta: { admin: true, console: 'portal', title: '비용 / Billing', scr: 'SCR-19', icon: '₩', group: '운영' },
   },
   {
     path: '/admin/license',
     name: 'admin-license',
     component: () => import('@/views/admin/LicenseView.vue'),
-    meta: { admin: true, title: 'License 관리', scr: 'SCR-17', icon: '▧', group: '운영', staticOnly: true },
+    meta: { admin: true, console: 'portal', title: 'License 관리', scr: 'SCR-17', icon: '▧', group: '운영', staticOnly: true },
   },
   {
     path: '/admin/settings',
     name: 'admin-settings',
     component: () => import('@/views/admin/SettingsView.vue'),
-    meta: { admin: true, title: '포털 운영 설정', scr: 'SCR-15', icon: '⚙', group: '운영' },
+    meta: { admin: true, console: 'portal', title: '포털 운영 설정', scr: 'SCR-15', icon: '⚙', group: '운영' },
   },
 
   { path: '/:pathMatch(.*)*', redirect: '/' },

@@ -91,6 +91,21 @@ watch(() => clusters.selectedId, load)
 
   <ErrorNote :error="error" />
 
+  <!--
+    클러스터 등록은 **포탈 설정 콘솔**에 있다. 콘솔이 갈리면서, 아직 하나도 등록하지 않은
+    관리자가 여기서 빈 화면만 보고 막힐 수 있다 — 갈 곳을 알려 준다.
+  -->
+  <Card v-if="clusters.loaded && !clusters.clusters.length">
+    <Empty text="등록된 클러스터가 없습니다." />
+    <p class="text-center text-[14px] text-ink-3">
+      <RouterLink to="/admin/clusters" class="text-brand-700 font-semibold hover:underline">
+        포탈 설정 › 클러스터 등록
+      </RouterLink>
+      에서 먼저 클러스터를 등록하세요.
+    </p>
+  </Card>
+
+  <template v-else>
   <Card title="Job 현황" class="mb-5">
     <template #title-extra><Fid id="A-DB-03" /></template>
     <div v-if="loading" class="py-6 text-center text-ink-3 text-[14.5px]">불러오는 중…</div>
@@ -196,4 +211,5 @@ watch(() => clusters.selectedId, load)
       </ul>
     </Card>
   </div>
+  </template>
 </template>

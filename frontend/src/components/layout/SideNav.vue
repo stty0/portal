@@ -2,13 +2,15 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { router } from '@/router'
+import type { Console } from '@/router/console'
 
 /**
  * 사이드바 — 정적 프로토타입에서는 22개 파일에 복붙돼 있었다(CLAUDE.md 구조 규칙).
  * 여기 하나로 모았으므로 메뉴 변경은 이 파일만 고치면 된다.
- * 메뉴 구성은 라우터 meta(group·icon·title·admin)에서 파생한다 — 두 곳에 적지 않는다.
+ * 메뉴 구성은 라우터 meta(console·group·icon·title)에서 파생한다 — 두 곳에 적지 않는다.
+ * `meta.console`이 어느 사이드바인지를, `meta.group`이 그 안의 소제목을 정한다.
  */
-const props = defineProps<{ admin: boolean }>()
+const props = defineProps<{ console: Console }>()
 const route = useRoute()
 
 const COLLAPSE_KEY = 'hpc-snb-collapsed'
@@ -27,7 +29,8 @@ const groups = computed(() => {
   const result = new Map<string, NavItem[]>()
   for (const r of router.getRoutes()) {
     if (!r.meta.group || !r.name) continue
-    if (Boolean(r.meta.admin) !== props.admin) continue
+    // 사용자 포털 화면은 meta.console이 없다 — 'user'로 정규화해 비교한다.
+    if ((r.meta.console ?? 'user') !== props.console) continue
     const list = result.get(r.meta.group) ?? []
     list.push({
       name: String(r.name),
@@ -59,6 +62,12 @@ const activePath = computed(() => {
 function isActive(item: NavItem): boolean {
   return item.path === activePath.value
 }
+
+const SUBTITLE: Record<Console, string> = {
+  portal: 'Portal Settings',
+  cluster: 'Cluster Admin',
+  user: 'User Portal',
+}
 </script>
 
 <template>
@@ -76,7 +85,7 @@ function isActive(item: NavItem): boolean {
       >H</span>
       <span v-if="!collapsed" class="flex-1 min-w-0 leading-tight">
         <b class="block text-side-act text-[14.5px]">HPC Portal</b>
-        <small class="block text-[12px] text-side-ink/70">{{ admin ? 'Admin Console' : 'User Portal' }}</small>
+        <small class="block text-[12px] text-side-ink/70">{{ SUBTITLE[props.console] }}</small>
       </span>
       <button
         class="text-side-ink hover:text-side-act text-[15px]"

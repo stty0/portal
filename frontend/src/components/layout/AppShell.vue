@@ -1,19 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useConsole } from '@/router/console'
 import SideNav from './SideNav.vue'
 import TopBar from './TopBar.vue'
 
-const route = useRoute()
-// 관리자 콘솔 여부는 현재 경로로 정한다 — 사용자가 두 포털을 오갈 수 있어야 한다.
-const isAdminArea = computed(() => route.path.startsWith('/admin'))
+// 콘솔은 라우트에서 파생한다 — 북마크로 열어도 맞는 셸로 들어와야 한다.
+const currentConsole = useConsole()
 </script>
 
 <template>
   <div class="h-screen flex flex-col">
     <TopBar />
     <div class="flex-1 flex min-h-0">
-      <SideNav :admin="isAdminArea" />
+      <SideNav :console="currentConsole" />
       <div class="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <!--
           본문은 화면 폭을 따라 늘어나되, 좌우 여백도 함께 커진다(clamp: 24px~80px).
