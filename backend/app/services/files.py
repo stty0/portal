@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, BinaryIO, Iterator
 
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from app.core.errors import ValidationFailed
 from app.core.secrets import SecretStore, build_secret_ref
 from app.models import User
 from app.repositories.cluster import ClusterCredentialRepository
+from app.services.audit import AuditService
 from app.services.cluster import KIND_SSH_KEY, ClusterService
 
 
@@ -33,6 +34,7 @@ class FileService:
         self.settings = settings
         self.secrets = secrets
         self.credentials = ClusterCredentialRepository(session)
+        self.audit = AuditService(session)
 
     def _target(self, cluster_id: int) -> SshTarget:
         return ssh_target_for(
@@ -46,16 +48,20 @@ class FileService:
             timeout=self.settings.ssh_timeout_seconds,
         )
 
+    def _roots(self, ssh, cluster_id: int, user: User) -> tuple[str, list[str]]:
+        """홈과 **탐색·변경이 허용된 최상위 목록**.
+
+        조회와 변경이 **같은 범위**를 써야 한다 — 한쪽만 넓으면 목록에 안 보이는 곳을
+        지울 수 있게 된다. 그래서 한곳에서만 계산한다.
+        """
+        home = home_dir_for(self.clusters.get(cluster_id), ssh, user.username)
+        return home, [home]
+
     def browse(self, cluster_id: int, *, user: User, path: str | None) -> dict[str, Any]:
-        cluster = self.clusters.get(cluster_id)
         with self._connect(cluster_id) as ssh:
-            home = ssh.home_dir(user.username)
-            # 그룹·스크래치는 클러스터 등록 시 템플릿으로 받는다(정의서 §4.1 경로 인식).
-            # 미구축 환경이 흔하므로 실제 존재 여부를 확인해 화면에 그대로 알린다.
-            shortcuts = _resolve_shortcuts(ssh, cluster, user.username, home)
-            # 탐색 범위는 홈 + 실제로 존재하는 바로가기로 한정한다.
-            # 상위로 올라가면 다른 사용자 계정명이 그대로 드러난다(/home 목록).
-            roots = [s["path"] for s in shortcuts if s["exists"]]
+            # 탐색 범위는 홈으로 한정한다. 상위로 올라가면 다른 사용자 계정명이
+            # 그대로 드러난다(/home 목록).
+            home, roots = self._roots(ssh, cluster_id, user)
             resolved, entries = ssh.list_dir(
                 user.username, path or home, allowed_roots=roots
             )
@@ -63,25 +69,125 @@ class FileService:
                 "path": resolved,
                 "home": home,
                 "roots": roots,
-                "shortcuts": shortcuts,
                 "entries": [e.__dict__ for e in entries],
             }
 
+    # --- 파일 조작 (U-FM-02 업/다운로드, U-FM-04 조작) --------------------
+    def _record(self, action: str, target: str, *, user: User, cluster_id: int, detail=None) -> None:
+        """파일 변경은 남긴다 — 사라진 파일의 경위를 나중에 확인할 수 있어야 한다."""
+        self.audit.record(
+            actor=user, action=action, target=target[:255], cluster_id=cluster_id, detail=detail
+        )
+        self.session.commit()
+
+    def make_dir(self, cluster_id: int, *, user: User, path: str) -> dict[str, Any]:
+        with self._connect(cluster_id) as ssh:
+            _, roots = self._roots(ssh, cluster_id, user)
+            created = ssh.make_dir(user.username, path, allowed_roots=roots)
+        self._record("FILE_MKDIR", created, user=user, cluster_id=cluster_id)
+        return {"path": created}
+
+    def create_file(self, cluster_id: int, *, user: User, path: str) -> dict[str, Any]:
+        with self._connect(cluster_id) as ssh:
+            _, roots = self._roots(ssh, cluster_id, user)
+            created = ssh.create_file(user.username, path, allowed_roots=roots)
+        self._record("FILE_CREATE", created, user=user, cluster_id=cluster_id)
+        return {"path": created}
+
+    def move(self, cluster_id: int, *, user: User, path: str, to: str) -> dict[str, Any]:
+        with self._connect(cluster_id) as ssh:
+            _, roots = self._roots(ssh, cluster_id, user)
+            source, target = ssh.move(user.username, path, to, allowed_roots=roots)
+        self._record("FILE_MOVE", source, user=user, cluster_id=cluster_id, detail=f"→ {target}")
+        return {"path": target, "from": source}
+
+    def remove(
+        self, cluster_id: int, *, user: User, path: str, recursive: bool = False
+    ) -> dict[str, Any]:
+        with self._connect(cluster_id) as ssh:
+            _, roots = self._roots(ssh, cluster_id, user)
+            removed = ssh.remove(
+                user.username, path, allowed_roots=roots, recursive=recursive
+            )
+        self._record(
+            "FILE_DELETE",
+            removed,
+            user=user,
+            cluster_id=cluster_id,
+            detail="recursive" if recursive else None,
+        )
+        return {"path": removed}
+
+    def upload(
+        self, cluster_id: int, *, user: User, directory: str, filename: str, source: BinaryIO
+    ) -> dict[str, Any]:
+        if "/" in filename or filename in ("", ".", ".."):
+            raise ValidationFailed("파일 이름이 올바르지 않습니다.", detail={"name": filename})
+        limit = self.settings.file_upload_max_mb * 1024 * 1024
+        with self._connect(cluster_id) as ssh:
+            _, roots = self._roots(ssh, cluster_id, user)
+            target, written = ssh.upload(
+                user.username,
+                f"{directory.rstrip('/')}/{filename}",
+                source,
+                allowed_roots=roots,
+                max_bytes=limit,
+            )
+        self._record("FILE_UPLOAD", target, user=user, cluster_id=cluster_id, detail=f"{written}B")
+        return {"path": target, "size": written}
+
+    def download(
+        self, cluster_id: int, *, user: User, path: str
+    ) -> tuple[str, int, Iterator[bytes]]:
+        """검증까지 마친 뒤 **연결을 연 채로** 반복자를 돌려준다.
+
+        스트림이 시작된 뒤에는 오류를 HTTP 상태로 바꿀 수 없으므로, 경로 검사와 stat은
+        여기서 끝낸다. 연결은 반복자가 끝날 때 닫힌다.
+        """
+        ssh = self._connect(cluster_id)
+        ssh.__enter__()
+        try:
+            _, roots = self._roots(ssh, cluster_id, user)
+            target, size, chunks = ssh.open_read(user.username, path, allowed_roots=roots)
+        except BaseException:
+            ssh.__exit__(None, None, None)
+            raise
+
+        def stream() -> Iterator[bytes]:
+            try:
+                yield from chunks
+            finally:
+                ssh.__exit__(None, None, None)
+
+        self._record("FILE_DOWNLOAD", target, user=user, cluster_id=cluster_id)
+        return target, size, stream()
+
     def storage(self, cluster_id: int, *, user: User) -> dict[str, Any]:
-        """홈·스크래치·그룹 세 곳만 보여준다.
+        """홈만 보여준다.
 
         `df` 원본에는 tmpfs·/boot 처럼 사용자와 무관한 마운트가 대부분이라
         그대로 내보내면 정작 봐야 할 홈 사용량이 묻힌다.
         """
-        cluster = self.clusters.get(cluster_id)
         with self._connect(cluster_id) as ssh:
-            home = ssh.home_dir(user.username)
+            home, _ = self._roots(ssh, cluster_id, user)
             mounts = ssh.filesystems(user.username)
-            targets = [
-                {**s, **(_mount_for(s["path"], mounts) if s["exists"] else {})}
-                for s in _resolve_shortcuts(ssh, cluster, user.username, home)
-            ]
-            return {"targets": targets, "quota": ssh.quota(user.username)}
+            target = {"label": "홈", "path": home, "exists": True, **_mount_for(home, mounts)}
+            return {"targets": [target], "quota": ssh.quota(user.username)}
+
+
+def home_dir_for(cluster, ssh, username: str) -> str:
+    """사용자 홈의 절대 경로.
+
+    파일 브라우저(U-FM-01)·웹 터미널·인터랙티브 세션(U-IA-01)이 **같은 해석**을 써야
+    한다 — 갈리면 세션 산출물이 브라우저에 안 보이는 곳에 쌓인다. 그래서 함수로 뺐다.
+
+    클러스터에 홈 상위 경로가 설정돼 있으면 `{설정}/{사용자명}`, 비어 있으면
+    NSS(`getent passwd`)로 읽는다. **사용자명은 인증된 본인이며 클라이언트가 넘길 수
+    없다** — 그래서 설정에 자리표시자를 두지 않는다.
+    """
+    if cluster.home_base:
+        return f"{cluster.home_base.rstrip('/')}/{username}"
+    return ssh.home_dir(username)
 
 
 def ssh_target_for(
@@ -109,17 +215,6 @@ def ssh_target_for(
         account=cluster.ssh_account,
         private_key=secrets.get(ref),
     )
-
-
-def _resolve_shortcuts(ssh, cluster, username: str, home: str) -> list[dict[str, Any]]:
-    """홈·스크래치·그룹 경로와 **실제 존재 여부**. 미구축 환경이 흔해 숨기지 않고 알린다."""
-    items: list[dict[str, Any]] = [{"label": "홈", "path": home, "exists": True}]
-    for label, template in (("스크래치", cluster.scratch_path_tpl), ("그룹", cluster.group_path_tpl)):
-        if not template:
-            continue
-        path = template.replace("{user}", username)
-        items.append({"label": label, "path": path, "exists": ssh.exists(username, path)})
-    return items
 
 
 def _mount_for(path: str, mounts: list[dict[str, Any]]) -> dict[str, Any]:

@@ -14,11 +14,17 @@ import io
 import shlex
 import stat as stat_module
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any, BinaryIO, Iterator, Sequence
 
 import paramiko
 
 from app.core.errors import ExternalServiceError, Forbidden, ValidationFailed
+
+#: 전송 청크. SFTP 창 크기와 메모리 사용의 절충 — 큰 파일도 상수 메모리로 흐른다.
+CHUNK_BYTES = 256 * 1024
+
+#: 재귀 삭제 깊이 상한. 심볼릭 링크 순환이나 비정상 트리에서 무한히 파고들지 않게 한다.
+MAX_TREE_DEPTH = 64
 
 # 배포판별 sftp-server 위치. sudoers에 등록한 경로와 일치해야 한다.
 SFTP_SERVER_CANDIDATES = (
@@ -53,6 +59,28 @@ def _within(path: str, roots: Sequence[str]) -> bool:
     문자열 prefix만 보면 `/home/ab`가 `/home/a`의 하위로 잡힌다 — 구분자까지 확인한다.
     """
     return any(path == r or path.startswith(r.rstrip("/") + "/") for r in roots)
+
+
+def _sftp_exists(sftp: paramiko.SFTPClient, path: str) -> bool:
+    """이미 있는지 확인. **덮어쓰기를 막기 위한 사전 확인**이다.
+
+    경쟁이 없지는 않지만(확인과 생성 사이), 실제 생성은 배타 모드나 `rename`이라
+    실패로 끝난다 — 사전 확인은 오류 메시지를 알아볼 수 있게 하려는 것이다.
+    """
+    try:
+        sftp.lstat(path)
+        return True
+    except OSError:
+        return False
+
+
+def _fs_error(what: str, path: str, exc: OSError) -> Exception:
+    """SFTP 오류 → 포털 오류. 권한·부재는 **환경 문제**라 500으로 올리지 않는다."""
+    if isinstance(exc, PermissionError):
+        return ValidationFailed(f"{what}: 권한이 없습니다.", detail={"path": path})
+    if isinstance(exc, FileNotFoundError):
+        return ValidationFailed(f"{what}: 경로를 찾을 수 없습니다.", detail={"path": path})
+    return ValidationFailed(f"{what}: {exc}", detail={"path": path})
 
 
 def _num(text: str) -> float | None:
@@ -152,7 +180,11 @@ class LoginNodeClient:
 
     # --- 공개 API ----------------------------------------------------
     def home_dir(self, user: str) -> str:
-        """홈 경로는 설정으로 받지 않고 NSS에서 읽는다(정의서 §4.1 경로 인식)."""
+        """NSS에서 읽는 홈 경로.
+
+        **직접 부르지 말 것** — 클러스터에 홈 상위 경로가 설정돼 있으면 그쪽이 이긴다.
+        호출자는 `services.files.home_dir_for()`를 쓴다(정의서 §4.1 경로 인식).
+        """
         out = self._run_as(user, ["getent", "passwd", user]).strip()
         parts = out.split(":")
         if len(parts) < 6 or not parts[5]:
@@ -237,6 +269,226 @@ class LoginNodeClient:
                         ) from exc
         finally:
             sftp.close()
+
+    # --- 경로 관문 (변경 작업이 전부 여기를 지난다) ----------------------
+    @staticmethod
+    def _guard(sftp: paramiko.SFTPClient, path: str, roots: Sequence[str] | None) -> str:
+        """**있는** 경로를 정규화하고 허용 루트 안인지 확인한다.
+
+        검사는 반드시 정규화 **뒤에** 한다 — `..`나 심볼릭 링크로 밖을 가리키는 경로를
+        문자열만 보고 통과시키면 안 된다(`list_dir`과 같은 규칙).
+        """
+        try:
+            resolved = sftp.normalize(path)
+        except FileNotFoundError as exc:
+            raise ValidationFailed("경로를 찾을 수 없습니다.", detail={"path": path}) from exc
+        except PermissionError as exc:
+            raise ValidationFailed("접근 권한이 없습니다.", detail={"path": path}) from exc
+        if roots is not None and not _within(resolved, roots):
+            raise Forbidden("허용된 디렉터리 밖입니다.", detail={"path": resolved})
+        return resolved
+
+    @classmethod
+    def _guard_new(cls, sftp: paramiko.SFTPClient, path: str, roots: Sequence[str] | None) -> str:
+        """**아직 없는** 경로. 부모를 정규화해 검사하고 이름을 이어 붙인다.
+
+        없는 경로는 정규화 결과를 믿을 수 없으므로 부모까지만 서버에 물어본다.
+        마지막 조각의 `..`는 부모 밖으로 나가는 통로라 여기서 직접 막는다.
+        """
+        parent, _, name = path.rstrip("/").rpartition("/")
+        if not name or name in (".", "..") or "\x00" in name:
+            raise ValidationFailed("이름이 올바르지 않습니다.", detail={"name": name})
+        return f"{cls._guard(sftp, parent or '/', roots).rstrip('/')}/{name}"
+
+    @staticmethod
+    def _reject_root(target: str, roots: Sequence[str] | None) -> None:
+        """홈 같은 최상위 자체를 지우거나 옮기는 것을 막는다."""
+        if roots is not None and any(target == r.rstrip("/") for r in roots):
+            raise ValidationFailed(
+                "최상위 디렉터리는 삭제하거나 옮길 수 없습니다.", detail={"path": target}
+            )
+
+    # --- 파일 조작 (U-FM-02·04) -----------------------------------------
+    def make_dir(
+        self, user: str, path: str, *, allowed_roots: Sequence[str] | None = None
+    ) -> str:
+        sftp = self._sftp_as(user)
+        try:
+            target = self._guard_new(sftp, path, allowed_roots)
+            if _sftp_exists(sftp, target):
+                raise ValidationFailed("같은 이름이 이미 있습니다.", detail={"path": target})
+            try:
+                sftp.mkdir(target, 0o755)
+            except OSError as exc:
+                raise _fs_error("디렉터리를 만들지 못했습니다", target, exc) from exc
+            return target
+        finally:
+            sftp.close()
+
+    def create_file(
+        self, user: str, path: str, *, allowed_roots: Sequence[str] | None = None
+    ) -> str:
+        """빈 파일 생성. 'x' 모드라 이미 있으면 실패한다 — 덮어쓰지 않는다."""
+        sftp = self._sftp_as(user)
+        try:
+            target = self._guard_new(sftp, path, allowed_roots)
+            if _sftp_exists(sftp, target):
+                raise ValidationFailed("같은 이름이 이미 있습니다.", detail={"path": target})
+            try:
+                sftp.open(target, "x").close()
+            except OSError as exc:
+                raise _fs_error("파일을 만들지 못했습니다", target, exc) from exc
+            return target
+        finally:
+            sftp.close()
+
+    def remove(
+        self,
+        user: str,
+        path: str,
+        *,
+        allowed_roots: Sequence[str] | None = None,
+        recursive: bool = False,
+    ) -> str:
+        sftp = self._sftp_as(user)
+        try:
+            target = self._guard(sftp, path, allowed_roots)
+            self._reject_root(target, allowed_roots)
+            try:
+                # **lstat이다.** stat은 링크를 따라가므로, 바깥을 가리키는 링크를 지울 때
+                # 링크가 아니라 대상 디렉터리를 지우게 된다.
+                mode = sftp.lstat(target).st_mode or 0
+                if stat_module.S_ISDIR(mode):
+                    if recursive:
+                        self._rmtree(sftp, target, 0)
+                    elif sftp.listdir(target):
+                        raise ValidationFailed(
+                            "비어 있지 않은 디렉터리입니다. 하위 항목까지 지우려면 "
+                            "재귀 삭제를 선택하세요.",
+                            detail={"path": target},
+                        )
+                    else:
+                        sftp.rmdir(target)
+                else:
+                    sftp.remove(target)
+            except OSError as exc:
+                raise _fs_error("삭제하지 못했습니다", target, exc) from exc
+            return target
+        finally:
+            sftp.close()
+
+    def _rmtree(self, sftp: paramiko.SFTPClient, path: str, depth: int) -> None:
+        if depth > MAX_TREE_DEPTH:
+            raise ValidationFailed("디렉터리가 너무 깊습니다.", detail={"path": path})
+        for attr in sftp.listdir_attr(path):
+            child = f"{path.rstrip('/')}/{attr.filename}"
+            mode = attr.st_mode or 0
+            # readdir 속성은 lstat 기준이다. 링크는 따라가지 않고 링크만 지운다.
+            if stat_module.S_ISDIR(mode) and not stat_module.S_ISLNK(mode):
+                self._rmtree(sftp, child, depth + 1)
+            else:
+                sftp.remove(child)
+        sftp.rmdir(path)
+
+    def move(
+        self, user: str, src: str, dst: str, *, allowed_roots: Sequence[str] | None = None
+    ) -> tuple[str, str]:
+        """이름 변경과 이동은 같은 연산이다. **덮어쓰지 않는다.**"""
+        sftp = self._sftp_as(user)
+        try:
+            source = self._guard(sftp, src, allowed_roots)
+            self._reject_root(source, allowed_roots)
+            target = self._guard_new(sftp, dst, allowed_roots)
+            if source == target:
+                return source, target
+            if _sftp_exists(sftp, target):
+                raise ValidationFailed("같은 이름이 이미 있습니다.", detail={"path": target})
+            try:
+                sftp.rename(source, target)
+            except OSError as exc:
+                raise _fs_error("옮기지 못했습니다", target, exc) from exc
+            return source, target
+        finally:
+            sftp.close()
+
+    def upload(
+        self,
+        user: str,
+        path: str,
+        source: BinaryIO,
+        *,
+        allowed_roots: Sequence[str] | None = None,
+        max_bytes: int | None = None,
+    ) -> tuple[str, int]:
+        """스트림을 그대로 흘려 넣는다 — 큰 파일도 상수 메모리로 처리한다."""
+        sftp = self._sftp_as(user)
+        target: str | None = None
+        try:
+            target = self._guard_new(sftp, path, allowed_roots)
+            if _sftp_exists(sftp, target):
+                raise ValidationFailed("같은 이름이 이미 있습니다.", detail={"path": target})
+            written = 0
+            try:
+                with sftp.open(target, "wb") as handle:
+                    handle.set_pipelined(True)
+                    while True:
+                        chunk = source.read(CHUNK_BYTES)
+                        if not chunk:
+                            break
+                        written += len(chunk)
+                        if max_bytes is not None and written > max_bytes:
+                            raise ValidationFailed(
+                                f"업로드 크기가 상한({max_bytes // (1024 * 1024)}MB)을 넘었습니다.",
+                                detail={"path": target},
+                            )
+                        handle.write(chunk)
+            except BaseException:
+                # 반쯤 쓰인 파일을 남기면 사용자가 정상 파일로 착각한다.
+                try:
+                    sftp.remove(target)
+                except OSError:
+                    pass
+                raise
+            return target, written
+        finally:
+            sftp.close()
+
+    def open_read(
+        self, user: str, path: str, *, allowed_roots: Sequence[str] | None = None
+    ) -> tuple[str, int, Iterator[bytes]]:
+        """다운로드용. **검증을 먼저 끝내고** 그 뒤에 흐르는 반복자를 돌려준다.
+
+        스트리밍이 시작된 뒤에는 오류를 HTTP 상태로 알릴 방법이 없다.
+        """
+        sftp = self._sftp_as(user)
+        try:
+            target = self._guard(sftp, path, allowed_roots)
+            attr = sftp.stat(target)
+            if stat_module.S_ISDIR(attr.st_mode or 0):
+                raise ValidationFailed(
+                    "디렉터리는 내려받을 수 없습니다.", detail={"path": target}
+                )
+            size = attr.st_size or 0
+        except OSError as exc:
+            sftp.close()
+            raise _fs_error("파일을 열지 못했습니다", path, exc) from exc
+        except BaseException:
+            sftp.close()
+            raise
+
+        def chunks() -> Iterator[bytes]:
+            try:
+                with sftp.open(target, "rb") as handle:
+                    handle.prefetch(size)
+                    while True:
+                        data = handle.read(CHUNK_BYTES)
+                        if not data:
+                            break
+                        yield data
+            finally:
+                sftp.close()
+
+        return target, size, chunks()
 
     def list_dir(
         self, user: str, path: str, *, allowed_roots: Sequence[str] | None = None
