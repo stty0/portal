@@ -1,7 +1,8 @@
 """포털 운영 설정 라우터 (api.md §9, A-OP-01·02·03·04).
 
 읽기 권한이 항목마다 다르다.
-  - 공지 목록·템플릿 목록: **인증 사용자** (U-CL-03 배너, U-JB-03 제출 폼이 쓴다)
+  - 공지 목록·템플릿 목록: **인증 사용자** (U-CL-03 배너가 쓴다. 템플릿을 쓰던
+    Job 제출 탭은 제거됐고, 지금 목록을 읽는 곳은 관리자 등록 화면뿐이다)
   - 설정·감사 로그, 그리고 모든 쓰기: **ADMIN**
 """
 
@@ -19,9 +20,6 @@ from app.schemas.ops import (
     NoticeUpdate,
     SettingsOut,
     SettingsUpdate,
-    TemplateCreate,
-    TemplateOut,
-    TemplateUpdate,
 )
 from app.services.ops import OpsService
 
@@ -54,10 +52,10 @@ def update_settings(
 def list_notices(
     user: CurrentUser,
     service: OpsServiceDep,
-    cluster_id: int | None = None,
     banner: bool = False,
 ) -> list[NoticeOut]:
-    items = service.list_notices(cluster_id=cluster_id, banner_only=banner)
+    # 공지는 포털 전체 대상이다 — 클러스터로 거르지 않는다.
+    items = service.list_notices(banner_only=banner)
     return [NoticeOut.model_validate(n) for n in items]
 
 
@@ -80,37 +78,6 @@ def update_notice(
 def delete_notice(notice_id: int, actor: AdminUser, service: OpsServiceDep) -> OkResponse:
     service.delete_notice(notice_id, actor=actor)
     return OkResponse(message="공지를 삭제했습니다.")
-
-
-# --- A-OP-02 템플릿 ---------------------------------------------------------
-@router.get("/templates", response_model=list[TemplateOut], summary="템플릿 목록 (U-JB-03)")
-def list_templates(user: CurrentUser, service: OpsServiceDep) -> list[TemplateOut]:
-    return [TemplateOut.model_validate(t) for t in service.list_templates(user=user)]
-
-
-@router.post(
-    "/templates", response_model=TemplateOut, status_code=201, summary="템플릿 등록 (A-OP-02)"
-)
-def create_template(
-    payload: TemplateCreate, actor: AdminUser, service: OpsServiceDep
-) -> TemplateOut:
-    return TemplateOut.model_validate(service.create_template(actor=actor, **payload.model_dump()))
-
-
-@router.patch("/templates/{template_id}", response_model=TemplateOut, summary="템플릿 수정 (A-OP-02)")
-def update_template(
-    template_id: int, payload: TemplateUpdate, actor: AdminUser, service: OpsServiceDep
-) -> TemplateOut:
-    template = service.update_template(
-        template_id, actor=actor, **payload.model_dump(exclude_unset=True)
-    )
-    return TemplateOut.model_validate(template)
-
-
-@router.delete("/templates/{template_id}", response_model=OkResponse, summary="템플릿 삭제 (A-OP-02)")
-def delete_template(template_id: int, actor: AdminUser, service: OpsServiceDep) -> OkResponse:
-    service.delete_template(template_id, actor=actor)
-    return OkResponse(message="템플릿을 삭제했습니다.")
 
 
 # --- A-OP-03 감사 로그 -------------------------------------------------------

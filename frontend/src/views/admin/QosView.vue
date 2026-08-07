@@ -8,7 +8,6 @@ import Chip from '@/components/ui/Chip.vue'
 import Empty from '@/components/ui/Empty.vue'
 import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Fid from '@/components/ui/Fid.vue'
-import NotImplemented from '@/components/ui/NotImplemented.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
 
@@ -89,7 +88,7 @@ const inputClass =
   <PageHead
     title="QOS 정책"
     :crumbs="['HPC Portal Admin', '사용자 / 정책']"
-    :sub="`QOS 정의 · 자원 신청 승인 · ${clusters.selectedName}`"
+    :sub="`QOS 정의 · ${clusters.selectedName}`"
   >
     <template #actions><Btn @click="load">↻ 새로고침</Btn></template>
   </PageHead>
@@ -158,11 +157,6 @@ const inputClass =
         빈 제한값은 <b>무제한</b>입니다. 변경은 감사 로그에 기록되며, 클러스터의
         <span class="mono">sacctmgr</span>와 같은 대상을 다룹니다.
       </template>
-    </Card>
-
-    <Card title="자원 신청 승인" flush>
-      <template #title-extra><Fid id="A-US-06" /></template>
-      <NotImplemented api="정의서 미설계 항목 — 승인 흐름 설계 후 구현" />
     </Card>
   </div>
 </template>

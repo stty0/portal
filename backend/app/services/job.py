@@ -7,6 +7,8 @@
     소유자 확인 후에만 돌려준다. 남의 Job은 존재 여부도 알리지 않는다(404).
 """
 
+import re
+import shlex
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
@@ -14,7 +16,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFound, ValidationFailed
-from app.models import Cluster, JobTemplate, User
+from app.models import Cluster, User
 from app.services.audit import AuditService
 from app.services.cluster import ClusterService
 
@@ -39,8 +41,6 @@ class JobSpec:
     work_dir: str | None = None
     environment: dict[str, str] | None = None
     script: str | None = None  # U-JB-02: 직접 작성한 스크립트
-    template_id: int | None = None  # U-JB-03
-    template_params: dict[str, Any] | None = None
     # form: 폼 값으로 #SBATCH 지시자를 생성 / script: 사용자가 준 본문을 그대로 사용
     mode: str = "form"
 
@@ -203,15 +203,20 @@ class JobService:
             "partitions": safe(partitions, "partitions"),
             "accounts": safe(accounts, "accounts"),
             "qos": safe(qos, "qos"),
+            "gpu_partitions": _gpu_partitions(client, as_user=user.username),
         }
 
     # --- 제출 -----------------------------------------------------------
     def submit(self, cluster: Cluster, spec: JobSpec, *, user: User) -> dict[str, Any]:
         script = self.build_script(spec)
-        payload = {
-            "script": script,
-            "job": _slurm_job_properties(spec, default_name=spec.name),
-        }
+        props = _slurm_job_properties(spec, default_name=spec.name)
+        ignored: list[str] = []
+        if spec.mode == "script":
+            # U-JB-02는 **스크립트가 정본**이다. 지시자를 REST 속성으로 옮기지 않으면
+            # 사용자가 붙여 넣은 `#SBATCH`가 조용히 무시되고 기본값으로 돈다(실측).
+            parsed, ignored = parse_sbatch(script)
+            props.update(parsed)
+        payload = {"script": script, "job": props}
         client = self.clusters.slurm_client(cluster)
         # as_user는 항상 인증된 본인 — 호출자가 지정할 수 없다.
         result = client.submit_job(payload, as_user=user.username)
@@ -224,15 +229,15 @@ class JobService:
             detail=f"partition={spec.partition} nodes={spec.nodes} gpus={spec.gpus}",
         )
         self.session.commit()
-        return {"job_id": job_id, "raw": result}
+        # 옮기지 못한 지시자는 **화면에 알린다** — 안 알리면 안 먹은 줄 모른다.
+        return {"job_id": job_id, "raw": result, "ignored_directives": ignored}
 
     def build_script(self, spec: JobSpec) -> str:
-        """폼/템플릿 → `#SBATCH` 배치 스크립트 생성 (U-JB-01·03).
+        """폼 → `#SBATCH` 배치 스크립트 생성 (U-JB-01).
 
         모드별로 다르게 만든다.
           - `script`(U-JB-02): 사용자가 준 본문을 **그대로** 쓴다. shebang만 보강한다.
-          - `form`(U-JB-01)·`template`(U-JB-03): 폼 값을 `#SBATCH` 지시자로 적고
-            그 아래에 실행 본문을 둔다.
+          - `form`(U-JB-01): 폼 값을 `#SBATCH` 지시자로 적고 그 아래에 실행 본문을 둔다.
 
         주의: slurmrestd 제출에서 `#SBATCH`는 **적용되지 않는다**(실측 — REST의 job
         속성이 이긴다). 지시자는 스크립트를 그대로 `sbatch`로 재실행하거나 내용을
@@ -248,15 +253,8 @@ class JobService:
             return "#!/bin/bash\n" + spec.script.lstrip("\n")
 
         body = spec.script or ""
-        if spec.template_id is not None:
-            template = self.session.get(JobTemplate, spec.template_id)
-            if template is None:
-                raise ValidationFailed(
-                    "템플릿을 찾을 수 없습니다.", detail={"template_id": spec.template_id}
-                )
-            body = _render_template(template, spec.template_params or {})
         if not body:
-            raise ValidationFailed("실행할 스크립트 또는 템플릿이 필요합니다.")
+            raise ValidationFailed("실행할 스크립트가 필요합니다.")
 
         directives = ["#!/bin/bash"]
         for flag, value in (
@@ -406,10 +404,121 @@ def _environment(spec: JobSpec) -> list[str]:
     return [f"{k}={v}" for k, v in env.items()]
 
 
+def _gpu_partitions(client, *, as_user: str) -> list[str] | None:
+    """GPU를 가진 노드가 하나라도 있는 파티션 이름.
+
+    파티션 응답에서 GRES를 읽지 않고 **노드에서 거슬러 올라간다** — 노드의 `gres`·
+    `partitions`는 화면이 이미 쓰고 있어 형태가 확인된 값이다.
+
+    **알 수 없으면 `None`을 돌려준다.** 빈 목록으로 뭉뚱그리면 조회 실패가 "GPU 없음"으로
+    둔갑해 멀쩡한 제출을 막는다 — 고를 수 있어야 할 것을 못 고르게 만드는 쪽이 더 나쁘다.
+    """
+    try:
+        payload = client.get_nodes(as_user=as_user)
+    except Exception:  # noqa: BLE001 — 못 읽으면 '모른다'로 남긴다
+        return None
+    nodes = payload.get("nodes") if isinstance(payload, dict) else None
+    if not isinstance(nodes, list):
+        return None
+    found: list[str] = []
+    for node in nodes:
+        if not isinstance(node, dict) or "gpu" not in str(node.get("gres") or "").lower():
+            continue
+        for name in node.get("partitions") or []:
+            if name and str(name) not in found:
+                found.append(str(name))
+    return found
+
+
 def _names(items: Any) -> list[str]:
     if not isinstance(items, list):
         return []
     return [str(i["name"]) for i in items if isinstance(i, dict) and i.get("name")]
+
+
+#: `#SBATCH` 지시자 → REST job 속성. **여기 없는 지시자는 적용되지 않는다.**
+#: slurmrestd는 스크립트의 지시자를 읽지 않고 REST 속성만 본다(실측) — 그래서 포털이
+#: 직접 옮겨 준다. 옮기지 못한 것은 조용히 버리지 않고 목록으로 돌려준다.
+_SBATCH_LINE = re.compile(r"^\s*#SBATCH\s+(.+?)\s*$", re.MULTILINE)
+_SBATCH_SHORT = {
+    "p": "partition", "A": "account", "q": "qos", "N": "nodes",
+    "c": "cpus-per-task", "t": "time", "J": "job-name", "D": "chdir",
+}
+_MEM_UNIT = {"K": 1 / 1024, "M": 1, "G": 1024, "T": 1024 * 1024}
+
+
+def _memory_mb(text: str) -> int:
+    """`32G`·`4096M`·`1024`(단위 없으면 MB) → MB 정수."""
+    raw = text.strip().upper()
+    unit = _MEM_UNIT.get(raw[-1:], None)
+    number = float(raw[:-1] if unit else raw)
+    return int(number * (unit or 1))
+
+
+def parse_sbatch(script: str) -> tuple[dict[str, Any], list[str]]:
+    """스크립트의 `#SBATCH` → (REST 속성, 옮기지 못한 지시자).
+
+    U-JB-02는 **스크립트가 정본**이다. 폼 값으로 자원을 정하면 사용자가 붙여 넣은
+    지시자가 조용히 무시되어, 잘 돌던 스크립트가 엉뚱한 자원으로 돈다.
+    """
+    props: dict[str, Any] = {}
+    ignored: list[str] = []
+
+    for line in _SBATCH_LINE.findall(script):
+        try:
+            tokens = shlex.split(line.split(" #", 1)[0])
+        except ValueError:
+            ignored.append(line)
+            continue
+        i = 0
+        while i < len(tokens):
+            token = tokens[i]
+            i += 1
+            if token.startswith("--"):
+                name, sep, value = token[2:].partition("=")
+                if not sep and i < len(tokens) and not tokens[i].startswith("-"):
+                    value = tokens[i]
+                    i += 1
+            elif token.startswith("-") and len(token) > 1:
+                name = _SBATCH_SHORT.get(token[1], token[1])
+                value = token[2:]
+                if not value and i < len(tokens) and not tokens[i].startswith("-"):
+                    value = tokens[i]
+                    i += 1
+            else:
+                continue
+            if not _apply_directive(name, value, props):
+                ignored.append(f"--{name}" if len(name) > 1 else f"-{name}")
+    return props, ignored
+
+
+def _apply_directive(name: str, value: str, props: dict[str, Any]) -> bool:
+    """알려진 지시자면 REST 속성에 담고 True. 모르면 False."""
+    try:
+        if name == "partition":
+            props["partition"] = value
+        elif name == "account":
+            props["account"] = value
+        elif name == "qos":
+            props["qos"] = value
+        elif name == "nodes":
+            props["nodes"] = value  # "2-4" 범위 표기를 허용하므로 문자열이다
+        elif name == "cpus-per-task":
+            props["cpus_per_task"] = int(value)
+        elif name == "mem":
+            props["memory_per_node"] = _memory_mb(value)
+        elif name == "time":
+            props["time_limit"] = walltime_minutes(value)
+        elif name == "job-name":
+            props["name"] = value
+        elif name == "chdir":
+            props["current_working_directory"] = value
+        else:
+            return False
+    except (ValueError, ValidationFailed):
+        # 값이 이상하면 **적용했다고 하지 않는다** — 화면에 목록으로 뜬다.
+        return False
+    return True
 
 
 def _slurm_job_properties(spec: JobSpec, *, default_name: str) -> dict[str, Any]:
@@ -431,11 +540,3 @@ def _slurm_job_properties(spec: JobSpec, *, default_name: str) -> dict[str, Any]
     return props
 
 
-def _render_template(template: JobTemplate, params: dict[str, Any]) -> str:
-    """템플릿 본문의 `{{key}}`를 파라미터로 치환한다 (U-JB-03)."""
-    body = ""
-    if isinstance(template.params, dict):
-        body = str(template.params.get("script") or "")
-    for key, value in params.items():
-        body = body.replace("{{%s}}" % key, str(value))
-    return body

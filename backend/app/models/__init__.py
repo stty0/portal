@@ -9,7 +9,6 @@ from app.models.cluster import AdConnection, Cluster, ClusterCredential
 from app.models.content import (
     AuditLog,
     InteractiveSession,
-    JobTemplate,
     Notice,
     PortalSetting,
     Ticket,
@@ -38,7 +37,6 @@ __all__ = [
     "AdConnection",
     # 포털 콘텐츠 · 감사
     "Notice",
-    "JobTemplate",
     "Ticket",
     "AuditLog",
     "InteractiveSession",

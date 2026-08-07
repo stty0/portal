@@ -13,12 +13,14 @@ import PageHead from '@/components/ui/PageHead.vue'
 
 const clusters = useClusterStore()
 
-type Mode = 'form' | 'script' | 'template'
+type Mode = 'form' | 'script'
 const mode = ref<Mode>('form')
 const busy = ref(false)
 const error = ref<unknown>(null)
 const preview = ref('')
 const submitted = ref<string | null>(null)
+/** 제출은 됐지만 적용되지 않은 지시자 — 성공 메시지 옆에 함께 알린다. */
+const ignoredDirectives = ref<string[]>([])
 
 const form = reactive<JobSubmitRequest>({
   name: '',
@@ -32,8 +34,6 @@ const form = reactive<JobSubmitRequest>({
   walltime: '02:00:00',
   work_dir: null,
   script: '',
-  template_id: null,
-  template_params: null,
 })
 
 /**
@@ -46,7 +46,7 @@ const form = reactive<JobSubmitRequest>({
  * 손으로 치면 오타 하나로 제출이 거부되고, 어떤 값이 유효한지 알 방법도 없다.
  * 다만 slurmdbd가 끊기면 계정·QOS가 비어 오므로, 그때는 직접 입력으로 되돌린다.
  */
-const options = ref<JobOptions>({ partitions: [], accounts: [], qos: [] })
+const options = ref<JobOptions>({ partitions: [], accounts: [], qos: [], gpu_partitions: null })
 
 const home = ref('')
 const subPath = ref('')
@@ -59,7 +59,9 @@ watch(
     // 홈을 못 읽으면 입력칸을 잠근다 — 틀린 경로로 제출해 실패하는 것보다 낫다.
     home.value = h.status === 'fulfilled' ? h.value.home : ''
     options.value =
-      o.status === 'fulfilled' ? o.value : { partitions: [], accounts: [], qos: [] }
+      o.status === 'fulfilled'
+        ? o.value
+        : { partitions: [], accounts: [], qos: [], gpu_partitions: null }
     // 목록에 없는 기본값은 지운다 — 화면에 빈 선택으로 남으면 혼란스럽다.
     if (options.value.partitions.length && !options.value.partitions.includes(form.partition ?? '')) {
       form.partition = options.value.partitions[0]
@@ -67,6 +69,25 @@ watch(
   },
   { immediate: true },
 )
+
+/**
+ * 이 파티션에 GPU가 있나. **`null`(모름)은 허용으로 친다** — 조회 실패 때문에 멀쩡한
+ * 제출을 막는 것이 GPU 없는 파티션에 GPU를 요청해 Slurm이 거부하는 것보다 나쁘다.
+ */
+const gpuAvailable = computed(() => {
+  const list = options.value.gpu_partitions
+  if (list === null) return true
+  return list.includes(form.partition ?? '')
+})
+
+const gpuHint = computed(() =>
+  gpuAvailable.value ? '' : `'${form.partition}' 파티션에는 GPU 노드가 없습니다`,
+)
+
+/** GPU 없는 파티션으로 바꾸면 남아 있던 값을 지운다 — 안 지우면 그대로 제출된다. */
+watch(gpuAvailable, (ok) => {
+  if (!ok) form.gpus = 0
+})
 
 /** 상위로 벗어나는 표기는 애초에 막는다. */
 const subPathError = computed(() => {
@@ -83,14 +104,10 @@ const workDir = computed(() => {
   return v ? `${home.value}/${v}` : home.value
 })
 
-/** 모드별로 백엔드에 보낼 페이로드를 다르게 만든다 (U-JB-01/02/03). */
+/** 모드별로 백엔드에 보낼 페이로드를 다르게 만든다 (U-JB-01/02). */
 function payload(): JobSubmitRequest {
   // 서버가 모드를 알아야 #SBATCH 지시자를 만들지 말지 정할 수 있다.
-  const base = { ...form, work_dir: workDir.value, mode: mode.value }
-  if (mode.value === 'template') {
-    base.script = null
-  }
-  return base
+  return { ...form, work_dir: workDir.value, mode: mode.value }
 }
 
 async function doPreview() {
@@ -115,6 +132,7 @@ async function submit() {
   try {
     const res = await jobApi.submit(clusters.selectedId, payload())
     submitted.value = res.job_id
+    ignoredDirectives.value = res.ignored_directives ?? []
   } catch (e) {
     error.value = e
   } finally {
@@ -130,7 +148,7 @@ const inputClass =
   <PageHead
     title="Job 제출"
     :crumbs="['HPC Portal', 'Job', '제출']"
-    :sub="`${clusters.selectedName} · 폼 / 스크립트 / 템플릿`"
+    :sub="`${clusters.selectedName} · 폼 / 스크립트`"
   >
     <template #actions>
       <RouterLink to="/jobs"><Btn>목록으로</Btn></RouterLink>
@@ -142,6 +160,11 @@ const inputClass =
   <div v-if="submitted" class="px-4 py-3 rounded-lg bg-ok-bg text-ok text-[14.5px] mb-4">
     Job <b class="mono">{{ submitted }}</b> 제출 완료.
     <RouterLink :to="`/jobs/${submitted}`" class="underline font-semibold">상세 보기</RouterLink>
+    <!-- 조용히 버리면 사용자는 안 먹은 줄 모른다 -->
+    <p v-if="ignoredDirectives.length" class="mt-1.5 text-warn text-[13.5px]">
+      적용되지 않은 지시자: <b class="mono">{{ ignoredDirectives.join(', ') }}</b>
+      — 포털이 REST로 옮기지 못한 항목이라 이번 Job에는 반영되지 않았습니다.
+    </p>
   </div>
 
   <div class="grid lg:grid-cols-[1fr_420px] gap-5 items-start">
@@ -149,14 +172,14 @@ const inputClass =
       <template #head>
         <div class="flex rounded-lg border border-line overflow-hidden text-[14px]">
           <button
-            v-for="m in (['form', 'script', 'template'] as const)"
+            v-for="m in (['form', 'script'] as const)"
             :key="m"
             class="px-3 py-1.5"
             :class="mode === m ? 'bg-brand-700 text-white font-semibold' : 'bg-surface text-ink-2'"
             @click="mode = m"
-          >{{ m === 'form' ? '폼' : m === 'script' ? '스크립트' : '템플릿' }}</button>
+          >{{ m === 'form' ? '폼' : '스크립트' }}</button>
         </div>
-        <Fid :id="mode === 'form' ? 'U-JB-01' : mode === 'script' ? 'U-JB-02' : 'U-JB-03'" />
+        <Fid :id="mode === 'form' ? 'U-JB-01' : 'U-JB-02'" />
       </template>
 
       <div class="grid sm:grid-cols-2 gap-4">
@@ -164,6 +187,11 @@ const inputClass =
           <input v-model="form.name" :class="inputClass" placeholder="예: llm-finetune-r3" />
         </Field>
         <!-- 목록을 받아오지 못한 항목만 직접 입력으로 되돌린다(slurmdbd 미연결 등) -->
+        <!--
+          스크립트 모드에서는 자원 입력을 감춘다. 스크립트의 `#SBATCH`가 정본이고,
+          폼까지 두면 어느 쪽이 이기는지 화면이 말하지 못한다.
+        -->
+        <template v-if="mode === 'form'">
         <Field label="파티션" :hint="options.partitions.length ? '' : '목록을 불러오지 못해 직접 입력합니다.'">
           <select v-if="options.partitions.length" v-model="form.partition" :class="[inputClass, 'mono']">
             <option v-for="p in options.partitions" :key="p" :value="p">{{ p }}</option>
@@ -196,17 +224,18 @@ const inputClass =
         <Field label="Walltime" hint="D-HH:MM:SS 또는 HH:MM:SS">
           <input v-model="form.walltime" :class="[inputClass, 'mono']" />
         </Field>
-
-        <template v-if="mode !== 'template'">
-          <Field label="노드 수"><input v-model.number="form.nodes" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
-          <Field label="CPU / task"><input v-model.number="form.cpus_per_task" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
-          <Field label="GPU 수"><input v-model.number="form.gpus" type="number" min="0" :class="[inputClass, 'mono']" /></Field>
-          <Field label="메모리 (GB)"><input v-model.number="form.memory_gb" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
-        </template>
-
-        <Field v-if="mode === 'template'" label="템플릿 ID" full hint="관리자가 등록한 템플릿 (A-OP-02)">
-          <input v-model.number="form.template_id" type="number" :class="[inputClass, 'mono']" />
+        <Field label="노드 수"><input v-model.number="form.nodes" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
+        <Field label="CPU / task"><input v-model.number="form.cpus_per_task" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
+        <!-- 파티션에 GPU가 없으면 고를 수 없게 한다. 넣어봐야 Slurm이 거부한다. -->
+        <Field label="GPU 수" :hint="gpuHint">
+          <input
+            v-model.number="form.gpus" type="number" min="0"
+            :disabled="!gpuAvailable"
+            :class="[inputClass, 'mono', gpuAvailable ? '' : 'bg-bg text-ink-3']"
+          />
         </Field>
+        <Field label="메모리 (GB)"><input v-model.number="form.memory_gb" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
+        </template>
 
         <Field
           label="작업 디렉토리"
@@ -228,19 +257,29 @@ const inputClass =
         </Field>
 
         <Field
-          v-if="mode !== 'template'" label="실행 스크립트" full
+          label="실행 스크립트" full
           :hint="mode === 'form'
             ? '실행할 명령만 쓰세요. 위 폼 값이 #SBATCH 지시자로 자동 생성됩니다.'
-            : '#SBATCH 지시자를 포함한 전체 스크립트를 직접 작성합니다. 서버는 손대지 않습니다.'"
+            : '#SBATCH 지시자를 포함한 전체 스크립트를 씁니다. 자원은 이 지시자가 정합니다.'"
         >
-          <textarea v-model="form.script" rows="8" :class="[inputClass, 'mono resize-y']" />
+          <textarea
+            v-model="form.script" :rows="mode === 'script' ? 16 : 8"
+            :class="[inputClass, 'mono resize-y']"
+          />
         </Field>
       </div>
 
       <template #foot>
         <div class="flex justify-end gap-2">
-          <Btn :disabled="busy || !form.name || !!subPathError" @click="doPreview">스크립트 미리보기</Btn>
-          <Btn variant="primary" :disabled="busy || !form.name || !!subPathError" @click="submit">
+          <Btn
+            :disabled="busy || !form.name || !!subPathError"
+            @click="doPreview"
+          >스크립트 미리보기</Btn>
+          <Btn
+            variant="primary"
+            :disabled="busy || !form.name || !!subPathError"
+            @click="submit"
+          >
             {{ busy ? '제출 중…' : '제출 (sbatch)' }}
           </Btn>
         </div>

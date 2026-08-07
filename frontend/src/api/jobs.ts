@@ -3,6 +3,11 @@ import type { JobListResponse, JobSubmitRequest, JobSubmitResponse, SlurmJob } f
 
 export interface JobOptions {
   partitions: string[]
+  /**
+   * GPU를 가진 노드가 있는 파티션. **`null`은 '모른다'**(노드 조회 실패)이고 빈 배열은
+   * 'GPU가 없다'다 — 둘을 뭉뚱그리면 조회 실패가 제출을 막는다.
+   */
+  gpu_partitions: string[] | null
   accounts: string[]
   qos: string[]
 }

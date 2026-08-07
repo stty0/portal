@@ -41,7 +41,6 @@ from app.models import (
     Cluster,
     ClusterCredential,
     InteractiveSession,
-    JobTemplate,
     LicenseFeatureSnapshot,
     LicenseServer,
     Notice,
@@ -68,57 +67,26 @@ AD_DEFAULTS = {
 CLUSTERS = [
     {
         "name": "seoul-hpc",
-        "description": "본원 데이터센터",
+        "alias": "본원 데이터센터",
         "slurmrestd_url": "http://slurmrestd.seoul.internal:6820",
-        "api_version": "v0.0.41",
+        "api_version": "v0.0.43",
         "auth_method": "jwt",
         "login_node": "login01.seoul.internal",
         "ssh_port": 22,
         "ssh_account": "svc-portal",
-        "group_path_tpl": "/group/{group}",
-        "scratch_path_tpl": "/scratch/{user}",
         "is_default": True,
     },
     {
         "name": "pangyo-gpu",
-        "description": "GPU 특화",
+        "alias": "GPU 특화",
         "slurmrestd_url": "http://slurmrestd.pangyo.internal:6820",
-        "api_version": "v0.0.41",
+        "api_version": "v0.0.43",
         "auth_method": "jwt",
         "login_node": "login01.pangyo.internal",
         "ssh_port": 22,
         "ssh_account": "svc-portal",
-        "group_path_tpl": "/group/{group}",
-        "scratch_path_tpl": "/scratch/{user}",
         "is_default": False,
     },
-]
-
-TEMPLATES = [
-    (
-        "Python (single node)",
-        "batch",
-        "1.0",
-        {"script": "module load python/3.12\npython {{entry}}", "params": ["entry"]},
-    ),
-    (
-        "MPI (multi node)",
-        "batch",
-        "1.0",
-        {"script": "module load openmpi/5.0\nmpirun -np {{np}} {{binary}}", "params": ["np", "binary"]},
-    ),
-    (
-        "GROMACS",
-        "batch",
-        "2025.2",
-        {"script": "module load gromacs/2025.2\ngmx mdrun -deffnm {{prefix}}", "params": ["prefix"]},
-    ),
-    (
-        "JupyterLab",
-        "interactive",
-        "4.2",
-        {"script": "jupyter lab --no-browser --ip=0.0.0.0 --port=$PORT", "params": []},
-    ),
 ]
 
 # --reset이 지우는 대상. **User·AdConnection은 제외** — 사용자는 AD가 소유하고,
@@ -128,7 +96,6 @@ DEV_TABLES = [
     InteractiveSession,
     Ticket,
     Notice,
-    JobTemplate,
     LicenseFeatureSnapshot,
     LicenseServer,
     BillingSnapshot,
@@ -351,23 +318,6 @@ def seed(session) -> tuple[dict[str, int], list[str]]:
         )
         created += is_new
     counts["notice"] = created
-
-    created = 0
-    for name, type_, version, params in TEMPLATES:
-        _, is_new = get_or_create(
-            session,
-            JobTemplate,
-            name=name,
-            defaults={
-                "type": type_,
-                "version": version,
-                "params": params,
-                "is_public": True,
-                "created_by": owner.ad_object_guid,
-            },
-        )
-        created += is_new
-    counts["job_template"] = created
 
     created = 0
     for idx, (title, status, job_id) in enumerate(

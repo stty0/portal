@@ -95,8 +95,10 @@ export interface AdSyncResult {
 // --- Clusters -----------------------------------------------------
 export interface ClusterSummary {
   id: number
-  name: string
-  description: string | null
+  /** slurm.conf ClusterName. REST 연결 테스트 전에는 **없다**. */
+  name: string | null
+  /** 사람이 붙인 이름. 화면은 이 값을 먼저 보여준다. */
+  alias: string | null
   is_default: boolean
   is_active: boolean
 }
@@ -108,10 +110,9 @@ export interface Cluster extends ClusterSummary {
   login_node: string | null
   ssh_port: number | null
   ssh_account: string | null
-  group_path_tpl: string | null
-  scratch_path_tpl: string | null
   /** U-IA-02 세션 이미지. SIF 경로 / oras:// / docker:// */
-  desktop_image_ref: string | null
+  home_base: string | null
+  image_repository: string | null
   created_at?: string | null
   last_health_at?: string | null
   last_health_ok?: boolean | null
@@ -120,17 +121,16 @@ export interface Cluster extends ClusterSummary {
 }
 
 export interface ClusterCreate {
-  name: string
-  description?: string | null
+  /** 이름은 받지 않는다 — slurmrestd가 정한다. */
+  alias: string
   slurmrestd_url?: string | null
   api_version?: string | null
   auth_method?: string | null
   login_node?: string | null
   ssh_port?: number | null
   ssh_account?: string | null
-  group_path_tpl?: string | null
-  scratch_path_tpl?: string | null
-  desktop_image_ref?: string | null
+  home_base?: string | null
+  image_repository?: string | null
   is_default?: boolean
 }
 
@@ -171,7 +171,7 @@ export interface JobListResponse {
 export interface JobSubmitRequest {
   name: string
   /** form이면 폼 값이 #SBATCH 지시자로 생성되고, script면 본문을 그대로 쓴다. */
-  mode?: 'form' | 'script' | 'template'
+  mode?: 'form' | 'script'
   partition?: string | null
   account?: string | null
   qos?: string | null
@@ -183,11 +183,14 @@ export interface JobSubmitRequest {
   work_dir?: string | null
   environment?: Record<string, string> | null
   script?: string | null
-  template_id?: number | null
-  template_params?: Record<string, unknown> | null
 }
 
 export interface JobSubmitResponse {
   job_id: string | null
   raw?: unknown
+  /**
+   * 스크립트 모드에서 REST 속성으로 **옮기지 못한** `#SBATCH`.
+   * slurmrestd는 스크립트의 지시자를 읽지 않으므로 이들은 적용되지 않는다.
+   */
+  ignored_directives?: string[]
 }

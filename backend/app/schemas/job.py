@@ -40,14 +40,16 @@ class JobSubmitRequest(BaseModel):
     environment: dict[str, str] | None = None
     script: str | None = None  # U-JB-02
     # 폼 값을 #SBATCH 지시자로 만들지, 준 스크립트를 그대로 쓸지
-    mode: str = Field(default="form", pattern="^(form|script|template)$")
-    template_id: int | None = None  # U-JB-03
-    template_params: dict[str, Any] | None = None
+    mode: str = Field(default="form", pattern="^(form|script)$")
 
 
 class JobSubmitResponse(BaseModel):
     job_id: str | None
     raw: Any = None
+    #: 스크립트 모드에서 REST 속성으로 **옮기지 못한** `#SBATCH` 지시자.
+    #: slurmrestd는 스크립트의 지시자를 읽지 않으므로 이들은 적용되지 않는다 —
+    #: 조용히 버리면 사용자는 안 먹은 줄 모른다.
+    ignored_directives: list[str] = []
 
 
 class JobControlRequest(BaseModel):

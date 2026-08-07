@@ -25,7 +25,7 @@ def test_slurm_headers_carry_token_and_impersonation():
     client = SlurmrestdClient(
         "http://slurm:6820",
         token_provider=lambda: "jwt-abc",
-        api_version="v0.0.41",
+        api_version="v0.0.43",
         transport=_transport(handler),
     )
     client.get_jobs(as_user="jrpark")
@@ -68,12 +68,12 @@ def test_api_version_is_pinned_in_path():
     client = SlurmrestdClient(
         "http://slurm:6820",
         token_provider=lambda: "t",
-        api_version="v0.0.41",
+        api_version="v0.0.43",
         transport=_transport(handler),
     )
     client.ping()
     client.get_accounting_jobs()
-    assert paths == ["/slurm/v0.0.41/ping", "/slurmdb/v0.0.41/jobs"]
+    assert paths == ["/slurm/v0.0.43/ping", "/slurmdb/v0.0.43/jobs"]
 
 
 def test_retry_only_for_idempotent_methods():
@@ -134,7 +134,7 @@ def test_client_factory_survives_detached_cluster(db, settings, secret_store):
     from app.clients.token_provider import SlurmTokenProvider
     from app.models import Cluster
 
-    cluster = Cluster(name="c1", slurmrestd_url="http://slurm:6820", api_version="v0.0.41")
+    cluster = Cluster(name="c1", slurmrestd_url="http://slurm:6820", api_version="v0.0.43")
     db.add(cluster)
     db.commit()
     secret_store.put("cluster/1/SLURM_JWT", "jwt-value")
@@ -157,11 +157,11 @@ def test_client_factory_survives_detached_cluster(db, settings, secret_store):
 def test_models_match_erd_entity_count():
     """db-erd.md의 엔티티 수와 일치해야 한다.
 
-    20 = 초기 21개 - `user_ssh_key`(U-AC-03 SSH 공개키, 0005에서 제거).
+    19 = 초기 21개 - `user_ssh_key`(U-AC-03, 0005) - `job_template`(U-JB-03/A-OP-02, 0012).
     """
     from app.models import Base
 
-    assert len(Base.metadata.tables) == 20
+    assert len(Base.metadata.tables) == 19
 
 
 def test_slurm_owned_entities_are_not_portal_tables():

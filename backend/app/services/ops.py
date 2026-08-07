@@ -12,10 +12,9 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFound, ValidationFailed
-from app.models import JobTemplate, Notice, PortalSetting, User
+from app.models import Notice, PortalSetting, User
 from app.repositories.audit import AuditLogRepository
 from app.repositories.content import (
-    JobTemplateRepository,
     NoticeRepository,
     PortalSettingRepository,
 )
@@ -38,7 +37,6 @@ class OpsService:
     def __init__(self, session: Session):
         self.session = session
         self.notices = NoticeRepository(session)
-        self.templates = JobTemplateRepository(session)
         self.settings_repo = PortalSettingRepository(session)
         self.audit_repo = AuditLogRepository(session)
         self.users = UserRepository(session)
@@ -80,10 +78,10 @@ class OpsService:
 
     # --- A-OP-01 공지 -----------------------------------------------------
     def list_notices(
-        self, *, cluster_id: int | None = None, banner_only: bool = False
+        self, *, banner_only: bool = False
     ) -> list[Notice]:
         now = datetime.now(timezone.utc).replace(tzinfo=None) if banner_only else None
-        return self.notices.search(cluster_id=cluster_id, banner_only=banner_only, now=now)
+        return self.notices.search(banner_only=banner_only, now=now)
 
     def create_notice(self, *, actor: User, **values: Any) -> Notice:
         _check_period(values.get("start_at"), values.get("end_at"))
@@ -111,36 +109,6 @@ class OpsService:
         title = notice.title
         self.session.delete(notice)
         self.audit.record(actor=actor, action="NOTICE_DELETE", target=title)
-        self.session.commit()
-
-    # --- A-OP-02 템플릿 ---------------------------------------------------
-    def list_templates(self, *, user: User) -> list[JobTemplate]:
-        return self.templates.visible_to(user.ad_object_guid)
-
-    def create_template(self, *, actor: User, **values: Any) -> JobTemplate:
-        template = JobTemplate(created_by=actor.ad_object_guid, **values)
-        self.session.add(template)
-        self.audit.record(actor=actor, action="TEMPLATE_CREATE", target=template.name)
-        self.session.commit()
-        return template
-
-    def update_template(self, template_id: int, *, actor: User, **values: Any) -> JobTemplate:
-        template = self.templates.get(template_id)
-        if template is None:
-            raise NotFound("템플릿을 찾을 수 없습니다.", detail={"id": template_id})
-        for key, value in values.items():
-            setattr(template, key, value)
-        self.audit.record(actor=actor, action="TEMPLATE_UPDATE", target=template.name)
-        self.session.commit()
-        return template
-
-    def delete_template(self, template_id: int, *, actor: User) -> None:
-        template = self.templates.get(template_id)
-        if template is None:
-            raise NotFound("템플릿을 찾을 수 없습니다.", detail={"id": template_id})
-        name = template.name
-        self.session.delete(template)
-        self.audit.record(actor=actor, action="TEMPLATE_DELETE", target=name)
         self.session.commit()
 
     # --- A-OP-03 감사 로그 -------------------------------------------------

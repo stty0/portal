@@ -12,35 +12,18 @@ BigIntPk = BigInteger().with_variant(Integer, "sqlite")
 
 
 class Notice(Base):
-    """U-CL-03 / A-OP-01. target_cluster_id NULL = 전체 클러스터."""
+    """U-CL-03 / A-OP-01. **공지는 포털 전체 대상이다** — 클러스터 스코프를 두지 않는다."""
 
     __tablename__ = "notice"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(255))
     body: Mapped[str | None] = mapped_column(Text)
-    target_cluster_id: Mapped[int | None] = mapped_column(ForeignKey("cluster.id"))
     banner_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     start_at: Mapped[datetime | None] = mapped_column(DateTime)
     end_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_by: Mapped[str | None] = mapped_column(ForeignKey("user.ad_object_guid"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
-
-
-class JobTemplate(Base):
-    """U-JB-03 / A-OP-02."""
-
-    __tablename__ = "job_template"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(128))
-    type: Mapped[str | None] = mapped_column(String(16))  # interactive / batch
-    version: Mapped[str | None] = mapped_column(String(16))
-    params: Mapped[dict | None] = mapped_column(JSON)
-    is_public: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_by: Mapped[str | None] = mapped_column(ForeignKey("user.ad_object_guid"))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 
 class Ticket(Base):

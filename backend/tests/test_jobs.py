@@ -129,39 +129,7 @@ def test_script_generation_from_form(client, cluster, user_token):
     assert script.rstrip().endswith("srun ./a.out")
 
 
-def test_script_generation_from_template(client, db, cluster, user_token):
-    from app.models import JobTemplate
-
-    template = JobTemplate(
-        name="python", type="batch", params={"script": "python {{entry}} --epochs {{epochs}}"}
-    )
-    db.add(template)
-    db.commit()
-
-    resp = client.post(
-        f"/api/v1/clusters/{cluster.id}/jobs/preview-script",
-        json={
-            "name": "tpl-job",
-            "partition": "gpu",
-            "nodes": 1,
-            "gpus": 4,
-            "memory_gb": 32,
-            "walltime": "01:00:00",
-            "template_id": template.id,
-            "template_params": {"entry": "train.py", "epochs": 10},
-        },
-        headers=auth_headers(user_token),
-    )
-    script = resp.json()["script"]
-    assert script.startswith("#!/bin/bash")
-    assert "#SBATCH --partition=gpu" in script
-    assert "#SBATCH --gres=gpu:4" in script
-    assert "#SBATCH --mem=32G" in script
-    assert "#SBATCH --time=01:00:00" in script
-    assert "python train.py --epochs 10" in script
-
-
-def test_submit_without_script_or_template_fails(client, cluster, user_token):
+def test_submit_without_script_fails(client, cluster, user_token):
     resp = client.post(
         f"/api/v1/clusters/{cluster.id}/jobs",
         json={"name": "empty"},
@@ -183,6 +151,105 @@ def test_job_control_is_admin_only(client, cluster, user_token, admin_token):
     path = f"/api/v1/clusters/{cluster.id}/jobs/45812"
     assert client.patch(path, json=body, headers=auth_headers(user_token)).status_code == 403
     assert client.patch(path, json=body, headers=auth_headers(admin_token)).status_code == 200
+
+
+# --- 스크립트 모드는 스크립트가 정본 (U-JB-02) ------------------------------
+# slurmrestd는 스크립트의 `#SBATCH`를 읽지 않고 REST 속성만 본다(실측). 옮겨 주지 않으면
+# 사용자가 붙여 넣은 지시자가 조용히 무시되고 폼 기본값으로 돈다.
+
+SCRIPT = """#!/bin/bash
+#SBATCH --partition=gpu
+#SBATCH -N 4 -c 8
+#SBATCH --mem=32G
+#SBATCH --time 01:30:00
+srun ./solver
+"""
+
+
+def _submit_script(client, cluster, token, script=SCRIPT, **extra):
+    return client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs",
+        json={"name": "run", "mode": "script", "script": script, **extra},
+        headers=auth_headers(token),
+    )
+
+
+def test_script_directives_become_rest_properties(client, cluster, user_token, slurm_client):
+    resp = _submit_script(client, cluster, user_token)
+    assert resp.status_code == 200, resp.text
+    job = [kw["spec"] for n, kw in slurm_client.calls if n == "submit_job"][0]["job"]
+    assert job["partition"] == "gpu"
+    assert job["nodes"] == "4"
+    assert job["cpus_per_task"] == 8
+    assert job["memory_per_node"] == 32768   # 32G → MB
+    assert job["time_limit"] == 90           # 01:30:00 → 분
+
+
+def test_script_directives_beat_form_values(client, cluster, user_token, slurm_client):
+    """폼 값이 함께 와도 **스크립트가 이긴다** — 그게 이 모드의 뜻이다."""
+    resp = _submit_script(client, cluster, user_token, partition="cpu", nodes=1)
+    assert resp.status_code == 200, resp.text
+    job = [kw["spec"] for n, kw in slurm_client.calls if n == "submit_job"][0]["job"]
+    assert job["partition"] == "gpu" and job["nodes"] == "4"
+
+
+def test_unmapped_directives_are_reported_not_dropped(client, cluster, user_token, slurm_client):
+    """조용히 버리면 사용자는 안 먹은 줄 모른다."""
+    resp = _submit_script(
+        client, cluster, user_token,
+        script="#!/bin/bash\n#SBATCH --gres=gpu:2\n#SBATCH --output=o.log\nsrun x\n",
+    )
+    assert resp.status_code == 200, resp.text
+    assert set(resp.json()["ignored_directives"]) == {"--gres", "--output"}
+
+
+def test_form_mode_does_not_parse_the_script(client, cluster, user_token, slurm_client):
+    """폼 모드의 `#SBATCH`는 포털이 만든 것이라 다시 파싱할 이유가 없다."""
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs",
+        json={"name": "run", "partition": "cpu", "script": "srun x"},
+        headers=auth_headers(user_token),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["ignored_directives"] == []
+
+
+# --- GPU 파티션 판별 (U-JB-01) ----------------------------------------------
+# 파티션 응답이 아니라 **노드에서 거슬러 올라간다** — 노드의 gres·partitions는 화면이
+# 이미 쓰고 있어 형태가 확인된 값이다.
+
+
+def test_gpu_partitions_come_from_node_gres(client, cluster, user_token, slurm_client):
+    slurm_client.nodes_payload = {
+        "nodes": [
+            {"name": "cn01", "gres": "gpu:a100:4", "partitions": ["gpu", "all"]},
+            {"name": "cn02", "gres": "", "partitions": ["cpu", "all"]},
+        ]
+    }
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/job-options", headers=auth_headers(user_token)
+    ).json()
+    assert body["gpu_partitions"] == ["gpu", "all"]
+
+
+def test_unknown_gpu_support_is_null_not_empty(
+    client, cluster, user_token, slurm_client, monkeypatch
+):
+    """조회 실패를 '빈 목록'으로 뭉뚱그리면 **GPU 없음으로 둔갑**해 멀쩡한 제출을 막는다.
+
+    고를 수 있어야 할 것을 못 고르게 만드는 쪽이 더 나쁘므로 '모른다'로 남긴다.
+    """
+    def boom(*, as_user=None):
+        raise RuntimeError("slurmctld 응답 없음")
+
+    # 클래스가 아니라 **인스턴스**에 건다 — 클래스 속성을 지우면 원본 메서드까지 사라져
+    # 뒤따르는 테스트가 깨진다(실제로 겪음).
+    monkeypatch.setattr(slurm_client, "get_nodes", boom)
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/job-options", headers=auth_headers(user_token)
+    ).json()
+    assert body["gpu_partitions"] is None
+    assert body["partitions"]  # 나머지 선택지는 그대로 온다
 
 
 # --- slurmrestd v0.0.41 페이로드 형식 (실측 기반) ---------------------------

@@ -142,37 +142,6 @@ def test_reversed_period_is_rejected(client, admin_token):
     assert resp.status_code == 422
 
 
-# --- A-OP-02 템플릿 ---------------------------------------------------------
-
-
-def test_template_crud_and_visibility(client, admin_token, user_token):
-    created = client.post(
-        f"{API}/templates",
-        json={"name": "PyTorch 학습", "type": "batch", "params": {"script": "python train.py"}},
-        headers=auth_headers(admin_token),
-    )
-    assert created.status_code == 201
-    tid = created.json()["id"]
-
-    # 공개 템플릿은 일반 사용자도 본다(U-JB-03 제출 폼).
-    assert [t["name"] for t in client.get(f"{API}/templates", headers=auth_headers(user_token)).json()] == [
-        "PyTorch 학습"
-    ]
-    # 쓰기는 admin만.
-    assert client.delete(f"{API}/templates/{tid}", headers=auth_headers(user_token)).status_code == 403
-    assert client.delete(f"{API}/templates/{tid}", headers=auth_headers(admin_token)).status_code == 200
-
-
-def test_private_template_is_hidden_from_others(client, admin_token, user_token):
-    client.post(
-        f"{API}/templates",
-        json={"name": "내 전용", "is_public": False},
-        headers=auth_headers(admin_token),
-    )
-    assert client.get(f"{API}/templates", headers=auth_headers(user_token)).json() == []
-    assert len(client.get(f"{API}/templates", headers=auth_headers(admin_token)).json()) == 1
-
-
 # --- A-OP-03 감사 로그 -------------------------------------------------------
 
 

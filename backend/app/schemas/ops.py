@@ -36,7 +36,6 @@ class NoticeOut(BaseModel):
     id: int
     title: str
     body: str | None
-    target_cluster_id: int | None
     banner_enabled: bool
     start_at: datetime | None
     end_at: datetime | None
@@ -46,8 +45,6 @@ class NoticeOut(BaseModel):
 class NoticeCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     body: str | None = None
-    #: NULL = 전체 클러스터 대상
-    target_cluster_id: int | None = None
     banner_enabled: bool = False
     start_at: datetime | None = None
     end_at: datetime | None = None
@@ -56,41 +53,9 @@ class NoticeCreate(BaseModel):
 class NoticeUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     body: str | None = None
-    target_cluster_id: int | None = None
     banner_enabled: bool | None = None
     start_at: datetime | None = None
     end_at: datetime | None = None
-
-
-# --- A-OP-02 템플릿 ---------------------------------------------------------
-class TemplateOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    name: str
-    type: str | None
-    version: str | None
-    params: dict[str, Any] | None
-    is_public: bool
-    created_at: datetime
-    updated_at: datetime
-
-
-class TemplateCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=128)
-    type: str | None = Field(default="batch", pattern="^(batch|interactive)$")
-    version: str | None = Field(default=None, max_length=16)
-    #: 템플릿 본문·기본값. JobService가 `script`/치환 파라미터로 해석한다.
-    params: dict[str, Any] | None = None
-    is_public: bool = True
-
-
-class TemplateUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=128)
-    type: str | None = Field(default=None, pattern="^(batch|interactive)$")
-    version: str | None = Field(default=None, max_length=16)
-    params: dict[str, Any] | None = None
-    is_public: bool | None = None
 
 
 # --- A-OP-03 감사 로그 ------------------------------------------------------
