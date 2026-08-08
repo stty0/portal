@@ -520,6 +520,24 @@ def test_partitions_open_to_user_but_nodes_are_admin_only(client, cluster, user_
     )
 
 
+def test_partition_cpu_usage_is_summed_from_nodes(client, cluster, admin_token, slurm_client):
+    """파티션 응답에는 CPU 총량만 있어서 할당/가용은 노드를 더해 채운다."""
+    slurm_client.nodes_payload = {
+        "nodes": [
+            {"name": "cn01", "state": ["MIXED"], "cpus": 8, "alloc_cpus": 3, "partitions": ["debug"]},
+            {"name": "cn02", "state": ["IDLE"], "cpus": 8, "alloc_cpus": 0, "partitions": ["debug"]},
+            # 빠져 있는 노드: 돌던 Job은 할당으로 세지만 남은 CPU는 가용이 아니다.
+            {"name": "cn03", "state": ["ALLOCATED", "DRAIN"], "cpus": 8, "alloc_cpus": 2, "partitions": ["debug"]},
+        ],
+        "errors": [],
+    }
+    resp = client.get(
+        f"/api/v1/clusters/{cluster.id}/partitions", headers=auth_headers(admin_token)
+    )
+    assert resp.status_code == 200
+    assert resp.json()[0]["cpu_usage"] == {"allocated": 5, "available": 13, "total": 24}
+
+
 def test_partition_list_survives_partial_slurmdbd_error(client, cluster, admin_token):
     """slurmdbd가 끊겨 errors가 실려 와도 목록 자체는 그대로 보여준다(실물 관측 상황)."""
     resp = client.get(

@@ -126,6 +126,12 @@ function sendCtrlAltDel() {
   rfb.value?.sendCtrlAltDel()
 }
 
+/**
+ * 화면을 브라우저 창 전체로 넓힌다. 컨테이너 크기만 바꾸면 되고 재연결은 필요 없다 —
+ * noVNC가 컨테이너를 ResizeObserver로 보고 있어 `scaleViewport`가 알아서 다시 맞춘다.
+ */
+const maximized = ref(false)
+
 onMounted(connect)
 onBeforeUnmount(() => {
   disposed = true
@@ -144,6 +150,7 @@ onBeforeUnmount(() => {
       <Btn :disabled="state !== 'open'" @click="sendCtrlAltDel">Ctrl+Alt+Del</Btn>
       <Btn v-if="state !== 'open'" variant="primary" @click="connect">재연결</Btn>
       <Btn v-else variant="danger" @click="disconnect">연결 끊기</Btn>
+      <Btn @click="maximized = true">최대화</Btn>
     </template>
   </PageHead>
 
@@ -159,7 +166,16 @@ onBeforeUnmount(() => {
     <p v-if="closeReason" class="px-4 py-2 text-[13.5px] text-ink-3">{{ closeReason }}</p>
 
     <!-- noVNC가 이 요소 안에 캔버스를 만든다 -->
-    <div ref="screen" class="h-[75vh] bg-side-bg rounded-b-card overflow-hidden" />
+    <div
+      ref="screen"
+      class="bg-side-bg overflow-hidden"
+      :class="maximized ? 'fixed inset-0 z-50' : 'h-[75vh] rounded-b-card'"
+    />
+    <!-- 최대화 중에는 페이지 헤더가 가려지므로 조작 버튼을 화면 위에 띄운다. -->
+    <div v-if="maximized" class="fixed top-3 right-3 z-50 flex gap-2">
+      <Btn size="sm" :disabled="state !== 'open'" @click="sendCtrlAltDel">Ctrl+Alt+Del</Btn>
+      <Btn size="sm" @click="maximized = false">작게</Btn>
+    </div>
 
     <template #foot>
       본인 세션에만 접속할 수 있습니다 — 서버가 소유자를 확인한 뒤 워커 노드로 터널을 엽니다.

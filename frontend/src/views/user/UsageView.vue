@@ -38,8 +38,39 @@ async function load() {
 onMounted(load)
 watch(() => clusters.selectedId, load)
 
-/** 막대 길이는 최댓값 기준 상대치 — 절대값은 옆에 숫자로 읽는다(Billing과 같은 방식). */
-const peak = computed(() => Math.max(1, ...(usage.value?.daily ?? []).map((d) => d.cpu_hours)))
+/**
+ * 일별 막대는 **X축이 시간**이다 — 사용한 날만 나열하면 간격이 왜곡되므로 조회 기간을
+ * 하루도 빠짐없이 채운다(응답의 `daily`에는 Job이 있던 날만 온다).
+ */
+const series = computed(() => {
+  const u = usage.value
+  if (!u) return []
+  const found = new Map(u.daily.map((d) => [d.date, d]))
+  const out: { date: string; cpu_hours: number; jobs: number }[] = []
+  const cur = new Date(u.start)
+  const end = new Date(u.end)
+  // 날짜 증가는 UTC로 한다 — 현지 시간으로 더하면 DST 있는 지역에서 하루가 밀린다.
+  for (; cur <= end; cur.setUTCDate(cur.getUTCDate() + 1)) {
+    const key = cur.toISOString().slice(0, 10)
+    const hit = found.get(key)
+    out.push({ date: key, cpu_hours: hit?.cpu_hours ?? 0, jobs: hit?.jobs ?? 0 })
+  }
+  return out
+})
+
+/** Y축 눈금이 10.57 같은 값으로 끝나지 않도록 0.5 자리로 올린다. */
+const axisMax = computed(() => {
+  const peak = Math.max(0, ...series.value.map((d) => d.cpu_hours))
+  if (peak <= 0) return 1
+  const mag = 10 ** Math.floor(Math.log10(peak))
+  return (Math.ceil((peak / mag) * 2) / 2) * mag
+})
+const axisLabel = (v: number) => String(+v.toFixed(2))
+/** 값이 아주 작은 날도 막대가 사라지지 않게 최소 두께를 준다. */
+const barHeight = (v: number) => (v <= 0 ? '0' : `max(3px, ${(v / axisMax.value) * 100}%)`)
+/** 90일이면 날짜를 다 쓸 수 없다 — 8개 안팎만 남긴다. */
+const tickEvery = computed(() => Math.max(1, Math.ceil(series.value.length / 8)))
+const hovered = ref<number | null>(null)
 /** 한도가 없으면 null로 온다. 0으로 표시하면 "0개 제한"으로 오해된다. */
 const limit = (v: number | null, unit = '') => (v === null ? '무제한' : `${v}${unit}`)
 const fixed = (v: number | null, digits = 3) => (v === null ? '—' : v.toFixed(digits))
@@ -81,14 +112,55 @@ const inputClass =
         </div>
 
         <Empty v-if="!usage.daily.length" text="이 기간에 실행한 Job이 없습니다." />
-        <div v-else class="p-4 space-y-1.5">
-          <div v-for="d in usage.daily" :key="d.date" class="flex items-center gap-3">
-            <span class="w-24 shrink-0 mono text-[13px] text-ink-3">{{ d.date }}</span>
-            <div class="flex-1 h-3 rounded bg-idle-bg overflow-hidden">
-              <div class="h-full rounded bg-brand-700" :style="{ width: (d.cpu_hours / peak) * 100 + '%' }" />
+        <div v-else class="p-4">
+          <p class="text-[13px] text-ink-3 mb-3">일별 CPU 시간 (CPU·h)</p>
+          <div class="flex gap-2">
+            <!-- Y축: CPU·h -->
+            <div class="relative w-11 h-44 shrink-0 mono text-[11px] text-ink-3">
+              <span class="absolute right-0 -top-1.5">{{ axisLabel(axisMax) }}</span>
+              <span class="absolute right-0 top-1/2 -translate-y-1/2">{{ axisLabel(axisMax / 2) }}</span>
+              <span class="absolute right-0 -bottom-1.5">0</span>
             </div>
-            <span class="w-32 shrink-0 mono text-[13px] text-right">{{ d.cpu_hours }} CPU·h</span>
-            <span class="w-16 shrink-0 mono text-[13px] text-right text-ink-3">{{ d.jobs }}건</span>
+
+            <div class="flex-1 min-w-0">
+              <!-- 플롯 영역. 바닥선이 X축(=시간)이다. -->
+              <div class="relative h-44 border-b border-line-dark">
+                <div class="absolute inset-x-0 top-0 border-t border-line" />
+                <div class="absolute inset-x-0 top-1/2 border-t border-line" />
+                <div class="absolute inset-0 flex items-end gap-px">
+                  <div
+                    v-for="(d, i) in series"
+                    :key="d.date"
+                    class="relative flex-1 h-full flex items-end"
+                    @mouseenter="hovered = i"
+                    @mouseleave="hovered = null"
+                  >
+                    <div
+                      class="w-full rounded-t-[3px] transition-colors"
+                      :class="hovered === i ? 'bg-brand-500' : 'bg-brand-700'"
+                      :style="{ height: barHeight(d.cpu_hours) }"
+                    />
+                    <div
+                      v-if="hovered === i"
+                      class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 mono text-[12px] text-white shadow-pop"
+                    >
+                      {{ d.date }} · {{ d.cpu_hours }} CPU·h · {{ d.jobs }}건
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- X축 눈금: 날짜 -->
+              <div class="flex gap-px mt-1.5">
+                <div
+                  v-for="(d, i) in series"
+                  :key="d.date"
+                  class="flex-1 text-center mono text-[11px] text-ink-3 whitespace-nowrap"
+                >
+                  <span v-if="i % tickEvery === 0">{{ d.date.slice(5) }}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

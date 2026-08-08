@@ -208,7 +208,18 @@ class ClusterService:
         return _items(self.slurm_client(self.get(cluster_id)).get_nodes(), "nodes")
 
     def partitions(self, cluster_id: int) -> list[dict[str, Any]]:
-        return _items(self.slurm_client(self.get(cluster_id)).get_partitions(), "partitions")
+        client = self.slurm_client(self.get(cluster_id))
+        partitions = _items(client.get_partitions(), "partitions")
+        # 파티션 응답에는 CPU **총량만** 있다(v0.0.41) — 할당량은 노드에만 있어서 노드를 모아 채운다.
+        try:
+            usage = _cpu_usage_by_partition(_items(client.get_nodes(), "nodes"))
+        except ExternalServiceError:
+            return partitions  # 노드 조회가 실패해도 파티션 목록은 그대로 보여준다
+        for partition in partitions:
+            stat = usage.get(str(partition.get("name") or ""))
+            if stat:
+                partition["cpu_usage"] = stat
+        return partitions
 
     def reservations(self, cluster_id: int) -> list[dict[str, Any]]:
         return _items(self.slurm_client(self.get(cluster_id)).get_reservations(), "reservations")
@@ -581,6 +592,36 @@ def _number(value: Any) -> int | float | None:
         number = value.get("number")
         return number if isinstance(number, (int, float)) else None
     return None
+
+
+#: 이 상태의 노드는 새 일을 받지 못한다 — 남은 CPU를 "가용"으로 세면 안 된다.
+_OFFLINE_STATES = ("DOWN", "DRAIN", "DRNG", "FAIL", "INVAL", "NOT_RESPONDING")
+
+
+def _cpu_usage_by_partition(nodes: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    """노드를 파티션별로 더해 CPU 할당량·가용량을 낸다.
+
+    DOWN·DRAIN 노드의 남은 CPU는 **가용이 아니다** — 어느 쪽에도 넣지 않으므로
+    `할당 + 가용 ≤ 전체`가 된다. 이미 돌고 있는 Job의 CPU는 노드가 빠지는 중이어도
+    할당으로 센다. 한 노드가 여러 파티션에 속하면 파티션마다 잡힌다 — sinfo와 같은 셈법이다.
+    """
+    usage: dict[str, dict[str, int]] = {}
+    for node in nodes:
+        total = _number(node.get("cpus"))
+        if total is None:
+            continue
+        allocated = int(_number(node.get("alloc_cpus")) or 0)
+        states = node.get("state") or []
+        if isinstance(states, str):
+            states = [states]
+        offline = any(str(s).upper().startswith(_OFFLINE_STATES) for s in states)
+        for name in node.get("partitions") or []:
+            stat = usage.setdefault(str(name), {"allocated": 0, "available": 0, "total": 0})
+            stat["total"] += int(total)
+            stat["allocated"] += allocated
+            if not offline:
+                stat["available"] += max(0, int(total) - allocated)
+    return usage
 
 
 def _raise_on_errors(payload: Any) -> None:

@@ -75,10 +75,14 @@ watch(
         { key: 'name', label: '파티션' },
         { key: 'state', label: '상태' },
         { key: 'nodes', label: '노드 수', num: true },
-        { key: 'cpus', label: 'CPU', num: true },
+        { key: 'cpus', label: 'CPU 전체', num: true },
+        { key: 'alloc', label: '사용 중', num: true },
+        { key: 'avail', label: '가용', num: true },
         { key: 'time', label: '최대 실행시간', num: true },
       ]"
     >
+      <!-- 사용 중/가용은 노드를 파티션별로 더한 값이다(파티션 응답에는 총량만 온다).
+           빠져 있는(DOWN·DRAIN) 노드의 CPU는 어느 쪽에도 안 들어가 합이 전체보다 작을 수 있다. -->
       <tr v-for="p in partitions" :key="String(p.name)" class="border-b border-line last:border-0">
         <td class="px-3.5 py-2.5 mono font-semibold">{{ text(p, 'name') }}</td>
         <td class="px-3.5 py-2.5">
@@ -88,6 +92,12 @@ watch(
         </td>
         <td class="px-3.5 py-2.5 mono text-right">{{ num(sub(p, 'nodes').total) ?? '—' }}</td>
         <td class="px-3.5 py-2.5 mono text-right">{{ num(sub(p, 'cpus').total) ?? '—' }}</td>
+        <td class="px-3.5 py-2.5 mono text-right">
+          {{ num(sub(p, 'cpu_usage').allocated) ?? '—' }}
+        </td>
+        <td class="px-3.5 py-2.5 mono text-right text-ok font-semibold">
+          {{ num(sub(p, 'cpu_usage').available) ?? '—' }}
+        </td>
         <td class="px-3.5 py-2.5 mono text-right">{{ numText(sub(p, 'maximums').time, '분') }}</td>
       </tr>
     </Table>
