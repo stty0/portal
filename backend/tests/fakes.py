@@ -62,7 +62,18 @@ class FakeRedis:
         return set(self.sets.get(name, set()))
 
     def expire(self, name: str, time_: int):
-        return True
+        """만료 시각을 **실제로** 다시 잡는다.
+
+        예전에는 `True`만 돌려주는 껍데기였다. 그 상태로는 세션 유휴 슬라이딩을
+        테스트할 수 없다 — 만료가 밀렸는지 확인할 방법이 없기 때문이다.
+        """
+        if name in self.store:
+            value, _ = self.store[name]
+            self.store[name] = (value, time.time() + time_)
+            return True
+        if name in self.sets:
+            return True
+        return False
 
 
 class FakeAdClient:

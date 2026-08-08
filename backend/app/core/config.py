@@ -28,13 +28,22 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     #: 액세스 토큰 수명. **짧게 잡는다** — 유출돼도 창이 좁다. 갱신은 refresh가 맡는다.
     access_token_ttl_seconds: int = 30 * 60
-    #: refresh 토큰 수명 = 재로그인 없이 유지되는 기간. 세션 레코드도 이 값을 따른다.
+    #: refresh 토큰 수명. 세션 레코드가 죽으면 어차피 갱신이 안 되므로(refresh가 세션을
+    #: 다시 확인한다) 이 값이 실질 상한은 아니다 — 넉넉히 둔다.
     refresh_token_ttl_seconds: int = 14 * 24 * 3600
 
-    #: 세션 레코드 TTL. refresh가 살아 있는 동안 세션도 살아야 하므로 같은 값을 쓴다.
+    #: **절대 상한.** 유휴 연장으로 젊어지지 않는다. 이 시간이 지나면 아무리 활발히
+    #: 써도 재로그인을 요구한다 — 비밀번호를 다시 확인하는 지점이 필요하다.
+    session_absolute_ttl_seconds: int = 14 * 24 * 3600
+
+    #: **유휴 타임아웃의 기본값(분).** 실제 값은 관리자가 화면에서 정한다
+    #: (`portal_setting.session_timeout_min`, A-OP-04). 설정 행이 아직 없을 때만 쓰인다.
+    session_idle_default_minutes: int = 480
+
+    #: 세션 레코드를 처음 만들 때의 TTL. 이후 요청마다 유휴 값으로 되감긴다.
     @property
     def session_ttl_seconds(self) -> int:
-        return self.refresh_token_ttl_seconds
+        return self.session_idle_default_minutes * 60
 
     # --- 쿠키 전송(브라우저) ---
     #: HTTPS 배포에서는 반드시 True. 로컬 http 개발에서만 끈다.

@@ -7,6 +7,7 @@ Pod 로컬 캐시는 멀티 replica에서 불일치를 만들므로 사용하지
 import hashlib
 import json
 import secrets
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Protocol
@@ -35,6 +36,8 @@ class SessionData:
     sid: str
     user_guid: str
     username: str
+    #: 로그인 시각(epoch). **절대 상한**을 재는 기준 — 유휴 연장으로는 젊어지지 않는다.
+    created_at: float = 0.0
 
 
 class SessionStore:
@@ -59,9 +62,14 @@ class SessionStore:
 
     def create(self, *, user_guid: str, username: str) -> SessionData:
         sid = secrets.token_urlsafe(32)
-        data = SessionData(sid=sid, user_guid=user_guid, username=username)
+        created = time.time()
+        data = SessionData(
+            sid=sid, user_guid=user_guid, username=username, created_at=created
+        )
         self._redis.setex(
-            self._key(sid), self._ttl, json.dumps({"guid": user_guid, "username": username})
+            self._key(sid),
+            self._ttl,
+            json.dumps({"guid": user_guid, "username": username, "created": created}),
         )
         index = self._index_key(user_guid)
         self._redis.sadd(index, sid)
@@ -79,7 +87,21 @@ class SessionStore:
             payload = json.loads(raw)
         except ValueError:
             return None
-        return SessionData(sid=sid, user_guid=payload["guid"], username=payload["username"])
+        return SessionData(
+            sid=sid,
+            user_guid=payload["guid"],
+            username=payload["username"],
+            created_at=float(payload.get("created") or 0.0),
+        )
+
+    def touch(self, sid: str, ttl_seconds: int) -> None:
+        """유휴 시계를 되감는다 — **인증된 요청마다** 부른다.
+
+        유휴 판정을 refresh 토큰에 걸면 안 된다. 액세스 토큰이 살아 있는 동안
+        `/auth/refresh`는 **한 번도 불리지 않기 때문**에, 활발히 쓰는 중에도 refresh는
+        늙는다. 실제 활동이 지나가는 길목은 여기다.
+        """
+        self._redis.expire(self._key(sid), ttl_seconds)
 
     def revoke(self, sid: str) -> None:
         """단일 세션 종료(해당 기기만 로그아웃)."""

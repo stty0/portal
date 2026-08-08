@@ -8,6 +8,7 @@ URL-permission 매핑이 따로 놀지 않는다(§3.5).
 바뀌고 라우터는 수정되지 않는다(§3.4).
 """
 
+import time
 from collections.abc import Iterator
 from hmac import compare_digest
 from typing import Annotated
@@ -28,7 +29,7 @@ from app.core.redis_client import (
 from app.core.secrets import SecretStore
 from app.core.security import decode_session_token
 from app.db.session import session_scope
-from app.models import User
+from app.models import PortalSetting, User
 from app.repositories.identity import RoleRepository, UserRepository
 from app.services.api_token import TOKEN_PREFIX as API_TOKEN_PREFIX
 from app.services.api_token import ApiTokenService
@@ -112,6 +113,28 @@ def _require_csrf(request: Request) -> None:
         raise Unauthenticated("CSRF 토큰이 없거나 일치하지 않습니다.")
 
 
+
+#: 유휴 타임아웃(`portal_setting.session_timeout_min`)을 매 요청 DB에서 읽으면 요청마다
+#: SELECT가 생긴다. 짧게 캐시한다 — 관리자가 값을 바꾸면 이 시간 안에 반영된다.
+IDLE_SETTING_KEY = "portalSetting:sessionTimeoutMin"
+_IDLE_SETTING_CACHE_SECONDS = 60
+
+
+def _idle_ttl_seconds(request: Request, db: Session, settings: Settings) -> int:
+    """유휴 타임아웃(초). 관리자가 화면에서 조절하는 값이다(A-OP-04)."""
+    redis = request.app.state.redis
+    cached = redis.get(IDLE_SETTING_KEY)
+    if cached is not None:
+        if isinstance(cached, bytes):
+            cached = cached.decode()
+        return int(cached) * 60
+    # **행을 만들지 않는다.** 읽기 경로에서 쓰기가 일어나면 안 된다.
+    row = db.query(PortalSetting).first()
+    minutes = row.session_timeout_min if row else settings.session_idle_default_minutes
+    redis.setex(IDLE_SETTING_KEY, _IDLE_SETTING_CACHE_SECONDS, str(minutes))
+    return minutes * 60
+
+
 def get_current_session(
     request: Request,
     db: DbSession,
@@ -148,6 +171,16 @@ def get_current_session(
     session = sessions.get(sid)
     if session is None:
         raise Unauthenticated("세션이 만료되었거나 로그아웃되었습니다.")
+
+    # **절대 상한**은 유휴 연장으로 젊어지지 않는다. 오래 살아남은 세션을 언젠가는
+    # 반드시 끊어야 비밀번호를 다시 확인하는 지점이 생긴다.
+    age = time.time() - session.created_at
+    if session.created_at and age > settings.session_absolute_ttl_seconds:
+        sessions.revoke(sid)
+        raise Unauthenticated("세션 유효기간이 지났습니다. 다시 로그인하세요.")
+
+    # 유휴 시계를 되감는다. 이 요청 자체가 "활동"이다.
+    sessions.touch(sid, _idle_ttl_seconds(request, db, settings))
     return session
 
 

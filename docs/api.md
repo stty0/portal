@@ -22,7 +22,8 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 |---|---|
 | Base URL | `/api/v1` (아래 경로는 모두 이 프리픽스 생략) |
 | 인증 | **브라우저는 HttpOnly 쿠키, 기계 클라이언트는 `Authorization: Bearer`.** 자동화는 **API 토큰**(`hpcp_…`, 장수명·폐기 가능)을 같은 Bearer 자리에 넣는다 — 둘 다 같은 액세스 토큰(JWT, **30분**)이고 Redis 세션(`sid`)을 검증한다. 쿠키 인증의 상태 변경 요청은 `X-CSRF-Token` 헤더 필수(`portal_csrf` 쿠키 값) — Bearer는 면제 |
-| 세션 갱신 | `POST /auth/refresh` — refresh 토큰(**2주**, HttpOnly·경로 한정)으로 액세스 토큰 재발급. **refresh도 회전**하며, 쓴 토큰 재사용은 탈취로 보고 거부 |
+| 세션 갱신 | `POST /auth/refresh` — refresh 토큰(HttpOnly·경로 한정)으로 액세스 토큰 재발급. **refresh도 회전**하며, 쓴 토큰 재사용은 탈취로 보고 거부 |
+| 세션 수명 | **유휴 타임아웃**(관리자 설정 `session_timeout_min`, 기본 480분)은 **인증된 요청마다 되감긴다**. 그와 별개로 **절대 상한 14일** — 활동해도 이 시점엔 재로그인. 유휴로 죽은 세션은 refresh 토큰이 살아 있어도 되살아나지 않는다 |
 | 권한 표기 | `인증` = 로그인 사용자 전체, `admin:access` = ADMIN 전용(초기 유일 permission). 라우터는 `require_permission("...")` 문법으로 작성 — 향후 `job:cancel` 등 세분화 시 무수정(backend §3.4) |
 | 클러스터 스코프 | Slurm 종속 자원은 `/clusters/{cid}/...` (`cid`=Portal DB cluster.id). 클러스터별 독립 slurmdbd |
 | Impersonation | Slurm 호출의 대상 사용자명은 **서버가 인증된 본인으로 강제** — 요청 본문으로 받지 않음(backend §2.3) |

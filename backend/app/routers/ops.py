@@ -9,9 +9,9 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
-from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.core.deps import IDLE_SETTING_KEY, AdminUser, CurrentUser, DbSession
 from app.schemas.common import OkResponse, Page
 from app.schemas.ops import (
     AuditLogOut,
@@ -41,9 +41,12 @@ def get_settings_(_: AdminUser, service: OpsServiceDep) -> SettingsOut:
 
 @router.put("/settings", response_model=SettingsOut, summary="포털 설정 수정 (A-OP-04)")
 def update_settings(
-    payload: SettingsUpdate, actor: AdminUser, service: OpsServiceDep
+    payload: SettingsUpdate, request: Request, actor: AdminUser, service: OpsServiceDep
 ) -> SettingsOut:
     row = service.update_settings(actor=actor, **payload.model_dump(exclude_unset=True))
+    # 유휴 타임아웃은 요청 경로에서 캐시로 읽는다 — 바꾸자마자 먹도록 캐시를 비운다.
+    # 안 비워도 60초 뒤에는 반영되지만, 관리자가 "안 먹었나" 하고 다시 누르게 된다.
+    request.app.state.redis.delete(IDLE_SETTING_KEY)
     return SettingsOut.model_validate(row)
 
 
