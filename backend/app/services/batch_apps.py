@@ -84,6 +84,9 @@ class BatchApp:
     params: tuple[AppParam, ...] = ()
     #: GPU를 쓰는 앱이면 `apptainer exec --nv`가 붙는다.
     needs_gpu: bool = False
+    #: 컨테이너에 넣을 환경변수(`--env K=V`). **라이선스 동의처럼 앱이 정하는 값**이지
+    #: 사용자 입력이 아니다 — Isaac Sim은 `ACCEPT_EULA` 없이는 시작하지 않는다.
+    env: tuple[tuple[str, str], ...] = ()
     #: 지금 실행할 수 있는가. 목록에는 예정 앱도 보여주되 고를 수 없게 한다.
     ready: bool = True
 
@@ -254,6 +257,89 @@ APPS: tuple[BatchApp, ...] = (
             AppStep(run="touch {{case}}/case.foam", in_container=False),
         ),
     ),
+    # --- Isaac Sim — 합성 데이터 생성(SDG) ---------------------------------
+    #
+    # **data factory 관점의 앱이다.** 물리를 푸는 solver가 아니라 학습 데이터를 찍어내는
+    # 도구이고, 그래서 이 앱이 노리는 실행 형태는 하나다 —
+    # *Replicator 스크립트 하나를 GPU 노드에서 헤드리스로 돌려 데이터셋을 디스크에 쌓는다.*
+    #
+    # ## 왜 파라미터가 둘뿐인가
+    #
+    # 표준 SDG 진입점은 `python.sh <스크립트> [--config <파일>]`이고, **프레임 수·해상도·
+    # 출력 경로·렌더러는 전부 config 파일의 키다**(`num_frames`·`resolution`·`rt_subframes`·
+    # `backend_params.output_dir`·`launch_config`). CLI 인자가 아니다 — 내장 예제
+    # `scene_based_sdg.py`의 argparse에는 `--config` 하나뿐이다. 그러니 포털이 프레임 수
+    # 칸을 만들어 봐야 넘길 자리가 없다. 값을 넣고 싶으면 config 파일을 고치는 것이 정본이고,
+    # 포털은 그 파일을 가리키게만 한다.
+    #
+    # ## 샤딩은 포털이 규약을 만들지 않는다 (data factory의 핵심)
+    #
+    # 데이터셋 10만 장은 한 Job으로 찍지 않는다 — 배열 잡으로 쪼갠다. **Apptainer는 호스트
+    # 환경변수를 컨테이너로 그대로 넘긴다(실측 2026-08-08).** 그래서 사용자의 SDG 스크립트가
+    # `os.environ["SLURM_ARRAY_TASK_ID"]`를 읽어 시드와 출력 폴더를 가르면 그만이고,
+    # 포털이 `--shard` 같은 인자 규약을 발명할 이유가 없다. 자원 칸의 **배열 인덱스**가
+    # 그대로 샤딩 손잡이다.
+    #
+    # ## bind mount가 목록에 없는 이유 (문서의 가장 큰 불확실성이 하나 걷혔다)
+    #
+    # NVIDIA의 `docker run` 예시는 캐시 6개를 `/isaac-sim/...`에 마운트한다. Docker에서는
+    # 그 경로가 컨테이너의 HOME(`/isaac-sim`, rootless uid 1234)이라 쓰기가 막히기 때문이다.
+    # **Apptainer에서는 필요 없다 — 이미지에 `ENV HOME`이 박혀 있어도 Apptainer가 호출한
+    # 사용자의 홈으로 덮어쓴다(실측 2026-08-08: `ENV HOME=/opt/fakehome` 이미지를 만들어
+    # 확인 → 컨테이너 안에서 `HOME=/home/jrpark`).** 홈은 쓰기 가능하므로 Omniverse 캐시가
+    # 자연히 홈에 쌓인다. 비공식 클러스터 가이드가 bind 없이 `--env ACCEPT_EULA=Y --nv`만으로
+    # 도는 것과 일치한다.
+    #
+    # 대신 **홈에 캐시가 수~수십 GB씩 쌓인다**(gpu-simulation.md §4의 경고 그대로). 쿼터는
+    # 운영 쪽 숙제다.
+    #
+    # ## 아직 실측이 아닌 것 — 그래서 ready=False
+    #
+    # 이미지가 없다(GPU 노드도 없다). 위 커맨드는 NVIDIA 문서와 비공식 클러스터 가이드에서
+    # 가져온 것이고, **L40 노드가 들어와 SIF로 한 번 돌려 본 뒤에 확정해야 한다**
+    # (gpu-simulation.md §8의 2단계). 특히 Kit이 `$HOME` 밖 절대경로(`/isaac-sim/kit/cache`
+    # 등)에 쓰려 드는지가 남은 확인이다 — 그러면 그때 `binds`를 더한다.
+    BatchApp(
+        id="isaac-sim",
+        name="Isaac Sim (합성 데이터)",
+        description="Omniverse Replicator로 학습용 합성 데이터셋을 생성한다 — 배열 잡으로 샤딩",
+        image="isaac-sim-5.1.0.sif",
+        fid="U-JB-13",
+        needs_gpu=True,
+        ready=False,
+        # 없으면 Kit이 EULA를 물으며 멈춘다 — 배치에는 대답할 사람이 없다.
+        env=(("ACCEPT_EULA", "Y"), ("PRIVACY_CONSENT", "Y")),
+        params=(
+            AppParam(
+                key="script",
+                label="SDG 스크립트",
+                type="path",
+                default="/isaac-sim/standalone_examples/replicator/scene_based_sdg/scene_based_sdg.py",
+                hint=(
+                    "Replicator standalone 파이썬 스크립트. 기본값은 **컨테이너에 들어 있는 "
+                    "예제**이고, 직접 만든 스크립트는 홈 아래 경로로 지정합니다. "
+                    "`SLURM_ARRAY_TASK_ID`를 읽어 샤드별로 시드·출력 폴더를 가르면 "
+                    "배열 잡으로 데이터셋을 나눠 찍을 수 있습니다."
+                ),
+            ),
+            AppParam(
+                key="config",
+                label="설정 파일 (--config)",
+                type="path",
+                required=False,
+                hint=(
+                    "프레임 수·해상도·출력 경로·렌더러는 **이 파일이 정합니다**(JSON/YAML). "
+                    "⚠️ `launch_config.headless`가 반드시 `true`여야 합니다 — 배치 노드에는 "
+                    "화면이 없습니다. 비우면 스크립트의 기본 설정을 씁니다."
+                ),
+            ),
+        ),
+        steps=(
+            # `-u`: 버퍼링을 끈다. 켜 두면 Job이 끝날 때까지 로그가 한 줄도 안 보인다.
+            AppStep(run="/isaac-sim/python.sh -u {{script}} --config {{config}}", when="config"),
+            AppStep(run="/isaac-sim/python.sh -u {{script}}", unless="config"),
+        ),
+    ),
 )
 
 
@@ -369,6 +455,7 @@ def build_body(
         run = _substitute(step.run, resolved, app.id)
         if step.in_container:
             flags = "--nv " if app.needs_gpu else ""
+            flags += "".join(f"--env {shlex.quote(f'{k}={v}')} " for k, v in app.env)
             launcher = "srun " if step.parallel else ""
             lines.append(f"{launcher}apptainer exec {flags}{shlex.quote(image)} bash -lc {shlex.quote(run)}")
         else:

@@ -263,6 +263,103 @@ solver 카탈로그가 더하는 것은 "SIF 경로와 `--nv`, bind mount를 사
 
 ---
 
+## 8-1. Batch 앱에 Isaac Sim을 넣었다 — data factory용 (2026-08-08)
+
+`batch_apps.py`에 `isaac-sim` 항목을 더했다. **`ready=False`다** — 이미지도 GPU 노드도 없다.
+아래는 넣기 전에 조사·실측한 것과, 그 결과 카탈로그가 왜 이 모양인지에 대한 기록이다.
+
+### Apptainer에서는 bind mount가 필요 없다 (§4의 최대 불확실성이 하나 걷혔다)
+
+§4는 "SIF는 읽기 전용인데 Isaac Sim은 캐시에 계속 쓴다 — bind mount를 잡아야 한다"를
+남은 최대 위험으로 적었다. **적어도 캐시 경로 문제는 Apptainer에서 성립하지 않는다.**
+
+NVIDIA의 `docker run` 예시가 캐시 6개를 마운트하는 이유는 5.1 컨테이너가 **rootless(uid
+1234)이고 그 HOME이 `/isaac-sim`** 이기 때문이다 — 즉 컨테이너 HOME이 이미지 안에 있어서
+쓰기가 막힌다. Apptainer는 사정이 다르다:
+
+```bash
+# 실측 2026-08-08 — ENV HOME=/opt/fakehome 을 박은 이미지를 만들어 SIF로 변환
+$ apptainer exec test.sif sh -lc 'echo $HOME'
+HOME=/home/jrpark        # ← 이미지의 ENV HOME이 아니라 호출한 사용자의 홈
+```
+
+**Apptainer가 이미지의 `ENV HOME`을 사용자 홈으로 덮어쓴다.** 홈은 쓰기 가능하므로
+Omniverse 캐시·로그·데이터가 자연히 홈에 떨어진다. 비공식 클러스터 가이드가 bind 없이
+`--env ACCEPT_EULA=Y --nv`만으로 도는 것과 일치한다.
+
+그래서 카탈로그에 `binds`를 넣지 않았다. **대가는 §4가 이미 경고한 그것이다** — 캐시가
+사용자 홈에 수~수십 GB씩 쌓인다. 홈 쿼터는 운영 쪽 숙제로 남는다.
+
+> **남은 확인**: Kit이 `$HOME` 밖 절대경로(`/isaac-sim/kit/cache` 등)에도 쓰려 드는지는
+> 실제 이미지로만 알 수 있다. 그러면 그때 `binds`를 더한다 — 이번에 `BatchApp`에 `env`를
+> 더한 것과 같은 크기의 변경이다.
+
+### 파라미터가 둘뿐인 이유 — 프레임 수는 CLI 인자가 아니다
+
+표준 SDG 진입점은 `python.sh <스크립트> [--config <파일>]`이다. 내장 예제
+`scene_based_sdg.py`의 argparse에는 **`--config` 하나뿐이고**, 프레임 수·해상도·출력
+경로·렌더러·헤드리스는 전부 config 파일의 키다:
+
+```python
+config = {
+    "launch_config": {"renderer": "RealTimePathTracing", "headless": False},
+    "resolution": [512, 512], "rt_subframes": 32, "num_frames": 10,
+    "env_url": "/Isaac/Environments/Simple_Warehouse/full_warehouse.usd",
+    "writer": "BasicWriter", "backend_params": {"output_dir": "_out_scene_based_sdg"},
+}
+```
+
+포털에 "프레임 수" 칸을 만들어 봐야 **넘길 자리가 없다.** 값을 바꾸는 정본은 config
+파일이고, 포털은 그 파일을 가리키게만 한다. 여기서 폼을 더 만들면 §8이 경고한
+`job_template` 재생산이다.
+
+`headless` 기본값이 **`False`** 라는 점이 함정이다 — config 없이 내장 예제를 그대로 돌리면
+배치 노드에서 창을 열려다 실패한다. 그래서 config 칸 힌트에 경고를 박았다.
+
+### 샤딩 — 포털이 인자 규약을 발명하지 않는다
+
+데이터셋을 배열 잡으로 쪼개는 것이 data factory의 핵심인데, 여기에 포털이 할 일이 없다:
+
+```bash
+# 실측 2026-08-08
+$ SLURM_ARRAY_TASK_ID=7 apptainer exec openfoam-2512.sif bash -lc 'echo $SLURM_ARRAY_TASK_ID'
+7                        # ← Apptainer가 호스트 환경변수를 그대로 넘긴다
+```
+
+사용자 스크립트가 `os.environ["SLURM_ARRAY_TASK_ID"]`로 시드와 출력 폴더를 가르면 된다.
+`--shard` 같은 인자를 포털이 정의하면 **사용자 스크립트가 그 규약을 따라야 하는데**,
+그건 능력이 아니라 족쇄다. 자원 칸의 **배열 인덱스**가 그대로 샤딩 손잡이다.
+
+### 판본 — 5.1.0을 고른다
+
+6.0은 2026-08 현재 GA 발표와 early developer 배포가 섞여 있고 컨테이너 태그도
+`6.0.0-dev2` 같은 형태다. **Python이 3.11 → 3.12로 바뀐다.** 안정판은 5.1.0이고
+§4가 정한 그대로 간다.
+
+### 카탈로그가 실제로 만드는 것
+
+```bash
+apptainer exec --nv --env ACCEPT_EULA=Y --env PRIVACY_CONSENT=Y \
+  /home/portal/images/isaac-sim-5.1.0.sif \
+  bash -lc '/isaac-sim/python.sh -u <스크립트> [--config <설정>]'
+```
+
+`-u`가 있는 이유: 버퍼링을 끄지 않으면 Job이 끝날 때까지 로그가 한 줄도 안 보인다.
+`ACCEPT_EULA` 없이는 Kit이 동의를 물으며 멈추는데 **배치에는 대답할 사람이 없다.**
+
+`--env`·환경변수 전달·커맨드 형태는 openfoam SIF로 실행해 확인했다(apptainer 1.5.3).
+**확인하지 못한 것은 Isaac Sim 자체뿐이다** — 이미지가 없다.
+
+### 다음에 할 일 (순서대로)
+
+1. NGC 계정이 있는 기계에서 `isaac-sim:5.1.0` → SIF 변환. **GPU 없이 된다**(§4).
+   이때 실제 용량과 변환 가능 여부가 확정된다.
+2. L40 노드에서 내장 예제를 **손으로 한 번** 돌린다 — `launch_config.headless: true`인
+   config로. 여기서 bind가 더 필요한지, 캐시가 어디에 쌓이는지가 드러난다.
+3. 그 결과로 카탈로그를 맞추고 `ready=True`로 바꾼다.
+
+---
+
 ## 9. 확인이 필요한 전제
 
 - **workstation·k8s가 `www.dt-hpc.net:9443`에 닿는가.** 사내망 안이면 된다.
@@ -282,3 +379,8 @@ solver 카탈로그가 더하는 것은 "SIF 경로와 `--nv`, bind mount를 사
 - [Omniverse Kit App Streaming collection](https://catalog.ngc.nvidia.com/orgs/nvidia/omniverse/collections/kit-appstreaming-collection/-)
 - [Snakemake executor plugin: slurm](https://snakemake.github.io/snakemake-plugin-catalog/plugins/executor/slurm.html)
 - [Snakemake 9 — executor plugins](https://snakemake.readthedocs.io/en/v9.18.1/executing/executors.html)
+- [Isaac Sim 5.1 — Container Installation](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/install_container.html) — rootless uid 1234·캐시 마운트 6개
+- [Isaac Sim 5.1 — Scene Based SDG](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/replicator_tutorials/tutorial_replicator_scene_based_sdg.html) — `--config`만 받는 진입점
+- [scene_based_sdg.py 소스](https://github.com/isaac-sim/IsaacSim/blob/main/source/standalone_examples/replicator/scene_based_sdg/scene_based_sdg.py) — 기본 config 키
+- [j3soon/singularity-isaac-sim](https://github.com/j3soon/singularity-isaac-sim) — bind 없이 `--env ACCEPT_EULA=Y --nv`로 도는 비공식 클러스터 가이드
+- [Isaac Lab — Cluster Guide](https://isaac-sim.github.io/IsaacLab/main/source/deployment/cluster.html) — 캐시를 계산 노드로 복사하는 구성

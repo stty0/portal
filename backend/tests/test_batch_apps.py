@@ -72,6 +72,38 @@ def test_ready_app_resolves_its_image_from_the_repository(client):
     assert B.image_ref("/home/portal/images", foam) == "/home/portal/images/openfoam-2512.sif"
 
 
+def test_isaac_sim_is_listed_as_a_gpu_app_that_is_not_ready_yet(client, user_token):
+    """이미지도 GPU 노드도 없다 — 목록에는 보이되 고를 수 없어야 한다."""
+    body = client.get(f"{API}/batch-apps", headers=auth_headers(user_token)).json()
+    isaac = next(a for a in body if a["id"] == "isaac-sim")
+    assert isaac["needs_gpu"] is True
+    assert isaac["ready"] is False
+    assert [p["key"] for p in isaac["params"]] == ["script", "config"]
+
+
+def test_isaac_sim_command_carries_gpu_flag_and_eula(client):
+    """`--nv`(GPU)와 `ACCEPT_EULA`가 빠지면 Kit이 시작조차 하지 않는다."""
+    isaac = B.get("isaac-sim")
+    out = _body(isaac, {"script": "/home/u/sdg.py"})
+    assert "apptainer exec --nv " in out
+    assert "--env ACCEPT_EULA=Y" in out
+    assert "--env PRIVACY_CONSENT=Y" in out
+    assert "/isaac-sim/python.sh -u /home/u/sdg.py" in out
+    # 설정 파일을 안 줬으면 `--config`가 빈 채로 실리면 안 된다.
+    assert "--config" not in out
+
+
+def test_isaac_sim_passes_the_config_file_when_given(client):
+    out = _body(B.get("isaac-sim"), {"script": "/home/u/sdg.py", "config": "/home/u/c.yaml"})
+    assert "-u /home/u/sdg.py --config /home/u/c.yaml" in out
+
+
+def test_only_gpu_apps_get_the_nv_flag(client):
+    """CPU 앱에 `--nv`가 붙으면 GPU 없는 노드에서 apptainer가 실패한다."""
+    assert "--nv" not in _body(_app(), {"input": "/h/a"})
+    assert "--env" not in _body(_app(), {"input": "/h/a"})
+
+
 def test_unknown_app_is_rejected(client, cluster, user_token):
     resp = client.post(
         f"{API}/clusters/{cluster.id}/batch-apps/nope/jobs",
