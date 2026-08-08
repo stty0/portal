@@ -99,6 +99,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/user/UsageView.vue'),
     meta: { title: '사용량 / 프로필', scr: 'SCR-09', icon: '◔', group: '내 정보' },
   },
+  {
+    path: '/api-tokens',
+    name: 'api-tokens',
+    component: () => import('@/views/user/ApiTokensView.vue'),
+    meta: { title: 'API 토큰', scr: 'SCR-20', icon: '🔑', group: '내 정보' },
+  },
 
   // ===== 관리자 콘솔 =====
   {

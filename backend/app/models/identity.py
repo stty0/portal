@@ -64,3 +64,35 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     role: Mapped[Role | None] = relationship(lazy="joined")
+
+
+class ApiToken(Base):
+    """사용자별 API 토큰 — 기계 클라이언트용 장수명 자격증명 (C-01).
+
+    액세스 토큰(30분)으로는 자동화를 감당할 수 없고, AD 비밀번호를 스크립트에 박으면
+    **반복 실패로 계정이 잠긴다.** 그래서 사람 로그인과 분리된 자격증명을 따로 둔다.
+
+    **원문을 저장하지 않는다** — DB가 새어도 토큰을 되살릴 수 없게 sha256만 둔다.
+    발급 직후 한 번만 화면에 보여 준다. 무엇을 폐기할지 고를 수 있도록 앞 8자리
+    (`prefix`)와 이름만 남긴다.
+
+    권한은 **소유자의 역할을 그대로 따른다.** 토큰별 스코프는 아직 없다 —
+    필요해지면 그때 permission 목록을 붙인다(라우터는 이미 permission 문법을 쓴다).
+    """
+
+    __tablename__ = "api_token"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_guid: Mapped[str] = mapped_column(ForeignKey("user.ad_object_guid"), index=True)
+    #: 사람이 알아볼 이름("렌더 파이프라인", "노트북 CLI").
+    name: Mapped[str] = mapped_column(String(64))
+    #: sha256(hex). 조회는 이 값으로만 한다.
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    #: 목록에서 어느 토큰인지 알아보게 하는 앞자리. 비밀이 아니다.
+    prefix: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    #: 비우면 만료 없음. 기본은 만료를 두도록 화면이 유도한다.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    #: 매 요청 쓰면 DB 쓰기가 요청마다 생긴다 — 일정 간격으로만 갱신한다.
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime)

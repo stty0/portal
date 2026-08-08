@@ -30,6 +30,8 @@ from app.core.security import decode_session_token
 from app.db.session import session_scope
 from app.models import User
 from app.repositories.identity import RoleRepository, UserRepository
+from app.services.api_token import TOKEN_PREFIX as API_TOKEN_PREFIX
+from app.services.api_token import ApiTokenService
 
 
 def get_db() -> Iterator[Session]:
@@ -112,15 +114,34 @@ def _require_csrf(request: Request) -> None:
 
 def get_current_session(
     request: Request,
+    db: DbSession,
     settings: AppSettings,
     sessions: Annotated[SessionStore, Depends(get_session_store)],
 ) -> SessionData:
-    """JWT 서명 검증 → `sid`로 Redis 세션 조회.
+    """자격증명 → 신원(SessionData).
 
-    JWT 서명만 믿지 않고 세션 레코드도 확인한다 — 그래야 로그아웃·강제 종료가
-    토큰 만료를 기다리지 않고 즉시 반영된다(§4.1).
+    받아들이는 자격증명이 **두 종류**다.
+      - 세션 토큰(JWT): 서명 검증 → `sid`로 Redis 세션 조회. 서명만 믿지 않고 레코드도
+        확인해야 로그아웃·강제 종료가 토큰 만료를 기다리지 않고 즉시 먹는다(§4.1).
+      - API 토큰(`hpcp_…`): DB 조회. Redis 세션이 없으므로 **합성 SessionData**를 만든다.
+        `sid`에 `apiToken:<id>`를 넣어 로그가 사람 세션과 구분되게 한다.
+
+    접두사로 갈라서 **JWT 해독을 시도조차 하지 않는다** — 실패 예외로 분기하면 원인이
+    엉뚱하게 보고된다.
     """
-    payload = decode_session_token(settings, _access_token(request))
+    raw = _access_token(request)
+    if raw.startswith(API_TOKEN_PREFIX):
+        record = ApiTokenService(db).resolve(raw)
+        if record is None:
+            raise Unauthenticated("API 토큰이 유효하지 않거나 폐기·만료되었습니다.")
+        user = UserRepository(db).get_by_guid(record.user_guid)
+        if user is None:
+            raise Unauthenticated("토큰 소유자를 찾을 수 없습니다.")
+        return SessionData(
+            sid=f"apiToken:{record.id}", user_guid=record.user_guid, username=user.username
+        )
+
+    payload = decode_session_token(settings, raw)
     sid = payload.get("sid")
     if not sid:
         raise Unauthenticated("세션 토큰에 세션 정보가 없습니다.")

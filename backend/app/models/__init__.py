@@ -13,7 +13,7 @@ from app.models.content import (
     PortalSetting,
     Ticket,
 )
-from app.models.identity import Permission, Role, RolePermission, User
+from app.models.identity import ApiToken, Permission, Role, RolePermission, User
 from app.models.ops import (
     BillingConfig,
     BillingRule,
@@ -25,6 +25,7 @@ from app.models.ops import (
 )
 
 __all__ = [
+    "ApiToken",
     "Base",
     # 신원 · 인가
     "User",

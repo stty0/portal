@@ -21,7 +21,7 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 | 항목 | 규약 |
 |---|---|
 | Base URL | `/api/v1` (아래 경로는 모두 이 프리픽스 생략) |
-| 인증 | **브라우저는 HttpOnly 쿠키, 기계 클라이언트는 `Authorization: Bearer`.** 둘 다 같은 액세스 토큰(JWT, **30분**)이고 Redis 세션(`sid`)을 검증한다. 쿠키 인증의 상태 변경 요청은 `X-CSRF-Token` 헤더 필수(`portal_csrf` 쿠키 값) — Bearer는 면제 |
+| 인증 | **브라우저는 HttpOnly 쿠키, 기계 클라이언트는 `Authorization: Bearer`.** 자동화는 **API 토큰**(`hpcp_…`, 장수명·폐기 가능)을 같은 Bearer 자리에 넣는다 — 둘 다 같은 액세스 토큰(JWT, **30분**)이고 Redis 세션(`sid`)을 검증한다. 쿠키 인증의 상태 변경 요청은 `X-CSRF-Token` 헤더 필수(`portal_csrf` 쿠키 값) — Bearer는 면제 |
 | 세션 갱신 | `POST /auth/refresh` — refresh 토큰(**2주**, HttpOnly·경로 한정)으로 액세스 토큰 재발급. **refresh도 회전**하며, 쓴 토큰 재사용은 탈취로 보고 거부 |
 | 권한 표기 | `인증` = 로그인 사용자 전체, `admin:access` = ADMIN 전용(초기 유일 permission). 라우터는 `require_permission("...")` 문법으로 작성 — 향후 `job:cancel` 등 세분화 시 무수정(backend §3.4) |
 | 클러스터 스코프 | Slurm 종속 자원은 `/clusters/{cid}/...` (`cid`=Portal DB cluster.id). 클러스터별 독립 slurmdbd |
@@ -43,6 +43,9 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 | POST | `/auth/setup` | 최초 실행 부트스트랩: AD 연결 검증 + seed ADMIN 1명 지정 (1회용 setup 토큰 보호). `bootstrap_required=false`가 된 뒤엔 서버가 하드 거부(재실행 불가) | C-02 | setup 토큰 | 필수 |
 | POST | `/auth/login` | AD bind 인증 → JIT 프로비저닝 → 액세스(30분)+refresh(2주) 발급 + Redis 세션 등록. **쿠키와 응답 본문 둘 다** 준다 — SPA는 쿠키를, CLI는 본문을 쓴다 | C-01, A-US-01 | 없음 | 필수 |
 | POST | `/auth/refresh` | 액세스 토큰 갱신. refresh는 쿠키 또는 본문으로 받는다. **회전** — 옛 토큰은 즉시 죽는다 | C-01 | refresh 토큰 | 필수 |
+| GET | `/me/api-tokens` | 내 API 토큰 목록. **원문은 담기지 않는다** | C-01 | 인증 | 필수 |
+| POST | `/me/api-tokens` | API 토큰 발급 — **원문은 이 응답에만** 한 번 나온다(서버에는 sha256만) | C-01 | 인증 | 필수 |
+| DELETE | `/me/api-tokens/{id}` | 토큰 폐기. 만료를 기다리지 않고 **즉시** 먹는다 | C-01 | 인증 | 필수 |
 | POST | `/auth/logout` | 세션 무효화(Redis revoke) + 쿠키 삭제. refresh도 함께 죽는다 | C-01 | 인증 | 필수 |
 | GET | `/auth/me` | 내 정보(username, display_name, role, permissions, 기본 클러스터) | C-02 | 인증 | 필수 |
 | POST | `/auth/setup/probe` | 부트스트랩 화면에서 AD 연결만 미리 검증(사용자 조회 전) | C-02 | setup 토큰 | 필수 |

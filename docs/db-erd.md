@@ -116,6 +116,19 @@ entity "notice" as notice {
   created_at : DATETIME
 }
 
+entity "api_token" as apitok {
+  *id : INT <<PK>>
+  --
+  user_guid : CHAR(36) <<FK>>
+  name : VARCHAR(64)                   ' 사람이 알아볼 이름
+  token_hash : CHAR(64) <<UQ>>         ' sha256 — 원문은 저장하지 않는다
+  prefix : VARCHAR(16)                 ' 목록 식별용 앞자리(비밀 아님)
+  created_at : DATETIME
+  expires_at : DATETIME                ' NULL = 만료 없음
+  last_used_at : DATETIME
+  revoked_at : DATETIME
+}
+
 entity "ticket" as ticket {
   *id : INT <<PK>>
   --
@@ -259,6 +272,7 @@ cluster ||--o{ ccred : cluster_id
 cluster |o--o{ notice : target_cluster_id
 cluster |o--o{ audit : target_cluster_id
 user ||--o{ notice : created_by
+user ||--o{ apitok : owns
 user ||--o{ ticket : requester_guid
 user |o--o{ ticket : assignee_guid
 user ||--o{ audit : actor_guid
@@ -312,6 +326,7 @@ end note
 | 테이블 | 목적 | 근거 |
 |---|---|---|
 | `notice` | 공지(대상 클러스터 nullable=전체, 배너). | U-CL-03 / A-OP-01 |
+| `api_token` | 기계 클라이언트용 장수명 자격증명. **원문 미저장**(sha256), 폐기·만료 가능. | C-01 |
 | `interactive_session` | 인터랙티브 앱 세션 **대장(臺帳)** — "누가 어떤 클러스터에 무엇을 띄웠나"만 기록한다. **접속 정보(호스트·포트·비밀번호)는 저장하지 않는다**: 유일한 출처는 세션 Job이 워커에 남기는 `connection.json`(공유 홈)이고, 살아 있는지는 **Slurm Job 상태**가 권위 있는 출처다(노드가 죽으면 정리 훅이 안 돌아 파일이 남는다 — 실측). `node_host`/`node_port`/`connect_url`은 채택하지 않은 초기 설계(Traefik 폴링 라우트)의 **잔재로 사용하지 않는다** — 채우면 출처가 둘이 되어 어긋난다. 종료는 REST `scancel` + 상태 변경. | U-IA-04, Architecture.md §1 |
 | `ticket` | 헬프데스크 티켓(요청자/담당자). | U-AC-04 / A-OP-05 |
 | `audit_log` | 제어성 액션 감사. | C-05 / A-OP-03 |
