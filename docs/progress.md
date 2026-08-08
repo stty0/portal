@@ -2641,3 +2641,50 @@ Job 제출 화면에도 같은 칸을 더했다 — MPI Job은 Batch 앱 밖에�
 
 검증: 테스트 **352개 통과**(18개로 확대 — 단계 조건부 실행·`srun` 분기·호스트 단계·
 랭크 검사·`.foam` 표식·`select` 강제·주입 방어 포함).
+
+---
+
+### OpenFOAM 이미지 준비 + Batch 앱 활성화
+
+`docker://opencfd/openfoam-default:2512`(ESI, 2026-01 릴리스)를 SIF로 변환해
+`/home/portal/images/openfoam-2512.sif`(443MB)에 넣었다. 카탈로그를 `ready=True`로 켰다.
+
+**Docker를 거치지 않았다.** `apptainer build docker://…`로 레지스트리에서 바로 받으면
+레이어가 `APPTAINER_CACHEDIR`로 가므로 `/data`(docker) 용량과 무관하다. `/home`이 NFS
+100T라 여기서 끝났다.
+
+```bash
+export APPTAINER_CACHEDIR=/home/jrpark/.apptainer/cache
+export APPTAINER_TMPDIR=/home/jrpark/.apptainer/tmp
+apptainer build openfoam-2512.sif docker://opencfd/openfoam-default:2512
+```
+
+이미지 안에 카탈로그가 부르는 것이 다 있는지 **실행으로 확인**했다 —
+`simpleFoam`·`pimpleFoam`·`interFoam`·`rhoPimpleFoam`·`potentialFoam`·`decomposePar`·
+`reconstructPar`, `WM_PROJECT_VERSION=v2512`.
+
+빌드 로그에 `destination filesystem does not support xattrs` 경고가 있다. NFS라 확장
+속성이 안 붙었다 — 실행에는 문제없었으나 권한 관련 이상이 나오면 여기를 의심한다.
+
+**커맨드·파라미터는 여전히 실측이 아니다.** 이미지가 생겼을 뿐, 실제 케이스로 한 번
+돌려봐야 인자가 맞는지 안다.
+
+테스트 2개가 OpenFOAM의 `ready=False`에 묶여 있어 깨졌다. **실제 앱 상태에 의존하지
+않도록** 고쳤다 — 합성 앱으로 "준비 안 된 앱은 막힌다"를 검사한다. 앱 하나 켤 때마다
+테스트가 깨지면 안 된다.
+
+### 외부 접속 장애 — 진단이 틀렸던 기록
+
+포털이 밖에서 안 열린다는 신고에 서버 안에서 `curl`로 검사해 `127.0.0.1`·`192.168.1.100`
+모두 200이 나오자 **"서버는 정상, 바깥 문제"라고 단정했다. 틀렸다** — Traefik을 재시작하니
+바로 복구됐다.
+
+원인은 검사 방법이었다. hostPort DNAT은 **PREROUTING(외부 유입)과 OUTPUT(자기 자신)
+두 체인**에 걸리는데, 서버 안에서 쏜 `curl`은 목적지가 자기 IP라도 **OUTPUT만 탄다.**
+즉 외부 클라이언트가 타는 경로를 한 번도 검사하지 못한 채 "정상"이라고 말한 것이다.
+
+**교훈: 외부 접속 문제는 서버 안에서 검사할 수 없다.** 다른 기계에서 접속해 보는 것이
+유일하게 의미 있는 검사다. Traefik pod이 다시 뜨면 pod IP가 바뀌고 CNI portmap이 규칙을
+다시 까는데, 그 과정이 어긋나면 **안에서는 200, 밖에서는 무응답**이 된다.
+
+검증: 테스트 353개 통과.

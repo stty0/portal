@@ -89,17 +89,20 @@ class BatchApp:
 #: 앱 목록의 **단일 출처**. 화면이 따로 갖고 있으면 실행 가능한 앱이 무엇인지에 대해
 #: 앞뒤가 갈린다(인터랙티브 앱과 같은 원칙).
 #:
-#: **지금은 전부 `ready=False`다.** 이미지가 아직 없다. 실제 이미지가 준비되면
-#: `image`를 채우고 `ready=True`로 바꾸면 되고, 그때 커맨드·파라미터를 **실측으로**
-#: 맞춰야 한다 — 손으로 한 번 돌려보기 전에 폼을 확정하면 `job_template`을 다시 만든다.
+#: OpenFOAM 이미지는 2026-08-08에 만들어 저장소에 넣었다(`openfoam-2512.sif`, 443MB,
+#: `docker://opencfd/openfoam-default:2512`). 이미지 안에 solver 5종과 `decomposePar`·
+#: `reconstructPar`가 있는 것을 실행으로 확인했다.
+#:
+#: **다만 커맨드·파라미터는 아직 실측이 아니다.** 실제 케이스로 한 번 돌려보고 맞춰야
+#: 한다 — 폼을 확정하기 전에 돌려보지 않으면 `job_template`을 다시 만드는 것과 같다.
 APPS: tuple[BatchApp, ...] = (
     BatchApp(
         id="openfoam",
         name="OpenFOAM",
-        description="전산유체역학 — 케이스 디렉터리를 풀고 결과를 ParaView로 본다",
-        image="",
+        description="전산유체역학 v2512 — 케이스를 풀고 결과를 ParaView로 본다",
+        image="openfoam-2512.sif",
         fid="U-JB-13",
-        ready=False,
+        ready=True,
         params=(
             AppParam(
                 key="case",

@@ -37,24 +37,36 @@ def _body(app, values, **kw):
 # --- 카탈로그 --------------------------------------------------------------
 
 
-def test_catalog_lists_upcoming_apps_too(client, user_token):
-    """예정 앱을 숨기면 화면이 목록을 따로 갖게 되고 앞뒤가 갈린다."""
+def test_catalog_exposes_the_parameter_schema(client, user_token):
+    """화면은 이 스키마로 폼을 그린다 — 필드를 화면이 갖고 있으면 앱마다 화면을 고쳐야 한다."""
     body = client.get(f"{API}/batch-apps", headers=auth_headers(user_token)).json()
     foam = next(a for a in body if a["id"] == "openfoam")
-    assert foam["ready"] is False  # 이미지가 아직 없다
     assert [p["key"] for p in foam["params"]] == ["case", "solver", "decompose", "reconstruct"]
     assert "simpleFoam" in next(p for p in foam["params"] if p["key"] == "solver")["options"]
 
 
-def test_not_ready_app_is_blocked_before_submitting(client, cluster, user_token):
-    """워커까지 간 뒤에 죽으면 사용자에게 원인이 안 보인다."""
+def test_not_ready_app_is_blocked_before_submitting(
+    client, cluster, user_token, monkeypatch
+):
+    """워커까지 간 뒤에 죽으면 사용자에게 원인이 안 보인다.
+
+    실제 앱의 `ready` 상태에 묶지 않는다 — 이미지가 준비되면 그때 테스트가 깨진다.
+    """
+    monkeypatch.setattr(B, "APPS", (_app(id="pending", image="", ready=False),))
     resp = client.post(
-        f"{API}/clusters/{cluster.id}/batch-apps/openfoam/jobs",
-        json={"name": "run", "params": {"case": "/home/jrpark/motorbike"}},
+        f"{API}/clusters/{cluster.id}/batch-apps/pending/jobs",
+        json={"name": "run", "params": {"input": "/home/jrpark/a"}},
         headers=auth_headers(user_token),
     )
     assert resp.status_code == 422
     assert "제공되지 않습니다" in resp.json()["message"]
+
+
+def test_ready_app_resolves_its_image_from_the_repository(client):
+    """준비된 앱은 클러스터 저장소 아래에서 이미지를 찾는다."""
+    foam = B.get("openfoam")
+    assert foam.ready and foam.image
+    assert B.image_ref("/home/portal/images", foam) == "/home/portal/images/openfoam-2512.sif"
 
 
 def test_unknown_app_is_rejected(client, cluster, user_token):
