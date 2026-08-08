@@ -52,6 +52,14 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    #: 기계 클라이언트용. 브라우저는 HttpOnly 쿠키로 받으므로 이 값을 쓰지 않는다.
+    refresh_token: str | None = None
+
+
+class RefreshRequest(BaseModel):
+    """기계 클라이언트가 본문으로 보내는 refresh. 브라우저는 쿠키를 쓴다."""
+
+    refresh_token: str | None = None
 
 
 class MeResponse(BaseModel):

@@ -4,6 +4,7 @@
 Pod 로컬 캐시는 멀티 replica에서 불일치를 만들므로 사용하지 않는다(§4.2).
 """
 
+import hashlib
 import json
 import secrets
 from contextlib import contextmanager
@@ -95,6 +96,41 @@ class SessionStore:
             self._redis.delete(self._key(sid))
         self._redis.delete(index)
         return len(members)
+
+
+class RefreshTokenStore:
+    """refresh 토큰 저장소 — **원문을 저장하지 않는다.**
+
+    Redis가 새어도 토큰을 되살릴 수 없도록 해시만 둔다(세션 sid와 같은 취급).
+    쓰면 **회전한다**: 옛 토큰을 지우고 새 토큰을 발급한다. 이미 쓴 토큰이 다시 오면
+    **탈취 신호**로 보고 그 세션 전체를 끊는다 — 정상 클라이언트는 같은 토큰을 두 번
+    쓰지 않는다.
+    """
+
+    def __init__(self, redis: RedisLike, ttl_seconds: int):
+        self._redis = redis
+        self._ttl = ttl_seconds
+
+    @staticmethod
+    def _key(token: str) -> str:
+        return f"refresh:{hashlib.sha256(token.encode()).hexdigest()}"
+
+    def issue(self, *, sid: str) -> str:
+        token = secrets.token_urlsafe(48)
+        self._redis.setex(self._key(token), self._ttl, sid)
+        return token
+
+    def consume(self, token: str) -> str | None:
+        """유효하면 sid를 돌려주고 **그 토큰은 즉시 폐기**한다. 아니면 None."""
+        key = self._key(token)
+        raw = self._redis.get(key)
+        if raw is None:
+            return None
+        self._redis.delete(key)
+        return raw.decode() if isinstance(raw, bytes) else str(raw)
+
+    def revoke(self, token: str) -> None:
+        self._redis.delete(self._key(token))
 
 
 class PermissionCache:

@@ -21,13 +21,25 @@ class Settings(BaseSettings):
 
     # --- Redis (§4: 세션·권한 캐시·분산락) ---
     redis_url: str = "redis://localhost:6379/0"
-    session_ttl_seconds: int = 8 * 3600  # §9 미확정 — 기본 8h
     permission_cache_ttl_seconds: int = 300
 
     # --- 포털 세션 JWT (Slurm JWT와 별개) ---
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_ttl_seconds: int = 8 * 3600
+    #: 액세스 토큰 수명. **짧게 잡는다** — 유출돼도 창이 좁다. 갱신은 refresh가 맡는다.
+    access_token_ttl_seconds: int = 30 * 60
+    #: refresh 토큰 수명 = 재로그인 없이 유지되는 기간. 세션 레코드도 이 값을 따른다.
+    refresh_token_ttl_seconds: int = 14 * 24 * 3600
+
+    #: 세션 레코드 TTL. refresh가 살아 있는 동안 세션도 살아야 하므로 같은 값을 쓴다.
+    @property
+    def session_ttl_seconds(self) -> int:
+        return self.refresh_token_ttl_seconds
+
+    # --- 쿠키 전송(브라우저) ---
+    #: HTTPS 배포에서는 반드시 True. 로컬 http 개발에서만 끈다.
+    cookie_secure: bool = True
+    cookie_domain: str | None = None
 
     # --- 부트스트랩 (C-02: 1회용 setup 토큰) ---
     setup_token: str = ""

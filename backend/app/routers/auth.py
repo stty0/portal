@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 
 from app.core.deps import (
     AppSettings,
@@ -12,6 +12,7 @@ from app.core.deps import (
     SecretStoreDep,
     client_ip,
     get_permission_cache,
+    get_refresh_token_store,
     get_session_store,
     permissions_for,
 )
@@ -21,12 +22,16 @@ from app.schemas.auth import (
     LoginRequest,
     LoginResponse,
     MeResponse,
+    RefreshRequest,
     SetupProbeRequest,
     SetupProbeResponse,
     SetupRequest,
     SetupStatus,
 )
 from app.schemas.common import OkResponse
+from app.core.cookies import REFRESH_COOKIE, clear_auth_cookies, set_auth_cookies
+from app.core.errors import Unauthenticated
+from app.core.redis_client import RefreshTokenStore
 from app.services.auth import AuthService
 
 router = APIRouter(tags=["auth"])
@@ -37,8 +42,11 @@ def _service(
     settings: AppSettings,
     secrets: SecretStoreDep,
     sessions: Annotated[SessionStore, Depends(get_session_store)],
+    refresh_tokens: Annotated[RefreshTokenStore, Depends(get_refresh_token_store)],
 ) -> AuthService:
-    return AuthService(db, settings, secrets=secrets, sessions=sessions)
+    return AuthService(
+        db, settings, secrets=secrets, sessions=sessions, refresh_tokens=refresh_tokens
+    )
 
 
 AuthServiceDep = Annotated[AuthService, Depends(_service)]
@@ -98,14 +106,54 @@ def setup(payload: SetupRequest, service: AuthServiceDep) -> OkResponse:
 
 
 @router.post("/auth/login", response_model=LoginResponse, summary="AD 로그인")
-def login(payload: LoginRequest, request: Request, service: AuthServiceDep) -> LoginResponse:
+def login(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    settings: AppSettings,
+    service: AuthServiceDep,
+) -> LoginResponse:
+    """AD 인증 → 액세스(30분) + refresh(2주).
+
+    **브라우저와 기계 클라이언트에 같은 값을 다른 방식으로 준다.** 쿠키는 SPA가 쓰고,
+    응답 본문의 토큰은 CLI·워크플로 엔진이 쓴다. SPA는 본문을 무시하면 된다.
+    """
     result = service.login(payload.username, payload.password, ip=client_ip(request))
-    return LoginResponse(access_token=result.token)
+    set_auth_cookies(response, settings, access=result.token, refresh=result.refresh_token)
+    return LoginResponse(access_token=result.token, refresh_token=result.refresh_token)
+
+
+@router.post("/auth/refresh", response_model=LoginResponse, summary="액세스 토큰 갱신")
+def refresh(
+    request: Request,
+    response: Response,
+    settings: AppSettings,
+    service: AuthServiceDep,
+    payload: RefreshRequest | None = None,
+) -> LoginResponse:
+    """refresh 토큰 → 새 액세스 토큰. **refresh도 회전한다.**
+
+    브라우저는 쿠키로, 기계 클라이언트는 본문으로 보낸다. 이 엔드포인트는 액세스 토큰이
+    이미 만료된 상태에서 불리므로 `CurrentUser`에 의존할 수 없다.
+    """
+    token = (payload.refresh_token if payload else None) or request.cookies.get(REFRESH_COOKIE)
+    if not token:
+        raise Unauthenticated("refresh 토큰이 없습니다.")
+    result = service.refresh(token)
+    set_auth_cookies(response, settings, access=result.token, refresh=result.refresh_token)
+    return LoginResponse(access_token=result.token, refresh_token=result.refresh_token)
 
 
 @router.post("/auth/logout", response_model=OkResponse, summary="로그아웃")
-def logout(user: CurrentUser, session: CurrentSession, service: AuthServiceDep) -> OkResponse:
+def logout(
+    user: CurrentUser,
+    session: CurrentSession,
+    response: Response,
+    settings: AppSettings,
+    service: AuthServiceDep,
+) -> OkResponse:
     service.logout(user, session.sid)
+    clear_auth_cookies(response, settings)
     return OkResponse(message="로그아웃되었습니다.")
 
 

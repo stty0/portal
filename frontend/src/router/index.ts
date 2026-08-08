@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { installChunkReload } from '@/utils/chunk-reload'
-import { getToken } from '@/api/client'
+import { hasSession } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 
 /**
@@ -194,7 +194,7 @@ router.beforeEach(async (to) => {
   if (to.meta.public) return true
 
   // 새로고침 직후에는 store가 비어 있다. 토큰이 있으면 복구를 먼저 시도한다.
-  if (!auth.isAuthenticated && getToken()) {
+  if (!auth.isAuthenticated && hasSession()) {
     await auth.restore()
   }
   if (!auth.isAuthenticated) {

@@ -14,6 +14,8 @@ API = "/api/v1"
 
 
 def test_settings_require_admin(client, user_token):
+    # 로그인은 쿠키를 남긴다 — 익명 상태를 보려면 명시적으로 비워야 한다.
+    client.cookies.clear()
     assert client.get(f"{API}/settings").status_code == 401
     assert client.get(f"{API}/settings", headers=auth_headers(user_token)).status_code == 403
 

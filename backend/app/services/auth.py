@@ -22,7 +22,7 @@ from app.core.errors import (
     Unauthenticated,
     ValidationFailed,
 )
-from app.core.redis_client import SessionStore
+from app.core.redis_client import RefreshTokenStore, SessionStore
 from app.core.secrets import SecretStore
 from app.core.security import create_session_token
 from app.models import AdConnection, User
@@ -39,6 +39,8 @@ AD_BIND_SECRET_REF = "ad/bind"
 class LoginResult:
     token: str
     user: User
+    #: refresh 토큰. 브라우저는 쿠키로, 기계 클라이언트는 응답 본문으로 받는다.
+    refresh_token: str | None = None
 
 
 class AuthService:
@@ -49,12 +51,14 @@ class AuthService:
         *,
         secrets: SecretStore,
         sessions: SessionStore,
+        refresh_tokens: "RefreshTokenStore | None" = None,
         ad_client_factory=None,
     ):
         self.session = session
         self.settings = settings
         self.secrets = secrets
         self.sessions = sessions
+        self.refresh_tokens = refresh_tokens
         self.users = UserRepository(session)
         self.roles = RoleRepository(session)
         self.ad_conns = AdConnectionRepository(session)
@@ -207,9 +211,41 @@ class AuthService:
             guid=user.ad_object_guid,
             role=user.role.code if user.role else ROLE_USER,
         )
+        refresh = self.refresh_tokens.issue(sid=session.sid) if self.refresh_tokens else None
         self.audit.record(actor=user, action="LOGIN", target=user.username, ip=ip)
         self.session.commit()
-        return LoginResult(token=token, user=user)
+        return LoginResult(token=token, user=user, refresh_token=refresh)
+
+    def refresh(self, refresh_token: str) -> LoginResult:
+        """refresh 토큰 → 새 액세스 토큰(+ 회전된 refresh).
+
+        **회전한다.** 쓴 토큰은 즉시 폐기하고 새것을 준다. 이미 쓴 토큰이 다시 오면
+        탈취로 보고 **그 세션 전체를 끊는다** — 정상 클라이언트는 같은 토큰을 두 번 쓰지
+        않으므로, 재사용은 사본이 돌아다닌다는 뜻이다.
+        """
+        if self.refresh_tokens is None:
+            raise Unauthenticated("refresh를 사용할 수 없습니다.")
+        sid = self.refresh_tokens.consume(refresh_token)
+        if sid is None:
+            raise Unauthenticated("세션이 만료되었습니다. 다시 로그인하세요.")
+        session = self.sessions.get(sid)
+        if session is None:
+            raise Unauthenticated("세션이 만료되었거나 로그아웃되었습니다.")
+        user = self.users.get_by_guid(session.user_guid)
+        if user is None or user.deleted_at is not None or not user.is_active:
+            # 계정이 막힌 뒤에도 갱신되면 안 된다 — 세션까지 끊는다.
+            self.sessions.revoke(sid)
+            raise Unauthenticated("사용자를 찾을 수 없거나 비활성화되었습니다.")
+        token = create_session_token(
+            self.settings,
+            sid=sid,
+            username=user.username,
+            guid=user.ad_object_guid,
+            role=user.role.code if user.role else ROLE_USER,
+        )
+        return LoginResult(
+            token=token, user=user, refresh_token=self.refresh_tokens.issue(sid=sid)
+        )
 
     def logout(self, user: User, sid: str) -> None:
         """요청에 쓰인 세션만 종료한다 — 다른 기기의 로그인은 유지된다."""

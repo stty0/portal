@@ -3,7 +3,6 @@ import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RFB from '@novnc/novnc'
 import { sessionApi, type Session } from '@/api/sessions'
-import { getToken } from '@/api/client'
 import Badge from '@/components/ui/Badge.vue'
 import Btn from '@/components/ui/Btn.vue'
 import Card from '@/components/ui/Card.vue'
@@ -39,8 +38,7 @@ let disposed = false
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 async function connect() {
-  const token = getToken()
-  if (!token || !screen.value) return
+  if (!screen.value) return
   disconnect()
   const gen = ++generation
   expected = false
@@ -57,8 +55,7 @@ async function connect() {
       screen.value,
       `${scheme}://${location.host}/api/v1/sessions/${sid}/connect`,
       {
-        // 웹소켓은 헤더를 못 붙여 토큰을 subprotocol로 보낸다(웹 터미널과 같은 규칙).
-        wsProtocols: [`portal.token.${token}`],
+        // 인증은 HttpOnly 쿠키가 나른다(웹 터미널과 같은 규칙) — JS가 토큰을 읽지 않는다.
         credentials: { password: info.password ?? '' },
       },
     )

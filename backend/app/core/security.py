@@ -15,7 +15,9 @@ from app.core.errors import Unauthenticated
 def create_session_token(
     settings: Settings, *, sid: str, username: str, guid: str, role: str
 ) -> str:
-    """포털 세션 JWT.
+    """포털 **액세스** 토큰 (기본 30분).
+
+    짧게 잡는 대신 refresh 토큰(2주)이 갱신을 맡는다 — 유출돼도 쓸 수 있는 창이 좁다.
 
     권한의 근거는 `sid`뿐이다 — `sub`/`guid`/`role`은 로그·디버깅용 부가 정보이며
     인가 판단에 쓰지 않는다(세션 레코드와 DB가 정본).
@@ -27,7 +29,7 @@ def create_session_token(
         "guid": guid,
         "role": role,
         "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(seconds=settings.jwt_ttl_seconds)).timestamp()),
+        "exp": int((now + timedelta(seconds=settings.access_token_ttl_seconds)).timestamp()),
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 

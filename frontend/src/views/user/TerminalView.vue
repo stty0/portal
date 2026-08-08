@@ -3,7 +3,6 @@ import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
-import { getToken } from '@/api/client'
 import { useClusterStore } from '@/stores/cluster'
 import Badge from '@/components/ui/Badge.vue'
 import Btn from '@/components/ui/Btn.vue'
@@ -40,16 +39,14 @@ function onWindowResize() {
 
 function connect() {
   const cid = clusters.selectedId
-  const token = getToken()
-  if (!cid || !token || !term.value) return
+  if (!cid || !term.value) return
 
   disconnect()
   state.value = 'connecting'
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
-  const ws = new WebSocket(
-    `${scheme}://${location.host}/api/v1/clusters/${cid}/terminal`,
-    [`portal.token.${token}`],
-  )
+  // 인증은 HttpOnly 쿠키가 나른다 — 같은 오리진이면 handshake에 자동으로 실린다.
+  // 예전에는 토큰을 subprotocol로 보냈는데, 그러려면 JS가 토큰을 읽을 수 있어야 했다.
+  const ws = new WebSocket(`${scheme}://${location.host}/api/v1/clusters/${cid}/terminal`)
   ws.binaryType = 'arraybuffer'
 
   ws.onopen = () => {

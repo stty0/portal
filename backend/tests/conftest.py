@@ -7,7 +7,7 @@ from sqlalchemy import event
 from app.clients.ad.client import AdUser
 from app.core.config import Settings
 from app.core.deps import get_client_factory, get_secret_store
-from app.core.redis_client import PermissionCache, SessionStore
+from app.core.redis_client import PermissionCache, RefreshTokenStore, SessionStore
 from app.core.secrets import EnvSecretStore
 from app.db import session as db_session
 from app.main import create_app
@@ -24,6 +24,9 @@ def settings() -> Settings:
         jwt_secret="test-secret",
         setup_token=SETUP_TOKEN,
         scheduler_enabled=False,
+        # TestClient는 http로 부른다 — Secure 쿠키는 그때 저장되지 않는다.
+        # 운영은 HTTPS이므로 기본값(True)을 그대로 쓴다.
+        cookie_secure=False,
     )
 
 
@@ -97,6 +100,9 @@ def app(settings, engine, redis, secret_store, slurm_client, ad_client, monkeypa
     def fake_bootstrap(app_, settings_):
         app_.state.redis = redis
         app_.state.session_store = SessionStore(redis, settings_.session_ttl_seconds)
+        app_.state.refresh_token_store = RefreshTokenStore(
+            redis, settings_.refresh_token_ttl_seconds
+        )
         app_.state.permission_cache = PermissionCache(redis, settings_.permission_cache_ttl_seconds)
         app_.state.secret_store = secret_store
         app_.state.client_factory = FakeClientFactory(slurm_client)
@@ -116,14 +122,14 @@ def app(settings, engine, redis, secret_store, slurm_client, ad_client, monkeypa
 
     original_init = auth_module.AuthService.__init__
 
-    def patched_init(self, session, settings_, *, secrets, sessions, ad_client_factory=None):
+    def patched_init(self, session, settings_, *, ad_client_factory=None, **kwargs):
+        # 인자를 나열하지 않고 그대로 넘긴다 — 서비스에 인자가 늘어도 여기가 깨지지 않는다.
         original_init(
             self,
             session,
             settings_,
-            secrets=secrets,
-            sessions=sessions,
             ad_client_factory=ad_client_factory or (lambda conn, password=None: ad_client),
+            **kwargs,
         )
 
     monkeypatch.setattr(auth_module.AuthService, "__init__", patched_init)

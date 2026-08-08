@@ -9,6 +9,7 @@ URL-permission 매핑이 따로 놀지 않는다(§3.5).
 """
 
 from collections.abc import Iterator
+from hmac import compare_digest
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -16,8 +17,14 @@ from sqlalchemy.orm import Session
 
 from app.clients.factory import ClusterClientFactory
 from app.core.config import Settings, get_settings
+from app.core.cookies import ACCESS_COOKIE, CSRF_COOKIE, CSRF_HEADER
 from app.core.errors import Forbidden, Unauthenticated
-from app.core.redis_client import PermissionCache, SessionData, SessionStore
+from app.core.redis_client import (
+    PermissionCache,
+    RefreshTokenStore,
+    SessionData,
+    SessionStore,
+)
 from app.core.secrets import SecretStore
 from app.core.security import decode_session_token
 from app.db.session import session_scope
@@ -44,6 +51,10 @@ def get_session_store(request: Request) -> SessionStore:
     return request.app.state.session_store
 
 
+def get_refresh_token_store(request: Request) -> RefreshTokenStore:
+    return request.app.state.refresh_token_store
+
+
 def get_permission_cache(request: Request) -> PermissionCache:
     return request.app.state.permission_cache
 
@@ -61,12 +72,42 @@ ClientFactoryDep = Annotated[ClusterClientFactory, Depends(get_client_factory)]
 PermissionCacheDep = Annotated[PermissionCache, Depends(get_permission_cache)]
 
 
-def _bearer_token(request: Request) -> str:
+#: 본문을 바꾸지 않는 메서드는 CSRF 검사에서 제외한다.
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def _access_token(request: Request) -> str:
+    """액세스 토큰을 **헤더 우선, 없으면 쿠키**에서 읽는다.
+
+    브라우저는 쿠키(HttpOnly)를, 기계 클라이언트는 `Authorization: Bearer`를 쓴다.
+    헤더를 먼저 보는 이유는, 쿠키가 남아 있는 브라우저에서 다른 토큰으로 시험할 때
+    명시적으로 준 쪽이 이겨야 하기 때문이다.
+    """
     header = request.headers.get("Authorization", "")
     scheme, _, token = header.partition(" ")
-    if scheme.lower() != "bearer" or not token:
+    if scheme.lower() == "bearer" and token:
+        return token
+
+    cookie = request.cookies.get(ACCESS_COOKIE)
+    if not cookie:
         raise Unauthenticated("인증 토큰이 필요합니다.")
-    return token
+    _require_csrf(request)
+    return cookie
+
+
+def _require_csrf(request: Request) -> None:
+    """쿠키 인증에만 적용하는 double-submit 검사.
+
+    쿠키는 브라우저가 자동으로 붙이므로, 그것만으로는 "이 페이지가 보낸 요청"임을
+    증명하지 못한다. 다른 오리진은 쿠키를 **읽지** 못하니 값을 헤더로 되돌려 보낼 수
+    없다 — 그 차이가 증명이 된다.
+    """
+    if request.method in _SAFE_METHODS:
+        return
+    sent = request.headers.get(CSRF_HEADER)
+    expected = request.cookies.get(CSRF_COOKIE)
+    if not sent or not expected or not compare_digest(sent, expected):
+        raise Unauthenticated("CSRF 토큰이 없거나 일치하지 않습니다.")
 
 
 def get_current_session(
@@ -79,7 +120,7 @@ def get_current_session(
     JWT 서명만 믿지 않고 세션 레코드도 확인한다 — 그래야 로그아웃·강제 종료가
     토큰 만료를 기다리지 않고 즉시 반영된다(§4.1).
     """
-    payload = decode_session_token(settings, _bearer_token(request))
+    payload = decode_session_token(settings, _access_token(request))
     sid = payload.get("sid")
     if not sid:
         raise Unauthenticated("세션 토큰에 세션 정보가 없습니다.")

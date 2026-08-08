@@ -4,7 +4,7 @@ import App from './App.vue'
 import { router } from './router'
 import { useAuthStore } from './stores/auth'
 import { useClusterStore } from './stores/cluster'
-import { getToken } from './api/client'
+import { hasSession } from './api/client'
 import './assets/main.css'
 
 async function bootstrap() {
@@ -12,7 +12,7 @@ async function bootstrap() {
   app.use(createPinia())
 
   // 라우터 가드가 돌기 전에 세션을 복구해 둔다 — 새로고침 시 로그인 화면이 깜빡이지 않도록.
-  if (getToken()) {
+  if (hasSession()) {
     const auth = useAuthStore()
     await auth.restore()
     if (auth.isAuthenticated) {

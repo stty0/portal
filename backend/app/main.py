@@ -16,7 +16,12 @@ from app.core.errors import (
     unhandled_error_handler,
     validation_error_handler,
 )
-from app.core.redis_client import PermissionCache, SessionStore, build_redis
+from app.core.redis_client import (
+    PermissionCache,
+    RefreshTokenStore,
+    SessionStore,
+    build_redis,
+)
 from app.core.secrets import EnvSecretStore
 from app.db.session import dispose_engine, init_engine
 from app.routers import (
@@ -46,6 +51,7 @@ def bootstrap_state(app: FastAPI, settings: Settings) -> None:
     redis = build_redis(settings.redis_url)
     app.state.redis = redis
     app.state.session_store = SessionStore(redis, settings.session_ttl_seconds)
+    app.state.refresh_token_store = RefreshTokenStore(redis, settings.refresh_token_ttl_seconds)
     app.state.permission_cache = PermissionCache(redis, settings.permission_cache_ttl_seconds)
     app.state.secret_store = EnvSecretStore(settings)
     app.state.token_provider = SlurmTokenProvider(app.state.secret_store)

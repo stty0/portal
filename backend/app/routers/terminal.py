@@ -21,8 +21,22 @@ TOKEN_PREFIX = "portal.token."
 # 읽을 게 없을 때의 대기. 너무 짧으면 CPU를 태우고 너무 길면 입력 반응이 굼뜨다.
 POLL_SECONDS = 0.02
 
+def ws_access_token(websocket: WebSocket) -> tuple[str | None, str | None]:
+    """웹소켓 인증 토큰 — (토큰, 되돌려줄 subprotocol).
 
-def _offered_token(websocket: WebSocket) -> tuple[str | None, str | None]:
+    브라우저는 **쿠키**로 보낸다. 웹소켓 handshake도 같은 오리진이면 쿠키가 실리므로
+    JS가 토큰을 읽을 필요가 없다 — 그게 HttpOnly로 옮긴 이유다.
+
+    subprotocol·Authorization 경로도 남긴다. **기계 클라이언트는 쿠키 항아리를 쓰지
+    않기 때문**이고, 배포 중에 열려 있던 예전 탭도 이 경로로 살아 있다.
+    """
+    cookie = websocket.cookies.get(ACCESS_COOKIE)
+    if cookie:
+        return cookie, None
+    header = websocket.headers.get("authorization", "")
+    scheme, _, token = header.partition(" ")
+    if scheme.lower() == "bearer" and token:
+        return token, None
     for offered in websocket.scope.get("subprotocols") or []:
         if offered.startswith(TOKEN_PREFIX):
             return offered[len(TOKEN_PREFIX) :], offered
@@ -32,7 +46,7 @@ def _offered_token(websocket: WebSocket) -> tuple[str | None, str | None]:
 @router.websocket("/clusters/{cid}/terminal")
 async def terminal(websocket: WebSocket, cid: int) -> None:
     settings = get_settings()
-    token, protocol = _offered_token(websocket)
+    token, protocol = ws_access_token(websocket)
     if not token:
         await websocket.close(code=4401)
         return

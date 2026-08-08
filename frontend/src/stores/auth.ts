@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { authApi } from '@/api/auth'
-import { setToken } from '@/api/client'
 import type { Me } from '@/types/api'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -13,8 +12,8 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => me.value !== null)
 
   async function login(username: string, password: string): Promise<void> {
-    const { access_token } = await authApi.login(username, password)
-    setToken(access_token)
+    // 자격증명은 서버가 HttpOnly 쿠키로 심는다 — 응답 본문의 토큰은 CLI용이라 쓰지 않는다.
+    await authApi.login(username, password)
     me.value = await authApi.me()
   }
 
@@ -25,7 +24,6 @@ export const useAuthStore = defineStore('auth', () => {
       me.value = await authApi.me()
     } catch {
       me.value = null
-      setToken(null)
     } finally {
       loading.value = false
     }
@@ -37,13 +35,11 @@ export const useAuthStore = defineStore('auth', () => {
     } catch {
       // 서버 세션이 이미 사라졌어도 로컬 상태는 반드시 비운다.
     }
-    setToken(null)
     me.value = null
   }
 
   function clear(): void {
     me.value = null
-    setToken(null)
   }
 
   return { me, loading, isAdmin, isAuthenticated, login, restore, logout, clear }

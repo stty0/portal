@@ -1,4 +1,4 @@
-import { api, getToken, PortalApiError } from './client'
+import { api, csrfHeaders, PortalApiError } from './client'
 
 /** 대상 사용자는 서버가 세션에서 정한다 — 클라이언트는 경로만 넘긴다. */
 export interface FileEntry {
@@ -42,10 +42,10 @@ export interface StorageResponse {
  * 파싱)를 그대로 쓸 수 없어 fetch를 직접 부른다. 오류 형식만 같은 예외로 맞춘다.
  */
 async function raw(path: string, init: RequestInit): Promise<Response> {
-  const token = getToken()
   const response = await fetch(`/api/v1${path}`, {
     ...init,
-    headers: { ...(init.headers ?? {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    credentials: 'same-origin',
+    headers: { ...(init.headers ?? {}), ...csrfHeaders() },
   })
   if (!response.ok) {
     let body: Record<string, unknown> = {}
