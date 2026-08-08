@@ -41,6 +41,11 @@ class JobSpec:
     work_dir: str | None = None
     environment: dict[str, str] | None = None
     script: str | None = None  # U-JB-02: 직접 작성한 스크립트
+    #: 배열 잡 인덱스(`1-240`, `1-240%4`, `17,58` 등). 렌더링처럼 같은 일을 인덱스만
+    #: 바꿔 N번 돌릴 때 쓴다 — 없으면 프레임 1장만 나온다.
+    array: str | None = None
+    #: 앞 Job이 끝나야 시작(`afterok:123`). 단계를 잇는 유일한 수단이다.
+    dependency: str | None = None
     # form: 폼 값으로 #SBATCH 지시자를 생성 / script: 사용자가 준 본문을 그대로 사용
     mode: str = "form"
 
@@ -268,6 +273,8 @@ class JobService:
             ("--mem", f"{spec.memory_gb}G" if spec.memory_gb else None),
             ("--time", spec.walltime),
             ("--chdir", spec.work_dir),
+            ("--array", spec.array),
+            ("--dependency", spec.dependency),
         ):
             if value not in (None, ""):
                 directives.append(f"#SBATCH {flag}={value}")
@@ -443,7 +450,10 @@ _SBATCH_LINE = re.compile(r"^\s*#SBATCH\s+(.+?)\s*$", re.MULTILINE)
 _SBATCH_SHORT = {
     "p": "partition", "A": "account", "q": "qos", "N": "nodes",
     "c": "cpus-per-task", "t": "time", "J": "job-name", "D": "chdir",
+    "a": "array", "d": "dependency", "G": "gpus",
 }
+#: `--gres=gpu:a100:2`처럼 타입이 끼어도 개수만 뽑는다. gpu 이외의 gres는 다루지 않는다.
+_GRES_GPU = re.compile(r"^gpu(?::[A-Za-z0-9_.-]+)?:(\d+)$")
 _MEM_UNIT = {"K": 1 / 1024, "M": 1, "G": 1024, "T": 1024 * 1024}
 
 
@@ -513,12 +523,41 @@ def _apply_directive(name: str, value: str, props: dict[str, Any]) -> bool:
             props["name"] = value
         elif name == "chdir":
             props["current_working_directory"] = value
+        elif name == "array":
+            props["array"] = value  # "1-240", "1-240%4", "17,58" — Slurm이 해석한다
+        elif name == "dependency":
+            props["dependency"] = value  # "afterok:123" — 형식 검사는 Slurm에 맡긴다
+        elif name in ("gres", "gpus-per-node"):
+            # --gres는 gpu 외의 자원(license, mps…)도 받지만 포털이 옮기는 것은 gpu뿐이다.
+            count = _GRES_GPU.match(value.strip()) if name == "gres" else None
+            props["tres_per_node"] = gres_gpu(count.group(1) if count else int(value))
+        elif name == "gpus":
+            props["tres_per_job"] = gres_gpu(int(value))
+        elif name == "gpus-per-task":
+            props["tres_per_task"] = gres_gpu(int(value))
         else:
             return False
     except (ValueError, ValidationFailed):
         # 값이 이상하면 **적용했다고 하지 않는다** — 화면에 목록으로 뜬다.
         return False
     return True
+
+
+def gres_gpu(count: int | str) -> str:
+    """GPU 개수 → `tres_per_node` 문자열.
+
+    **실측(2026-08-08, v0.0.43)**: 형식에 따라 도달하는 파서가 다르다.
+      - `"gpu:1"`      → 2115 *Invalid Trackable RESource (TRES) specification*
+      - `"gres:gpu:1"` → 2072 *Invalid generic resource (gres) specification*
+
+    2072는 gres 파서까지 도달했다는 뜻이다(이 클러스터에 GPU가 없어 이름 조회에서 실패).
+    즉 `--gres=gpu:N`이 노리는 경로는 **`gres:` 접두사 형식**이다. `sbatch --gres=gpu:N`도
+    `TresPerNode=gres:gpu:N`으로 남긴다.
+
+    GPU 노드가 들어오면 **성공 제출로 최종 확인해야 한다** — 지금은 "형식이 맞다"까지만
+    확인됐고 "실제로 할당된다"는 확인하지 못했다.
+    """
+    return f"gres:gpu:{count}"
 
 
 def _slurm_job_properties(spec: JobSpec, *, default_name: str) -> dict[str, Any]:
@@ -534,6 +573,10 @@ def _slurm_job_properties(spec: JobSpec, *, default_name: str) -> dict[str, Any]
         ("memory_per_node", spec.memory_gb * 1024 if spec.memory_gb else None),
         ("time_limit", walltime_minutes(spec.walltime) if spec.walltime else None),
         ("current_working_directory", spec.work_dir),
+        # 0은 "GPU 0개 요청"이 되어 거부될 수 있으므로 아예 넣지 않는다.
+        ("tres_per_node", gres_gpu(spec.gpus) if spec.gpus else None),
+        ("array", spec.array),
+        ("dependency", spec.dependency),
     ):
         if value not in (None, ""):
             props[key] = value

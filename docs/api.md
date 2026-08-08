@@ -93,7 +93,7 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 | Method | Path | 설명 | 기능 ID | 권한 | 우선순위 |
 |---|---|---|---|---|---|
 | GET | `/clusters/{cid}/jobs` | Job 목록 — USER는 본인만, ADMIN은 전체(+사용자 필터). 상태·파티션·기간·검색 | U-JB-04, A-JB-01 | 인증 | 필수 |
-| POST | `/clusters/{cid}/jobs` | Job 제출(폼 파라미터 or 스크립트 → 서버가 스크립트 생성·sbatch). `mode`는 **`form`·`script` 둘뿐이다**(템플릿 제출은 2026-08-07 제거). **`mode=script`는 스크립트가 정본** — `#SBATCH`를 파싱해 REST 속성으로 옮기고, 옮기지 못한 지시자는 `ignored_directives`로 돌려준다 | U-JB-01·02 | 인증 | 필수 |
+| POST | `/clusters/{cid}/jobs` | Job 제출(폼 파라미터 or 스크립트 → 서버가 스크립트 생성·sbatch). `mode`는 **`form`·`script` 둘뿐이다**(템플릿 제출은 2026-08-07 제거). **`mode=script`는 스크립트가 정본** — `#SBATCH`를 파싱해 REST 속성으로 옮기고, 옮기지 못한 지시자는 `ignored_directives`로 돌려준다. GPU는 `tres_per_node="gres:gpu:N"`(실측), 배열은 `array`, 의존성은 `dependency` | U-JB-01·02 | 인증 | 필수 |
 | ~~POST~~ | ~~`/clusters/{cid}/jobs/validate`~~ | 제출 전 검증(연결성·`#SBATCH` 파싱·파티션 권한·walltime 한도) — 기존 서비스 조합, 신규 Slurm 호출 없음. **대기시간 예측·클러스터 추천 미포함**(§미결) — **미구현**| U-JB-01·02 | 인증 | 필수 |
 | GET | `/clusters/{cid}/jobs/{job_id}` | 상세(할당 노드·자원·스크립트·작업 디렉토리·대기 사유·예상 시작) | U-JB-05·10·12 | 인증 | 필수 |
 | DELETE | `/clusters/{cid}/jobs/{job_id}` | 취소(복수는 반복 호출 or `?ids=`) — USER는 본인 Job만 | U-JB-07, A-JB-02 | 인증 | 필수 |
@@ -263,6 +263,10 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 
 ## 미결/구현 시 확정
 - U-JB-11(Job 알림)·A-LM-04(부족 알림): 알림 채널(Slurm mail vs 포털 인앱) 확정 후 엔드포인트 추가 — 수신 설정은 `/me/profile`에 선반영.
+- ~~GPU 요청·배열 잡·의존성~~ — **2026-08-08 구현.** `tres_per_node`의 문자열 형식은
+  `gres:gpu:N`으로 실측 확정했다(`gpu:N`은 TRES 파서가 거부). 다만 **GPU 노드가 없어
+  "형식이 맞다"까지만 확인됐다** — 실제 할당은 L40 도입 후 재확인 →
+  [gpu-simulation.md](gpu-simulation.md).
 - A-US-06(자원 신청 승인): 선택 기능 — 수요 확인 후 설계. QOS 화면에 두었던 **빈 자리표시자
   카드는 제거**했다(2026-08-07) — 만들 것이 정해지지 않은 자리를 화면에 두면 "곧 된다"는
   잘못된 기대를 준다. 요구사항은 정의서 A-US-06에 남아 있다.

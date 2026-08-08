@@ -183,6 +183,10 @@ export interface JobSubmitRequest {
   work_dir?: string | null
   environment?: Record<string, string> | null
   script?: string | null
+  /** 배열 잡 인덱스: `1-240`, `1-240%4`, `17,58` */
+  array?: string | null
+  /** 의존성: `afterok:123` */
+  dependency?: string | null
 }
 
 export interface JobSubmitResponse {

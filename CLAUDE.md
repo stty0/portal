@@ -9,6 +9,8 @@ Claude가 이 프로젝트에서 세션마다 읽는 기본 컨텍스트 파일�
 - **기능 정의서**: [정의서.md](정의서.md) — 화면(SCR)·기능(U-/A-) ID의 단일 출처(SoT)
 - **진행 기록**: [docs/progress.md](docs/progress.md) — 구현 경위·실측 결과·미해결 이슈
 - **개발 노트**: [notes.md](notes.md) — 정적 프로토타입 시기의 히스토리
+- **GPU 도입 검토**: [docs/gpu-simulation.md](docs/gpu-simulation.md) — Isaac Sim/Omniverse
+  아키텍처 결정, GPU 선택(RT 코어), 미구현 4건
 
 ### 스택
 | 영역 | 구성 |

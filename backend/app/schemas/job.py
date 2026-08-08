@@ -41,6 +41,11 @@ class JobSubmitRequest(BaseModel):
     script: str | None = None  # U-JB-02
     # 폼 값을 #SBATCH 지시자로 만들지, 준 스크립트를 그대로 쓸지
     mode: str = Field(default="form", pattern="^(form|script)$")
+    #: 배열 잡 인덱스(`1-240`, `1-240%4`, `17,58`). 형식 검사는 Slurm에 맡긴다 —
+    #: 포털이 문법을 다시 정의하면 Slurm이 받는 표기와 어긋난다.
+    array: str | None = Field(default=None, max_length=128)
+    #: 의존성(`afterok:123`). 위와 같은 이유로 문자열 그대로 넘긴다.
+    dependency: str | None = Field(default=None, max_length=256)
 
 
 class JobSubmitResponse(BaseModel):

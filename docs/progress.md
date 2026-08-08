@@ -2236,91 +2236,73 @@ SQLite로는 전체 체인이 돌지 않는다 — `0006`이 `ALTER TABLE … DR
 
 ### 설계 메모: GPU 시뮬레이션·렌더링 도입 검토 (Isaac Sim / Omniverse)
 
-아직 구현이 아니다. **결정과 근거만 기록한다** — 나중에 "왜 이렇게 했나"를 반드시 다시 묻는다.
+구현이 아니라 **결정과 근거의 기록**이다. 분량이 많아 별도 문서로 옮겼다 —
+**[docs/gpu-simulation.md](gpu-simulation.md)** 가 정본이다(세션 전송 보안 때와 같은 방식).
 
-#### 확정된 구성
+요지만 적으면:
 
-| 영역 | 결정 |
+- Omniverse/Nucleus는 **별도 k8s**, Isaac Sim은 **포털의 배치 solver 전용**(GUI 없음).
+- 두 시스템을 **묶지 않는다** — 홈 NFS 공유 안은 검토 후 철회(UID/GID 정합·격리 약화·
+  Nucleus가 파일시스템이 아니라는 점). 데이터는 사람이 복사한다.
+- **A100/H100은 RT 코어가 없어 Isaac Sim 공식 미지원.** L40 계열이 필요하고,
+  **파티션 분리는 선택이 아니라 필수**다 — 포털은 GPU 종류를 구분하지 못하고
+  파티션 이름이 그것을 표현하는 유일한 수단이다.
+- 파이프라인 엔진은 만들지 않는다. Slurm 배열·의존성 위에 Snakemake를 얹는다.
+- 포털 미구현 4건: **GPU 요청(`tres_per_node`)·배열 잡·의존성**·API 토큰.
+  앞 셋은 장비 없이 지금 고칠 수 있고, `tres_per_node`의 **문자열 형식만 실측이 남았다.**
+- solver 카탈로그는 **실제로 한 번 돌려본 뒤에** 설계한다. 건너뛰면 2026-08-07에 지운
+  `job_template` 표를 다시 만들게 된다.
+
+---
+
+### GPU 요청·배열 잡·의존성 구현 (U-JB-01·02)
+
+렌더링 워크플로에 필수인 셋이 빠져 있었다. 셋 다 `#SBATCH` 지시자가 `ignored_directives`로
+빠지는 형태로 드러났다 — 스크립트 모드를 고치며 넣은 그 경고가 없었으면 한참 찾았을 것들이다.
+
+| 항목 | 없을 때 |
 |---|---|
-| Omniverse + Nucleus | **별도 k8s.** 협업·에셋 관리. 이 포털과 무관 |
-| Isaac Sim | **포털의 배치 solver 전용.** GUI·스트리밍은 포털이 하지 않는다 |
-| 사용자 접점 | local workstation — WebRTC로 k8s에, CLI/API로 이 포털에 |
-| 데이터 | **두 시스템을 묶지 않는다. 사람이 복사한다** |
+| GPU (`tres_per_node`) | **GPU 노드를 사도 Job이 GPU를 요청하지 않는다.** 폼의 GPU 수도 무효였다 |
+| 배열 (`array`) | 240 프레임 렌더를 냈는데 **1장만 나온다** |
+| 의존성 (`dependency`) | 시뮬 → 렌더 → 재조합 단계가 이어지지 않는다 |
 
-#### GPU는 아무거나 사면 안 된다
+#### `tres_per_node` 형식을 실측으로 정했다 — 추측하지 않았다
 
-**A100·H100·H200은 Isaac Sim이 공식 미지원이다.** 연산 성능과 무관하게 **RT 코어가 없어서**다
-(Omniverse RTX 렌더러가 하드웨어 레이트레이싱을 전제한다). Isaac Sim에는 **L40·L40S·
-RTX 6000 Ada** 계열이 필요하다.
+예약에서 스펙만 보고 두 번 틀린 뒤라, GPU가 없는 상태에서도 형식을 가릴 방법을 먼저 찾았다.
+**세 후보를 실제 클러스터에 제출해 에러 번호를 비교했다**(전부 거부되므로 Job이 생기지 않는다):
 
-검토 중인 구성은 **L40 1노드 + A100 1노드**다. 이때 **파티션 분리가 선택이 아니라 필수**다 —
-포털의 `gpu_partitions` 판별은 "이 파티션에 GPU가 있다/없다"만 말하고 **종류를 구분하지
-못한다.** 한 파티션에 섞으면 사용자가 GPU를 요청했다가 A100에 배정돼 Isaac Sim이 실패한다.
-화면에는 "GPU 있음"이라고 뜬 채로. 파티션 이름(`viz` / `gpu`)이 지금 구조에서 종류를
-표현하는 유일한 수단이다.
-
-#### 포털이 화면을 띄우지 않기로 한 이유
-
-Isaac Sim GUI를 포털의 인터랙티브 앱(noVNC 중계)으로 넣으면 GL 경로·프록시 문제가 따라온다.
-사용자가 **자기 workstation의 WebRTC 클라이언트**를 쓰기로 하면서 이 문제가 통째로 빠졌다.
-포털은 **Job을 던지고 결과를 홈에 떨어뜨리는 일**만 한다.
-
-#### 데이터를 공유하지 않기로 한 이유 (한 번 뒤집힌 결정)
-
-처음에는 홈 NFS를 k8s 노드에 마운트해 공유하는 안을 검토했다. **철회했다.** 묶으면 따라오는
-것이 많다.
-
-- **UID/GID 정합** — Slurm 노드는 AD/SSSD uid를 쓰는데 k8s 파드가 다른 uid로 뜨면 소유권이
-  어긋난다. 사용자마다 파드 uid를 동적으로 맞춰야 한다.
-- **격리 약화** — k8s 노드에 홈 전체를 마운트하면 그 노드의 파드가 남의 홈까지 본다.
-- **Nucleus는 파일시스템이 아니다** — 자체 저장소에 `omniverse://`로 접근한다. NFS를 공유해도
-  Nucleus 안의 에셋이 홈에 보이지 않는다. 공유의 이득이 기대만큼 크지 않다.
-
-복사 수단은 **이미 있다**(파일 관리자 U-FM-02, 로그인 노드 scp/rsync). 복사가 실제로
-아파지면 그때 공유 스토리지를 검토한다. **지금 안 묶는 쪽이 선택지를 남긴다.**
-
-#### 이미지는 직접 반입한다
-
-`nvcr.io`는 익명 pull이 안 되는데(NGC API 키 필요) 클러스터 설정에 **레지스트리 자격증명
-자리가 없다.** 개발 단계에는 자격증명이 있는 기계에서 받아 SIF로 변환해 넣는다 —
-`image_repository`가 경로 접두사라 **포털 변경이 필요 없다.**
-
-변환 시 `APPTAINER_TMPDIR`·`APPTAINER_CACHEDIR`을 **둘 다 `/home` 아래로** 돌린다. 최종 SIF보다
-빌드 중 순간 사용량이 훨씬 크다(이미지의 3~4배). 전에 dev01이 DiskPressure로 포털 pod이
-evict된 사고가 바로 이 경우다.
-
-**남은 최대 불확실성은 포털이 아니라 Apptainer 패키징이다.** NVIDIA가 지원하는 건 Docker이고,
-SIF는 읽기 전용인데 Isaac Sim은 `~/.cache/ov`·셰이더 캐시에 계속 쓴다. 장비 발주 전에
-**SIF 빌드만 먼저 해보면**(빌드에는 GPU가 필요 없다) 용량·변환 가능 여부를 실측할 수 있다.
-
-#### 파이프라인 엔진은 만들지 않는다
-
-시뮬레이션 → 렌더링(프레임 N장) → 재조합은 3단계 파이프라인이다. Slurm이 주는 것은
-**배열 잡**(`--array`, 독립 작업 팬아웃)과 **의존성**(`--dependency=afterok:`, 순서)까지다.
-재시도·재개·DAG 관리는 없다.
-
-그 위는 **Snakemake**를 얹는다(Python, `snakemake-executor-plugin-slurm`, 규칙별 `container:`로
-Apptainer 지원). 드라이버 Job 안에서 스스로 `sbatch`를 부르므로 **포털은 파이프라인을 알 필요가
-없다** — DAG UI를 만들지 않는다. 단, 자식 Job은 포털을 거치지 않아 **감사 로그에 드라이버
-1건만 남는다.**
-
-#### 포털에 필요한 개발 (미구현)
-
-| # | 항목 | 없으면 생기는 일 |
+| 보낸 값 | 에러 | 해석 |
 |---|---|---|
-| 1 | **GPU 요청** — `tres_per_node` | GPU 노드를 사도 Job이 GPU를 요청하지 않는다 |
-| 2 | **배열 잡** — `--array` | 240 프레임 렌더를 냈는데 **1장만 나온다** |
-| 3 | **의존성** — `--dependency` | 단계가 이어지지 않는다 |
-| 4 | 사용자 API 토큰 | 외부 자동화가 AD 비밀번호를 스크립트에 박아야 한다 |
+| `gpu:1` | **2115** `Invalid Trackable RESource (TRES) specification` | TRES 파서가 못 알아봄 |
+| `gres:gpu:1` | **2072** `Invalid generic resource (gres) specification` | **gres 파서까지 도달** |
+| `gres/gpu:1` | 2072 | 위와 동일 |
 
-1~3은 전부 `#SBATCH` 지시자가 `ignored_directives`로 빠지는 형태로 드러난다 — 스크립트 모드를
-고치며 넣은 그 경고가 아니었으면 원인을 한참 찾았을 것들이다.
+2072는 gres 파서에 닿아 이름 조회에서 실패했다는 뜻이다. `--gres=gpu:N`이 노리는 경로가
+그쪽이므로 **`gres:gpu:N`**을 쓴다(`sbatch --gres=gpu:N`도 `TresPerNode=gres:gpu:N`으로 남긴다).
 
-v0.0.43 `job_desc_msg`에서 확인된 후보: `tres_per_node`(= `--gres=gpu:N`), `tres_per_job`,
-`tres_per_task`, `cpus_per_tres`. **문자열 형식(`"gres:gpu:1"` vs `"gpu:1"`)은 아직 미확인** —
-잘못된 형식은 `Invalid Trackable RESource (TRES) specification`, 맞는 형식은
-`Requested node configuration is not available`로 갈려 GPU 없이도 구분할 수 있다.
+**정직하게 남길 한계**: 지금은 "형식이 맞다"까지만 확인됐다. 2072/2115가 갈린 이유가 형식
+차이가 아니라 **이 클러스터에 `gres/gpu` TRES 자체가 없어서**일 가능성을 완전히 배제하지는
+못했다. `gres_gpu()` docstring과 [gpu-simulation.md](gpu-simulation.md)에 적어 뒀고,
+**L40 도입 후 성공 제출로 재확인해야 한다.**
 
-4번은 지금 당장의 걸림돌은 아니다. `POST /auth/login`이 AD 계정으로 Bearer 토큰을 주므로
-개발·시험은 오늘도 가능하다. 다만 **토큰 수명 8시간**이고 폐기 단위가 세션뿐이라 자동화에
-정착시키면 안 된다.
+#### 구현
+
+- `gres_gpu(count)` — 형식을 한 곳에서 만든다. 실측 근거를 docstring에 남겼다.
+- `_slurm_job_properties` — `tres_per_node`·`array`·`dependency` 추가. **GPU가 0이면 아예 넣지
+  않는다** — 0은 "GPU 0개 요청"이 되어 거부될 수 있다.
+- `#SBATCH` 파서 — `--gres`·`--gpus`·`--gpus-per-node`·`--gpus-per-task`·`--array`·
+  `--dependency`와 짧은 형태(`-G`·`-a`·`-d`)를 매핑. `--gres=gpu:a100:4`처럼 **타입이 끼어도
+  개수만** 뽑는다(`_GRES_GPU`).
+- **`--gres`의 gpu 아닌 자원은 옮기지 않는다.** license·mps 등은 대응 필드를 모르므로
+  추측하지 않고 `ignored_directives`로 알린다.
+- `build_script`에도 `--array`·`--dependency`를 적는다 — 미리보기와 제출이 어긋나면 안 된다.
+- 폼에 **배열 인덱스·의존성** 입력을 추가했다. 형식 검사는 Slurm에 맡긴다 — 포털이 문법을
+  다시 정의하면 Slurm이 받는 표기와 어긋난다.
+
+#### 기존 테스트 하나를 고쳤다
+
+`test_unmapped_directives_are_reported_not_dropped`가 `--gres`를 무시 목록에서 기대하고 있었다.
+이제 옮겨지므로 **실제 동작에 맞게** 고치고, `tres_per_node`가 실리는지까지 확인하도록 넓혔다.
+
+검증: 테스트 **305개 통과**(6개 추가). 비어 있지 않음을 확인 — `gres_gpu`를 `gpu:{n}`으로
+되돌리고 `tres_per_node`를 빼자 **4개가 실패**했고, 복구하니 전부 통과했다.

@@ -34,6 +34,8 @@ const form = reactive<JobSubmitRequest>({
   walltime: '02:00:00',
   work_dir: null,
   script: '',
+  array: null,
+  dependency: null,
 })
 
 /**
@@ -235,6 +237,17 @@ const inputClass =
           />
         </Field>
         <Field label="메모리 (GB)"><input v-model.number="form.memory_gb" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
+        <!--
+          배열·의존성은 렌더링 워크플로의 핵심이다. 없으면 240 프레임을 내도 1장만 나오고,
+          단계가 이어지지 않는다. 형식 검사는 Slurm에 맡긴다 — 여기서 문법을 다시 정의하면
+          Slurm이 받는 표기와 어긋난다.
+        -->
+        <Field label="배열 인덱스" hint="예: 1-240 · 1-240%4(동시 4개) · 17,58 — 비우면 단일 Job">
+          <input v-model="form.array" :class="[inputClass, 'mono']" placeholder="비우면 단일 Job" />
+        </Field>
+        <Field label="의존성" hint="예: afterok:1234 — 그 Job이 성공해야 시작합니다">
+          <input v-model="form.dependency" :class="[inputClass, 'mono']" placeholder="비우면 즉시 대기열로" />
+        </Field>
         </template>
 
         <Field

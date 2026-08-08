@@ -194,13 +194,19 @@ def test_script_directives_beat_form_values(client, cluster, user_token, slurm_c
 
 
 def test_unmapped_directives_are_reported_not_dropped(client, cluster, user_token, slurm_client):
-    """조용히 버리면 사용자는 안 먹은 줄 모른다."""
+    """조용히 버리면 사용자는 안 먹은 줄 모른다.
+
+    `--gres=gpu:N`은 2026-08-08에 `tres_per_node`로 옮기게 됐다 — 여기서는 아직 대응
+    필드가 없는 것(`--output`)만 목록에 남는지 본다.
+    """
     resp = _submit_script(
         client, cluster, user_token,
         script="#!/bin/bash\n#SBATCH --gres=gpu:2\n#SBATCH --output=o.log\nsrun x\n",
     )
     assert resp.status_code == 200, resp.text
-    assert set(resp.json()["ignored_directives"]) == {"--gres", "--output"}
+    assert set(resp.json()["ignored_directives"]) == {"--output"}
+    job = [kw["spec"] for n, kw in slurm_client.calls if n == "submit_job"][0]["job"]
+    assert job["tres_per_node"] == "gres:gpu:2"
 
 
 def test_form_mode_does_not_parse_the_script(client, cluster, user_token, slurm_client):
@@ -478,3 +484,103 @@ def test_history_period_is_overridable(client, cluster, user_token, slurm_client
     )
     call = next(c for c in reversed(slurm_client.calls) if c[0] == "get_accounting_jobs")
     assert call[1]["start_time"] == str(date.today() - timedelta(days=7))
+
+
+# --- GPU · 배열 잡 · 의존성 (U-JB-01·02) -------------------------------------
+# 셋 다 렌더링 워크플로에 필수인데 전부 빠져 있었다. GPU는 폼 값도 스크립트 지시자도
+# REST로 전달되지 않아 **GPU 노드를 사도 Job이 GPU를 요청하지 않는** 상태였다.
+
+
+def _submitted_spec(slurm_client):
+    return [kw["spec"] for n, kw in slurm_client.calls if n == "submit_job"][0]
+
+
+def test_form_gpu_becomes_tres_per_node(client, cluster, user_token, slurm_client):
+    """실측(v0.0.43): `gpu:1`은 TRES 파서가 거부하고 `gres:gpu:1`이 gres 파서에 닿는다."""
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs",
+        json={"name": "render", "partition": "gpu", "gpus": 2, "script": "srun x"},
+        headers=auth_headers(user_token),
+    )
+    assert resp.status_code == 200, resp.text
+    assert _submitted_spec(slurm_client)["job"]["tres_per_node"] == "gres:gpu:2"
+
+
+def test_zero_gpu_is_omitted_not_sent_as_zero(client, cluster, user_token, slurm_client):
+    """0을 보내면 'GPU 0개 요청'이 되어 거부될 수 있다 — 아예 넣지 않는다."""
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs",
+        json={"name": "cpu-only", "partition": "cpu", "gpus": 0, "script": "srun x"},
+        headers=auth_headers(user_token),
+    )
+    assert resp.status_code == 200, resp.text
+    assert "tres_per_node" not in _submitted_spec(slurm_client)["job"]
+
+
+def test_form_array_and_dependency_pass_through(client, cluster, user_token, slurm_client):
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs",
+        json={
+            "name": "frames",
+            "partition": "viz",
+            "array": "1-240%4",
+            "dependency": "afterok:123",
+            "script": "srun render",
+        },
+        headers=auth_headers(user_token),
+    )
+    assert resp.status_code == 200, resp.text
+    job = _submitted_spec(slurm_client)["job"]
+    assert job["array"] == "1-240%4"
+    assert job["dependency"] == "afterok:123"
+
+
+def test_script_gres_directives_map_to_rest(client, cluster, user_token, slurm_client):
+    """`--gres`는 예전에 무시 목록으로 빠졌다 — 240 프레임을 내도 1장만 나왔다."""
+    script = (
+        "#!/bin/bash\n"
+        "#SBATCH --partition=viz\n"
+        "#SBATCH --gres=gpu:a100:4\n"
+        "#SBATCH --array=1-240\n"
+        "#SBATCH --dependency=afterok:99\n"
+        "isaac-sim --render\n"
+    )
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs",
+        json={"name": "render", "mode": "script", "script": script},
+        headers=auth_headers(user_token),
+    )
+    assert resp.status_code == 200, resp.text
+    job = _submitted_spec(slurm_client)["job"]
+    # 타입(a100)이 끼어도 개수만 뽑는다.
+    assert job["tres_per_node"] == "gres:gpu:4"
+    assert job["array"] == "1-240"
+    assert job["dependency"] == "afterok:99"
+    assert resp.json()["ignored_directives"] == []
+
+
+def test_gpu_flag_variants_target_different_scopes(client, cluster, user_token, slurm_client):
+    """--gpus는 Job 전체, --gpus-per-task는 task 단위 — 서로 다른 필드다."""
+    script = "#!/bin/bash\n#SBATCH --gpus=8\n#SBATCH --gpus-per-task=2\nsrun x\n"
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs",
+        json={"name": "g", "mode": "script", "script": script},
+        headers=auth_headers(user_token),
+    )
+    assert resp.status_code == 200, resp.text
+    job = _submitted_spec(slurm_client)["job"]
+    assert job["tres_per_job"] == "gres:gpu:8"
+    assert job["tres_per_task"] == "gres:gpu:2"
+
+
+def test_non_gpu_gres_is_reported_not_guessed(client, cluster, user_token, slurm_client):
+    """--gres는 license·mps도 받는다. 포털이 옮기는 것은 gpu뿐이니 나머지는 알린다."""
+    script = "#!/bin/bash\n#SBATCH --gres=mps:100\nsrun x\n"
+    resp = client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs",
+        json={"name": "m", "mode": "script", "script": script},
+        headers=auth_headers(user_token),
+    )
+    assert resp.status_code == 200, resp.text
+    assert "--gres" in resp.json()["ignored_directives"]
+    assert "tres_per_node" not in _submitted_spec(slurm_client)["job"]
