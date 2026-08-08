@@ -36,5 +36,6 @@ class BatchAppSubmitRequest(JobSubmitRequest):
     `script`·`mode`는 **서버가 정한다** — 본문은 앱 카탈로그가 만든다.
     """
 
-    #: 앱 파라미터. 키·형식은 `GET /batch-apps`가 알려 준다.
+    #: 앱 파라미터. 키·형식은 `GET /batch-apps`가 알려 준다
+    #: (`text`·`number`·`path`·`select`·`bool`).
     params: dict[str, Any] = Field(default_factory=dict)

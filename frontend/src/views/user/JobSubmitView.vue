@@ -28,6 +28,7 @@ const form = reactive<JobSubmitRequest>({
   account: null,
   qos: null,
   nodes: 1,
+  ntasks: null,
   cpus_per_task: 8,
   gpus: 1,
   memory_gb: 32,
@@ -228,6 +229,9 @@ const inputClass =
         </Field>
         <Field label="노드 수"><input v-model.number="form.nodes" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
         <Field label="CPU / task"><input v-model.number="form.cpus_per_task" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
+        <Field label="MPI 랭크" hint="비우면 Slurm 기본(노드당 1)">
+          <input v-model.number="form.ntasks" type="number" min="1" :class="[inputClass, 'mono']" placeholder="비우면 기본" />
+        </Field>
         <!-- 파티션에 GPU가 없으면 고를 수 없게 한다. 넣어봐야 Slurm이 거부한다. -->
         <Field label="GPU 수" :hint="gpuHint">
           <input

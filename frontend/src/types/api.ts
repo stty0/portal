@@ -176,6 +176,8 @@ export interface JobSubmitRequest {
   account?: string | null
   qos?: string | null
   nodes?: number | null
+  /** MPI 랭크 수 (--ntasks) */
+  ntasks?: number | null
   cpus_per_task?: number | null
   gpus?: number | null
   memory_gb?: number | null

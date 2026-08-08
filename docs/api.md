@@ -109,7 +109,7 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 | GET | `/clusters/{cid}/jobs/history` | 완료 Job 이력(sacct — 기간·자원 사용량·종료 코드) | U-JB-09, A-JB-04 | 인증 | 필수 |
 | GET | `/clusters/{cid}/job-options` | 제출 폼 선택지(파티션·계정·QOS·`gpu_partitions`) — 폼이 자유 입력 대신 실제 값을 고르게 한다. `gpu_partitions`는 **`null`이면 '모름'**(노드 조회 실패), 빈 배열이면 'GPU 없음' | U-JB-01 | 인증 | 필수 |
 | GET | `/batch-apps` | Batch 앱(해석 solver) 카탈로그 — 파라미터 스키마 포함. **예정 앱도 내려보낸다**(`ready=false`) | U-JB-13 | 인증 | 권장 |
-| POST | `/clusters/{cid}/batch-apps/{app_id}/jobs` | 앱 + 파라미터 → 배치 스크립트 → sbatch. **스크립트는 서버가 만든다** — 요청의 `script`·`mode`는 무시한다. 자원 필드는 Job 제출과 동일 | U-JB-13 | 인증 | 권장 |
+| POST | `/clusters/{cid}/batch-apps/{app_id}/jobs` | 앱 + 파라미터 → **여러 단계** 배치 스크립트 → sbatch. **스크립트는 서버가 만든다** — 요청의 `script`·`mode`는 무시한다. 자원 필드는 Job 제출과 동일 | U-JB-13 | 인증 | 권장 |
 | POST | `/clusters/{cid}/jobs/preview-script` | 폼 값으로 생성될 스크립트 미리보기(제출 없음) | U-JB-02 | 인증 | 필수 |
 
 ## 6. Nodes / Partitions / Reservations (A-ND) `NodeRouter`

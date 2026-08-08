@@ -36,7 +36,8 @@ const form = reactive({
   name: '',
   partition: '',
   nodes: 1,
-  cpus_per_task: 8,
+  ntasks: 1,
+  cpus_per_task: 1,
   gpus: 0,
   memory_gb: 32,
   walltime: '02:00:00',
@@ -115,6 +116,7 @@ async function submit() {
       name: form.name || app.id,
       partition: form.partition || null,
       nodes: form.nodes,
+      ntasks: form.ntasks,
       cpus_per_task: form.cpus_per_task,
       gpus: form.gpus || null,
       memory_gb: form.memory_gb,
@@ -196,7 +198,17 @@ const inputClass =
             :hint="p.hint"
             :full="p.type === 'path'"
           >
-            <select v-if="p.options.length" v-model="params[p.key]" :class="inputClass">
+            <!-- 체크박스는 단계를 켜고 끈다(예: decomposePar) -->
+            <label v-if="p.type === 'bool'" class="flex items-center gap-2 h-[42px] text-[14.5px]">
+              <input
+                type="checkbox"
+                :checked="params[p.key] !== '0'"
+                class="w-4 h-4"
+                @change="params[p.key] = ($event.target as HTMLInputElement).checked ? '1' : '0'"
+              />
+              <span class="text-ink-2">사용</span>
+            </label>
+            <select v-else-if="p.options.length" v-model="params[p.key]" :class="inputClass">
               <option v-for="o in p.options" :key="o" :value="o">{{ o }}</option>
             </select>
             <input
@@ -223,7 +235,15 @@ const inputClass =
           <input v-else v-model="form.partition" :class="[inputClass, 'mono']" placeholder="cpu" />
         </Field>
         <Field label="노드 수"><input v-model.number="form.nodes" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
-        <Field label="CPU / task"><input v-model.number="form.cpus_per_task" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
+        <!--
+          MPI는 **랭크 수가 정본**이다. OpenFOAM은 이 값이 케이스의
+          decomposeParDict(numberOfSubdomains)와 같아야 하는데, 그 값은 파일 안에 있어
+          화면에서 보이지 않는다 — 그래서 스크립트가 세어 보고 다르면 사유를 적고 멈춘다.
+        -->
+        <Field label="MPI 랭크 (--ntasks)" hint="병렬 solver의 프로세스 수">
+          <input v-model.number="form.ntasks" type="number" min="1" :class="[inputClass, 'mono']" />
+        </Field>
+        <Field label="CPU / rank"><input v-model.number="form.cpus_per_task" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
         <Field
           label="GPU 수"
           :hint="gpuAvailable ? '' : `'${form.partition}' 파티션에는 GPU 노드가 없습니다`"

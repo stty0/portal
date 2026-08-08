@@ -34,6 +34,9 @@ class JobSpec:
     account: str | None = None
     qos: str | None = None
     nodes: int | None = None
+    #: MPI 랭크 수(`--ntasks`). 노드·CPU와 별개다 — MPI는 랭크 수가 정본이고,
+    #: OpenFOAM처럼 도메인 분해 수와 맞아야 하는 solver가 있다.
+    ntasks: int | None = None
     cpus_per_task: int | None = None
     gpus: int | None = None
     memory_gb: int | None = None
@@ -268,6 +271,7 @@ class JobService:
             ("--account", spec.account),
             ("--qos", spec.qos),
             ("--nodes", spec.nodes),
+            ("--ntasks", spec.ntasks),
             ("--cpus-per-task", spec.cpus_per_task),
             ("--gres", f"gpu:{spec.gpus}" if spec.gpus else None),
             ("--mem", f"{spec.memory_gb}G" if spec.memory_gb else None),
@@ -450,7 +454,7 @@ _SBATCH_LINE = re.compile(r"^\s*#SBATCH\s+(.+?)\s*$", re.MULTILINE)
 _SBATCH_SHORT = {
     "p": "partition", "A": "account", "q": "qos", "N": "nodes",
     "c": "cpus-per-task", "t": "time", "J": "job-name", "D": "chdir",
-    "a": "array", "d": "dependency", "G": "gpus",
+    "a": "array", "d": "dependency", "G": "gpus", "n": "ntasks",
 }
 #: `--gres=gpu:a100:2`처럼 타입이 끼어도 개수만 뽑는다. gpu 이외의 gres는 다루지 않는다.
 _GRES_GPU = re.compile(r"^gpu(?::[A-Za-z0-9_.-]+)?:(\d+)$")
@@ -515,6 +519,8 @@ def _apply_directive(name: str, value: str, props: dict[str, Any]) -> bool:
             props["nodes"] = value  # "2-4" 범위 표기를 허용하므로 문자열이다
         elif name == "cpus-per-task":
             props["cpus_per_task"] = int(value)
+        elif name == "ntasks":
+            props["tasks"] = int(value)
         elif name == "mem":
             props["memory_per_node"] = _memory_mb(value)
         elif name == "time":
@@ -568,6 +574,7 @@ def _slurm_job_properties(spec: JobSpec, *, default_name: str) -> dict[str, Any]
         ("qos", spec.qos),
         # nodes는 문자열이다("1", "2-4" 같은 범위 표기를 허용하므로)
         ("nodes", str(spec.nodes) if spec.nodes else None),
+        ("tasks", spec.ntasks),
         ("cpus_per_task", spec.cpus_per_task),
         # 메모리는 MB 정수
         ("memory_per_node", spec.memory_gb * 1024 if spec.memory_gb else None),

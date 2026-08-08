@@ -72,7 +72,7 @@ def submit(
     spec_fields: dict[str, Any] = payload.model_dump(exclude={"params", "script", "mode"})
     spec = JobSpec(
         **spec_fields,
-        script=batch_apps.build_body(app, image, values),
+        script=batch_apps.build_body(app, image, values, ntasks=payload.ntasks),
         mode="form",
     )
     return JobSubmitResponse(**service.submit(cluster, spec, user=user))

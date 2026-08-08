@@ -15,6 +15,9 @@ class JobSubmitRequest(BaseModel):
     account: str | None = None
     qos: str | None = None
     nodes: int | None = Field(None, ge=1)
+    #: MPI 랭크 수(`--ntasks`). 노드·CPU와 별개다 — MPI는 랭크 수가 정본이고,
+    #: OpenFOAM처럼 도메인 분해 수와 맞아야 하는 solver가 있다.
+    ntasks: int | None = Field(None, ge=1)
     cpus_per_task: int | None = Field(None, ge=1)
     gpus: int | None = Field(None, ge=0)
     memory_gb: int | None = Field(None, ge=1)
