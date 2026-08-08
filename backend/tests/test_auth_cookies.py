@@ -53,8 +53,8 @@ def test_state_change_by_cookie_requires_csrf_header(client, bootstrapped):
 
 def test_bearer_is_exempt_from_csrf(client, bootstrapped):
     """헤더는 브라우저가 자동으로 붙이지 않는다 — CSRF가 성립하지 않는다."""
+    # login() 헬퍼는 쿠키를 남기지 않는다 — 순수 Bearer 요청이 된다.
     token = login(client, "jrpark", "pw-user")
-    client.cookies.clear()
     assert client.post("/api/v1/auth/logout", headers=auth_headers(token)).status_code == 200
 
 
@@ -100,3 +100,16 @@ def test_refresh_denied_after_account_is_disabled(client, db, bootstrapped):
     db.commit()
 
     assert client.post("/api/v1/auth/refresh", json={"refresh_token": refresh}).status_code == 401
+
+
+def test_login_helper_leaves_no_session_cookie(client, bootstrapped):
+    """`login()`이 쿠키를 남기면 **"자격증명 없음" 테스트가 조용히 인증된다.**
+
+    이 성질이 깨지면 401을 기대하는 권한 테스트들이 의미를 잃는다 — 실패가 아니라
+    통과로 새는 쪽이라 눈치채기 어렵다. 그래서 여기서 못 박아 둔다.
+    """
+    login(client, "jrpark", "pw-user")
+    assert client.cookies.get(ACCESS_COOKIE) is None
+    assert client.cookies.get(CSRF_COOKIE) is None
+    # 그래서 헤더 없는 요청은 정말로 익명이다.
+    assert client.get("/api/v1/auth/me").status_code == 401

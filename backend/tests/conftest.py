@@ -167,8 +167,19 @@ def bootstrapped(client, ad_client) -> dict:
 
 
 def login(client: TestClient, username: str, password: str) -> str:
+    """Bearer 토큰을 하나 얻는다. **세션 쿠키는 남기지 않는다.**
+
+    로그인은 토큰과 쿠키를 함께 발급한다(브라우저용). 그런데 `TestClient`는 쿠키를
+    들고 다니므로, 이 헬퍼가 쿠키를 남기면 **이후의 "자격증명 없는" 요청이 실제로는
+    인증된 요청이 된다.** 그러면 401을 기대하는 권한 테스트가 조용히 통과하거나
+    엉뚱한 코드로 실패한다 — 실제로 `test_settings_require_admin`이 그렇게 깨졌다.
+
+    쿠키 자체를 검증하는 테스트는 이 헬퍼를 쓰지 않고 엔드포인트를 직접 부른다
+    (`tests/test_auth_cookies.py`).
+    """
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     assert resp.status_code == 200, resp.text
+    client.cookies.clear()
     return resp.json()["access_token"]
 
 
