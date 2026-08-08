@@ -11,6 +11,7 @@ import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.config import get_settings
+from app.core.cookies import ACCESS_COOKIE
 from app.core.errors import PortalError
 from app.db.session import get_session_factory
 from app.services.terminal import TerminalService
