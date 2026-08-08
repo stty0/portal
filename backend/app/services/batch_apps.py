@@ -65,8 +65,10 @@ class AppStep:
     parallel: bool = False
     #: 컨테이너 안에서 실행하는가. `touch`처럼 호스트에서 해도 되는 일은 밖에서 한다.
     in_container: bool = True
-    #: 이 파라미터가 켜졌을 때만 실행한다(체크박스). 비우면 항상 실행.
+    #: 이 파라미터가 켜졌을 때만 실행한다(체크박스·값 있음). 비우면 항상 실행.
     when: str | None = None
+    #: 반대로 이 파라미터가 꺼졌을 때만 실행한다. 직렬/병렬처럼 **둘 중 하나**인 갈래에 쓴다.
+    unless: str | None = None
 
 
 @dataclass(frozen=True)
@@ -95,6 +97,24 @@ class BatchApp:
 #:
 #: **다만 커맨드·파라미터는 아직 실측이 아니다.** 실제 케이스로 한 번 돌려보고 맞춰야
 #: 한다 — 폼을 확정하기 전에 돌려보지 않으면 `job_template`을 다시 만드는 것과 같다.
+#: OpenFOAM 이미지는 2026-08-08에 만들어 저장소에 넣었다(`openfoam-2512.sif`, 443MB,
+#: `docker://opencfd/openfoam-default:2512` = ESI 계열, solver 139종).
+#:
+#: 아래 파라미터는 **추측이 아니라 실제 케이스(`pitzDaily`)를 돌려 보고 정했다.** 그때
+#: 확인한 것들:
+#:
+#:   1. `foamDictionary <파일> -entry X -set V`로 케이스 설정을 고칠 수 있다. 그래서
+#:      시간·저장 간격을 화면에서 받아 케이스에 **주입**한다.
+#:   2. **격자 해상도는 이 방식으로 못 바꾼다.** `blockMeshDict`의 `blocks`가
+#:      `( hex (...) (18 30 1) simpleGrading (...) )` 같은 **중첩 리스트**여서 단순
+#:      치환 대상이 아니다. 격자는 케이스 파일이 정한다 — 포털은 `blockMesh` 실행
+#:      여부만 다룬다.
+#:   3. **튜토리얼 케이스에 `decomposeParDict`가 없는 경우가 흔하다**(pitzDaily가 그렇다).
+#:      그래서 없으면 만들고, `numberOfSubdomains`를 **자원 칸의 랭크 수로 맞춘다**.
+#:      `method scotch`는 계수 없이 임의 개수를 분해하므로 안전하다.
+#:   4. **`writeInterval > endTime`이면 결과가 하나도 안 나온다.** 조용히 끝나고
+#:      `reconstructPar`가 "No times selected"로 실패한다. 실제로 그렇게 당했다 —
+#:      그래서 저장 간격을 화면에 노출하고 힌트로 경고한다.
 APPS: tuple[BatchApp, ...] = (
     BatchApp(
         id="openfoam",
@@ -108,23 +128,77 @@ APPS: tuple[BatchApp, ...] = (
                 key="case",
                 label="케이스 디렉터리",
                 type="path",
-                hint="system/·constant/·0/ 이 들어 있는 폴더. **파일이 아니라 폴더**다.",
+                hint="system/·constant/·0/ 이 들어 있는 폴더. **파일이 아니라 폴더**입니다.",
             ),
             AppParam(
                 key="solver",
                 label="Solver",
                 type="select",
                 default="simpleFoam",
-                options=("simpleFoam", "pimpleFoam", "interFoam", "rhoPimpleFoam", "potentialFoam"),
-                hint="케이스에 맞는 solver를 고르세요.",
+                options=(
+                    "simpleFoam", "pimpleFoam", "pisoFoam", "icoFoam", "potentialFoam",
+                    "interFoam", "compressibleInterFoam", "multiphaseInterFoam",
+                    "rhoSimpleFoam", "rhoPimpleFoam", "sonicFoam",
+                    "buoyantSimpleFoam", "buoyantPimpleFoam", "chtMultiRegionFoam",
+                    "scalarTransportFoam", "laplacianFoam", "XiFoam", "reactingFoam",
+                ),
+                hint="케이스의 물리에 맞는 solver. 이미지에 139종이 있고 대표만 골라 뒀습니다.",
             ),
+            # --- 격자 -------------------------------------------------------
             AppParam(
-                key="decompose",
-                label="도메인 분해 (decomposePar)",
+                key="block_mesh",
+                label="격자 생성 (blockMesh)",
                 type="bool",
                 default="1",
                 required=False,
-                hint="병렬 실행에 필요합니다. 이미 분해했다면 끄세요.",
+                hint="격자 **해상도는 system/blockMeshDict가 정합니다** — 여기서는 생성 여부만 고릅니다.",
+            ),
+            AppParam(
+                key="check_mesh",
+                label="격자 검사 (checkMesh)",
+                type="bool",
+                default="1",
+                required=False,
+                hint="나쁜 격자로 몇 시간 계산한 뒤 알게 되는 것보다 낫습니다.",
+            ),
+            # --- 시간 제어 (비우면 케이스 설정을 그대로 쓴다) ----------------
+            AppParam(
+                key="end_time",
+                label="종료 시간 (endTime)",
+                type="number",
+                required=False,
+                hint="비우면 케이스의 controlDict를 따릅니다.",
+            ),
+            AppParam(
+                key="delta_t",
+                label="시간 간격 (deltaT)",
+                type="number",
+                required=False,
+                hint="비우면 케이스 설정.",
+            ),
+            AppParam(
+                key="write_interval",
+                label="결과 저장 간격 (writeInterval)",
+                type="number",
+                required=False,
+                hint="⚠️ 종료 시간보다 크면 **결과가 하나도 저장되지 않습니다**(실측).",
+            ),
+            AppParam(
+                key="restart",
+                label="최신 시간부터 이어서 계산",
+                type="bool",
+                default="0",
+                required=False,
+                hint="켜면 startFrom=latestTime. 끄면 케이스 설정 그대로입니다.",
+            ),
+            # --- 병렬 -------------------------------------------------------
+            AppParam(
+                key="decompose",
+                label="병렬 분해 (decomposePar)",
+                type="bool",
+                default="1",
+                required=False,
+                hint="끄면 단일 프로세스로 풉니다. 켜면 위 MPI 랭크 수로 분해합니다.",
             ),
             AppParam(
                 key="reconstruct",
@@ -136,21 +210,44 @@ APPS: tuple[BatchApp, ...] = (
             ),
         ),
         steps=(
-            AppStep(run="cd {{case}} && decomposePar -force", when="decompose"),
-            # **랭크 수가 안 맞으면 MPI가 조용히 이상하게 돈다.** decomposeParDict의
-            # numberOfSubdomains는 케이스 파일 안에 있어 화면에서 보이지 않으므로,
-            # 여기서 세어 보고 다르면 **원인을 적어** 멈춘다.
+            # --- 케이스 설정 주입 (빈 값은 단계 자체가 빠진다) ---------------
+            AppStep(run="cd {{case}} && foamDictionary system/controlDict -entry endTime -set {{end_time}}",
+                    when="end_time"),
+            AppStep(run="cd {{case}} && foamDictionary system/controlDict -entry deltaT -set {{delta_t}}",
+                    when="delta_t"),
+            AppStep(run="cd {{case}} && foamDictionary system/controlDict -entry writeInterval -set {{write_interval}}",
+                    when="write_interval"),
+            AppStep(run="cd {{case}} && foamDictionary system/controlDict -entry startFrom -set latestTime",
+                    when="restart"),
+            # --- 격자 -------------------------------------------------------
+            AppStep(run="cd {{case}} && blockMesh", when="block_mesh"),
+            AppStep(run="cd {{case}} && checkMesh", when="check_mesh"),
+            # --- 분해: 딕셔너리가 없는 케이스가 흔하므로 없으면 만든다 -------
             AppStep(
                 run=(
-                    'n=$(ls -d {{case}}/processor* 2>/dev/null | wc -l); '
-                    'if [ "$n" -ne {{ntasks}} ]; then '
-                    'echo "분해 수($n)와 요청 랭크({{ntasks}})가 다릅니다 — '
-                    'system/decomposeParDict의 numberOfSubdomains를 맞추세요"; exit 1; fi'
+                    # 역슬래시 이스케이프를 쓰지 않는다 — 여러 겹을 지나며 한 겹씩 잃는다.
+                    # 실제로 printf "\\n" 판본이 스크립트를 줄바꿈으로 깨뜨렸다.
+                    'D={{case}}/system/decomposeParDict; if [ ! -f "$D" ]; then '
+                    '{ echo "FoamFile { version 2.0; format ascii; class dictionary; '
+                    'object decomposeParDict; }"; '
+                    'echo "numberOfSubdomains 1;"; '
+                    'echo "method scotch;"; } > "$D"; fi'
                 ),
                 in_container=False,
                 when="decompose",
             ),
-            AppStep(run="{{solver}} -case {{case}} -parallel", parallel=True),
+            AppStep(
+                run=(
+                    "cd {{case}} && "
+                    "foamDictionary system/decomposeParDict -entry numberOfSubdomains -set {{ntasks}} && "
+                    "foamDictionary system/decomposeParDict -entry method -set scotch && "
+                    "decomposePar -force"
+                ),
+                when="decompose",
+            ),
+            # --- 풀이: 분해했으면 병렬, 아니면 직렬 -------------------------
+            AppStep(run="{{solver}} -case {{case}} -parallel", parallel=True, when="decompose"),
+            AppStep(run="{{solver}} -case {{case}}", unless="decompose"),
             AppStep(run="cd {{case}} && reconstructPar", when="reconstruct"),
             # ParaView는 이 표식이 있어야 케이스를 연다. 없으면 결과가 다 나왔는데도
             # "안 열린다"가 된다 — 인터랙티브 앱으로 이어지는 고리의 마지막 한 칸이다.
@@ -266,6 +363,8 @@ def build_body(
     lines = ["set -euo pipefail"]
     for step in app.steps:
         if step.when and not _is_on(resolved, step.when):
+            continue
+        if step.unless and _is_on(resolved, step.unless):
             continue
         run = _substitute(step.run, resolved, app.id)
         if step.in_container:

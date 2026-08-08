@@ -41,7 +41,10 @@ def test_catalog_exposes_the_parameter_schema(client, user_token):
     """화면은 이 스키마로 폼을 그린다 — 필드를 화면이 갖고 있으면 앱마다 화면을 고쳐야 한다."""
     body = client.get(f"{API}/batch-apps", headers=auth_headers(user_token)).json()
     foam = next(a for a in body if a["id"] == "openfoam")
-    assert [p["key"] for p in foam["params"]] == ["case", "solver", "decompose", "reconstruct"]
+    keys = [p["key"] for p in foam["params"]]
+    assert keys[:2] == ["case", "solver"]
+    # 실측으로 정한 항목들 — 시간 제어와 격자·병렬 토글
+    assert {"end_time", "write_interval", "block_mesh", "decompose", "reconstruct"} <= set(keys)
     assert "simpleFoam" in next(p for p in foam["params"] if p["key"] == "solver")["options"]
 
 
@@ -167,18 +170,93 @@ def test_ntasks_comes_from_resources_not_params(client):
     assert "check 64" in _body(app, {"input": "/h/a"}, ntasks=64)
 
 
-def test_openfoam_guards_the_rank_mismatch(client):
-    """decomposeParDict는 케이스 파일 안에 있어 화면에서 안 보인다 — 세어 보고 막는다."""
+def test_openfoam_sets_the_subdomain_count_instead_of_failing_on_it(client):
+    """**실측**: 튜토리얼 케이스에 `decomposeParDict`가 없는 경우가 흔하다(pitzDaily).
+
+    예전에는 개수가 다르면 멈추게 했는데, 그러면 평범한 케이스에서 바로 실패한다.
+    없으면 만들고 랭크 수에 맞춘다. `scotch`는 계수 없이 임의 개수를 분해한다.
+    """
     body = B.build_body(
-        B.get("openfoam"),
-        "/i.sif",
+        B.get("openfoam"), "/i.sif",
         {"case": "/h/c", "solver": "simpleFoam", "decompose": "1", "reconstruct": "1"},
         ntasks=32,
     )
-    assert "processor*" in body and "-ne 32" in body
-    assert "numberOfSubdomains" in body  # 실패 사유를 스크립트가 직접 알려준다
-    # ParaView가 열 수 있게 하는 표식 — 이게 없으면 "결과가 안 열린다"가 된다.
+    assert "decomposeParDict" in body and "numberOfSubdomains -set 32" in body
+    assert "method -set scotch" in body
+    assert 'if [ ! -f "$D" ]' in body  # 없을 때만 만든다 — 있으면 케이스 것을 존중
+    # ParaView가 열 수 있게 하는 표식이 마지막이다.
     assert body.rstrip().endswith("/case.foam")
+
+
+def test_openfoam_runs_serially_when_decomposition_is_off(client):
+    """`-parallel`을 랭크 1개로 주면 실패한다 — 갈래를 나눈다."""
+    values = {"case": "/h/c", "solver": "icoFoam", "decompose": "0"}
+    body = B.build_body(B.get("openfoam"), "/i.sif", values, ntasks=1)
+    assert "-parallel" not in body
+    assert "srun " not in body
+    assert "decomposePar" not in body
+    assert "icoFoam -case /h/c" in body
+
+
+def test_time_controls_are_injected_into_the_case(client):
+    """**실측**: `writeInterval > endTime`이면 결과가 하나도 안 나오고 재조합이 실패한다.
+
+    그래서 케이스 파일을 `foamDictionary`로 직접 고친다. 빈 값은 단계 자체가 빠져
+    케이스 설정을 그대로 둔다.
+    """
+    app = B.get("openfoam")
+    full = B.build_body(app, "/i.sif",
+                        {"case": "/h/c", "solver": "simpleFoam", "decompose": "0",
+                         "end_time": "500", "delta_t": "0.01", "write_interval": "50"},
+                        ntasks=1)
+    assert "controlDict -entry endTime -set 500" in full
+    assert "controlDict -entry deltaT -set 0.01" in full
+    assert "controlDict -entry writeInterval -set 50" in full
+
+    bare = B.build_body(app, "/i.sif",
+                        {"case": "/h/c", "solver": "simpleFoam", "decompose": "0"}, ntasks=1)
+    assert "controlDict" not in bare  # 비우면 케이스 설정을 건드리지 않는다
+
+
+def test_restart_only_when_asked(client):
+    app = B.get("openfoam")
+    on = B.build_body(app, "/i.sif",
+                      {"case": "/h/c", "solver": "simpleFoam", "decompose": "0", "restart": "1"},
+                      ntasks=1)
+    assert "startFrom -set latestTime" in on
+    off = B.build_body(app, "/i.sif",
+                       {"case": "/h/c", "solver": "simpleFoam", "decompose": "0"}, ntasks=1)
+    assert "startFrom" not in off
+
+
+def test_mesh_steps_are_optional(client):
+    app = B.get("openfoam")
+    with_mesh = B.build_body(app, "/i.sif",
+                             {"case": "/h/c", "solver": "simpleFoam", "decompose": "0",
+                              "block_mesh": "1", "check_mesh": "1"}, ntasks=1)
+    assert "blockMesh" in with_mesh and "checkMesh" in with_mesh
+    without = B.build_body(app, "/i.sif",
+                           {"case": "/h/c", "solver": "simpleFoam", "decompose": "0",
+                            "block_mesh": "0", "check_mesh": "0"}, ntasks=1)
+    assert "blockMesh" not in without and "checkMesh" not in without
+
+
+def test_generated_script_has_no_stray_newlines(client):
+    """단계 하나가 여러 줄로 깨지면 `set -e`가 뒷줄을 별도 명령으로 실행한다.
+
+    실제로 `printf "\\n"` 판본이 이스케이프를 한 겹 잃어 스크립트를 깨뜨렸다.
+    """
+    body = B.build_body(
+        B.get("openfoam"), "/i.sif",
+        {"case": "/h/c", "solver": "simpleFoam", "block_mesh": "1", "check_mesh": "1",
+         "end_time": "50", "write_interval": "25", "decompose": "1", "reconstruct": "1"},
+        ntasks=2,
+    )
+    lines = body.splitlines()
+    assert len(lines) == 10, lines
+    # 컨테이너 단계는 한 줄에 하나씩 완결되어야 한다.
+    assert sum(1 for l in lines if l.startswith("apptainer exec ")) == 6
+    assert sum(1 for l in lines if l.startswith("srun apptainer exec ")) == 1
 
 
 def test_script_stops_at_the_first_failing_step(client):
