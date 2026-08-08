@@ -27,6 +27,7 @@ from app.db.session import dispose_engine, init_engine
 from app.routers import (
     account,
     api_tokens,
+    batch_apps,
     auth,
     billing,
     clusters,
@@ -105,7 +106,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     for module in (
         auth, users, clusters, jobs, files, billing,
-        terminal, reports, sessions, account, ops, api_tokens,
+        terminal, reports, sessions, account, ops, api_tokens, batch_apps,
     ):
         app.include_router(module.router, prefix=settings.api_prefix)
 

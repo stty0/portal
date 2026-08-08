@@ -75,6 +75,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '인터랙티브 앱', scr: 'SCR-06', icon: '▣', group: '작업 환경' },
   },
   {
+    path: '/batch-apps',
+    name: 'batch-apps',
+    component: () => import('@/views/user/BatchAppsView.vue'),
+    meta: { title: 'Batch 앱', scr: 'SCR-21', icon: '⚗', group: '작업 환경' },
+  },
+  {
     // 세션 화면은 목록에서만 들어간다 — 메뉴에 올리지 않는다(group 없음).
     path: '/apps/:sid',
     name: 'desktop',
