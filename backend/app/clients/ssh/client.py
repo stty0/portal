@@ -91,6 +91,14 @@ def _num(text: str) -> float | None:
         return None
 
 
+def _kib(text: str) -> int | None:
+    """`df`·`quota`의 KiB 열 → 바이트. 숫자가 아니면 None(그 줄을 버린다)."""
+    try:
+        return int(text) * 1024
+    except (TypeError, ValueError):
+        return None
+
+
 def _load_key(pem: str) -> paramiko.PKey:
     for cls in (paramiko.Ed25519Key, paramiko.ECDSAKey, paramiko.RSAKey):
         try:
@@ -190,16 +198,6 @@ class LoginNodeClient:
         if len(parts) < 6 or not parts[5]:
             raise ExternalServiceError(f"{user}의 홈 디렉터리를 확인할 수 없습니다.")
         return parts[5]
-
-    def exists(self, user: str, path: str) -> bool:
-        sftp = self._sftp_as(user)
-        try:
-            sftp.stat(path)
-            return True
-        except OSError:
-            return False
-        finally:
-            sftp.close()
 
     def read_text(self, user: str, path: str, *, max_bytes: int = 65536) -> str | None:
         """사용자 권한으로 작은 텍스트 파일을 읽는다. 없으면 None.
@@ -383,8 +381,10 @@ class LoginNodeClient:
         for attr in sftp.listdir_attr(path):
             child = f"{path.rstrip('/')}/{attr.filename}"
             mode = attr.st_mode or 0
-            # readdir 속성은 lstat 기준이다. 링크는 따라가지 않고 링크만 지운다.
-            if stat_module.S_ISDIR(mode) and not stat_module.S_ISLNK(mode):
+            # readdir 속성은 **lstat 기준**이라, 디렉터리를 가리키는 심볼릭 링크는
+            # `S_ISDIR`가 거짓이 된다(파일 종류 비트는 배타적이다) — 그래서 링크는
+            # 따라 들어가지 않고 링크 자체만 지워진다.
+            if stat_module.S_ISDIR(mode):
                 self._rmtree(sftp, child, depth + 1)
             else:
                 sftp.remove(child)
@@ -532,7 +532,12 @@ class LoginNodeClient:
             cols = line.split(None, 5)
             if len(cols) < 6:
                 continue
-            total, used, avail = (int(c) * 1024 for c in cols[1:4])
+            # 숫자가 아닌 칸(`-`)을 내보내는 파일시스템이 있다. 그 줄만 건너뛴다 —
+            # 여기서 예외가 나면 스토리지 화면 전체가 죽는다.
+            sizes = [_kib(c) for c in cols[1:4]]
+            if any(v is None for v in sizes):
+                continue
+            total, used, avail = (v for v in sizes if v is not None)
             rows.append(
                 {
                     "filesystem": cols[0],
@@ -592,13 +597,20 @@ class LoginNodeClient:
         rows: list[dict[str, Any]] = []
         for line in out.splitlines():
             cols = line.split()
-            if len(cols) >= 4 and cols[0].startswith("/"):
-                rows.append(
-                    {
-                        "filesystem": cols[0],
-                        "used_bytes": int(cols[1].rstrip("*")) * 1024,
-                        "soft_bytes": int(cols[2]) * 1024,
-                        "hard_bytes": int(cols[3]) * 1024,
-                    }
-                )
+            if len(cols) < 4 or not cols[0].startswith("/"):
+                continue
+            # 출력 형식이 사이트마다 다르다 — 숫자가 아닌 줄은 조용히 넘긴다.
+            # docstring이 약속한 "실패를 오류로 올리지 않는다"는 명령 실패만이 아니라
+            # 파싱 실패에도 적용되어야 한다.
+            values = [_kib(cols[1].rstrip("*")), _kib(cols[2]), _kib(cols[3])]
+            if any(v is None for v in values):
+                continue
+            rows.append(
+                {
+                    "filesystem": cols[0],
+                    "used_bytes": values[0],
+                    "soft_bytes": values[1],
+                    "hard_bytes": values[2],
+                }
+            )
         return rows

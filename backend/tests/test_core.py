@@ -171,3 +171,92 @@ def test_slurm_owned_entities_are_not_portal_tables():
 
     names = set(Base.metadata.tables)
     assert not names & {"account", "qos", "association", "slurm_user"}
+
+
+# --- slurmrestd 숫자 어댑터 ------------------------------------------------
+# 같은 필드를 서비스마다 따로 풀다가 답이 갈린 적이 있다: 한쪽은 맨 숫자를 그대로 받고
+# 다른 쪽은 None(=한도 없음)으로 접어, QOS 한도가 판본에 따라 "무제한"으로 뒤집혔다.
+
+
+def test_number_adapter_accepts_both_shapes():
+    from app.clients.slurm.adapters import number
+
+    # 래퍼
+    assert number({"set": True, "infinite": False, "number": 5}) == 5
+    # 맨 숫자 — 이걸 None으로 접으면 "5개 제한"이 "무제한"으로 뒤집힌다
+    assert number(5) == 5
+    assert number(0) == 0
+    # 무제한·미설정은 None이다. 0으로 접으면 "0 제한"으로 오해된다.
+    assert number({"set": True, "infinite": True, "number": 0}) is None
+    assert number({"set": False, "infinite": False, "number": 7}) is None
+    assert number(None) is None
+    assert number("8") is None
+    # bool은 숫자가 아니다 — isinstance(True, int)가 참이라 걸러내지 않으면 1로 샌다
+    assert number(True) is None
+
+
+def test_int_or_folds_missing_to_zero():
+    """한도(무제한=None)와 달리 "노드의 CPU 수"는 모르면 세지 않는 편이 맞다."""
+    from app.clients.slurm.adapters import int_or
+
+    assert int_or({"set": True, "infinite": False, "number": 8}) == 8
+    assert int_or(8) == 8
+    assert int_or(None) == 0
+    assert int_or({"set": False}) == 0
+
+
+def test_qos_limits_read_plain_numbers_too():
+    """account 서비스도 같은 어댑터를 쓴다 — 맨 숫자를 "무제한"으로 뒤집지 않는다."""
+    from app.services.account import _qos_limits
+
+    limits = _qos_limits(
+        {
+            "name": "normal",
+            "priority": 10,  # 래퍼가 아니라 맨 숫자로 오는 경우
+            "limits": {"max": {"jobs": {"active_jobs": {"per": {"user": 5}}}}},
+        }
+    )
+    assert limits["priority"] == 10
+    assert limits["max_jobs_per_user"] == 5
+
+
+def test_tables_without_code_are_the_documented_ones():
+    """쓰는 코드가 없는 표 목록이 **문서와 일치**해야 한다.
+
+    2026-08-07에 `job_template`을 지운 이유가 "쓰는 사람이 없는 표"였다. 그 상태를
+    금지하지는 않는다 — 정의서에 있는 기능의 선행 스키마는 남길 이유가 있다. 다만
+    **모르는 채로 늘어나는 것**은 막는다. 새 표를 만들고 서비스를 안 붙였거나, 반대로
+    기능을 붙였는데 `models/ops.py`의 목록을 안 고치면 여기서 걸린다.
+    """
+    import pathlib
+    import re
+
+    from app.models import Base
+
+    app_dir = pathlib.Path(__file__).resolve().parent.parent / "app"
+    sources = "\n".join(
+        p.read_text(encoding="utf-8")
+        for group in ("services", "routers", "repositories")
+        for p in (app_dir / group).rglob("*.py")
+    )
+    classes = {
+        m.group(2): m.group(1)  # 테이블명 → 클래스명
+        for text in [(app_dir / "models").rglob("*.py")]
+        for p in text
+        for m in re.finditer(
+            r'class (\w+)\(Base\):.*?__tablename__ = "(\w+)"',
+            p.read_text(encoding="utf-8"),
+            re.DOTALL,
+        )
+    }
+    assert set(classes) == set(Base.metadata.tables), "모델 스캔이 테이블 전체를 못 찾았다"
+
+    unused = {t for t, cls in classes.items() if not re.search(rf"\b{cls}\b", sources)}
+    assert unused == {
+        "license_server",            # A-LM-01 (SCR-17) 미구현
+        "license_feature_snapshot",  # A-LM-02·05 미구현
+        "ticket",                    # A-OP-05 · U-AC-04 미구현
+        "report_schedule",           # A-RP-04 미구현
+        "chargeback_rate",           # A-RP-05 미구현
+        "billing_snapshot",          # A-BL-03·04 수집 이력 미구현
+    }, f"쓰이지 않는 표 목록이 바뀌었다: {sorted(unused)} — models/ops.py 머리말도 함께 고칠 것"

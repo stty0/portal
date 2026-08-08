@@ -23,9 +23,6 @@ class InteractiveSessionRepository(BaseRepository[InteractiveSession]):
             stmt = stmt.where(InteractiveSession.cluster_id == cluster_id)
         return list(self.session.scalars(stmt.order_by(InteractiveSession.id.desc())))
 
-    def list_active(self, user_guid: str) -> list[InteractiveSession]:
-        return [s for s in self.list_for_user(user_guid) if s.status == STATUS_ACTIVE]
-
     def owned(self, session_id: int, user_guid: str) -> InteractiveSession | None:
         """**소유자 확인을 조회에 붙여** 남의 세션을 집을 수 없게 한다.
 

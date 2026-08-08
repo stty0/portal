@@ -227,6 +227,15 @@ class AuthService:
             raise Unauthenticated("refresh를 사용할 수 없습니다.")
         sid = self.refresh_tokens.consume(refresh_token)
         if sid is None:
+            # 이미 쓴 토큰이 다시 왔다 = 사본이 돌아다닌다. 회전만으로는 공격자가 받아 간
+            # 새 토큰이 그대로 살아 있으므로 **세션 자체를 끊어야** 실제 방어가 된다.
+            stolen = self.refresh_tokens.reused_session(refresh_token)
+            if stolen is not None:
+                self.sessions.revoke(stolen)
+                raise Unauthenticated(
+                    "이미 사용된 인증 정보가 다시 들어와 보안을 위해 세션을 종료했습니다. "
+                    "다시 로그인하세요."
+                )
             raise Unauthenticated("세션이 만료되었습니다. 다시 로그인하세요.")
         session = self.sessions.get(sid)
         if session is None:

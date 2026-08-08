@@ -4,8 +4,11 @@ Claude가 이 프로젝트에서 세션마다 읽는 기본 컨텍스트 파일�
 
 ## 프로젝트 개요
 - **대상**: Slurm 기반 HPC 클러스터 웹 포털 (백엔드 + 프론트엔드)
-- **현재 상태**: 실 클러스터에 연동되어 동작 중. 미구현은 **License 관리(SCR-17)** 와
-  헬프데스크 티켓(A-OP-05·U-AC-04)뿐이다.
+- **현재 상태**: 실 클러스터에 연동되어 동작 중. 미구현은 **License 관리(SCR-17)**,
+  헬프데스크 티켓(A-OP-05·U-AC-04), **정기 리포트 발송(A-RP-04)·과금 연계(A-RP-05)**,
+  비용 수집 이력(A-BL-03·04의 `billing_snapshot`)이다 — 전부 표만 있고 코드가 없다
+  (근거·목록은 [backend/app/models/ops.py](backend/app/models/ops.py) 머리말,
+  `test_tables_without_code_are_the_documented_ones`가 목록의 표류를 막는다).
 - **기능 정의서**: [정의서.md](정의서.md) — 화면(SCR)·기능(U-/A-) ID의 단일 출처(SoT)
 - **진행 기록**: [docs/progress.md](docs/progress.md) — 구현 경위·실측 결과·미해결 이슈
 - **개발 노트**: [notes.md](notes.md) — 정적 프로토타입 시기의 히스토리
@@ -80,7 +83,7 @@ Claude가 계획·구현·검증을 모두 담당한다. 전체 흐름과 상세
 
 ## 검증 방법
 ```bash
-cd backend  && .venv/bin/python -m pytest -q   # 261개. 외부 환경 불필요(SQLite+fake)
+cd backend  && .venv/bin/python -m pytest -q   # 373개. 외부 환경 불필요(SQLite+fake)
 cd frontend && npm run build                    # vue-tsc 타입체크 + 빌드
 ```
 - 배포 확인: `curl -sk -H 'Host: www.dt-hpc.net' https://127.0.0.1:9443/` → 200,

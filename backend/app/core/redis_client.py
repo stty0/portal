@@ -133,9 +133,19 @@ class RefreshTokenStore:
         self._redis = redis
         self._ttl = ttl_seconds
 
+    #: 이미 쓴 토큰에 남기는 표식. **지우지 않고 덮어쓴다** — 지워 버리면 나중에
+    #: "재사용"과 "그냥 만료"를 구분할 수 없어 탈취 탐지가 성립하지 않는다.
+    _USED = "used:"
+
     @staticmethod
     def _key(token: str) -> str:
         return f"refresh:{hashlib.sha256(token.encode()).hexdigest()}"
+
+    def _value(self, token: str) -> str | None:
+        raw = self._redis.get(self._key(token))
+        if raw is None:
+            return None
+        return raw.decode() if isinstance(raw, bytes) else str(raw)
 
     def issue(self, *, sid: str) -> str:
         token = secrets.token_urlsafe(48)
@@ -143,13 +153,24 @@ class RefreshTokenStore:
         return token
 
     def consume(self, token: str) -> str | None:
-        """유효하면 sid를 돌려주고 **그 토큰은 즉시 폐기**한다. 아니면 None."""
-        key = self._key(token)
-        raw = self._redis.get(key)
-        if raw is None:
+        """유효하면 sid를 돌려주고 **그 토큰은 즉시 폐기**한다. 아니면 None.
+
+        폐기는 삭제가 아니라 **표식 남기기**다. 남은 표식이 `reused_session()`의 근거가 된다.
+        """
+        value = self._value(token)
+        if value is None or value.startswith(self._USED):
             return None
-        self._redis.delete(key)
-        return raw.decode() if isinstance(raw, bytes) else str(raw)
+        self._redis.setex(self._key(token), self._ttl, f"{self._USED}{value}")
+        return value
+
+    def reused_session(self, token: str) -> str | None:
+        """**이미 쓴 토큰**이면 그 토큰이 속했던 세션 sid. 아니면 None.
+
+        정상 클라이언트는 같은 refresh 토큰을 두 번 쓰지 않는다 — 두 번째 사용은
+        사본이 돌아다닌다는 뜻이므로 호출자가 그 세션을 끊는다.
+        """
+        value = self._value(token)
+        return value[len(self._USED) :] if value and value.startswith(self._USED) else None
 
     def revoke(self, token: str) -> None:
         self._redis.delete(self._key(token))

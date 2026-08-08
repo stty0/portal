@@ -273,6 +273,46 @@ def test_walltime_is_converted_to_minutes():
     assert walltime_minutes("00:00:30") == 1
 
 
+def test_bad_walltime_is_a_user_error_not_a_server_error(client, cluster, user_token):
+    """Walltime은 자유 입력이다 — 오타가 500으로 나가면 사용자가 자기 실수를 장애로 읽는다.
+
+    폼 모드에는 형식 검사가 없어서 `walltime_minutes()`가 유일한 관문이다.
+    """
+    for bad in ("1시간", "1-2-3", "abc", "-5", "::", "1:2:3:4"):
+        resp = client.post(
+            f"/api/v1/clusters/{cluster.id}/jobs",
+            json={"name": "t", "walltime": bad, "script": "srun true"},
+            headers=auth_headers(user_token),
+        )
+        assert resp.status_code == 422, f"{bad!r} → {resp.status_code}"
+        assert "Walltime" in resp.json()["message"]
+
+    ok = client.post(
+        f"/api/v1/clusters/{cluster.id}/jobs",
+        json={"name": "t", "walltime": "02:00:00", "script": "srun true"},
+        headers=auth_headers(user_token),
+    )
+    assert ok.status_code == 200
+
+
+def test_directives_stop_at_the_first_command_like_sbatch_does():
+    """실제 sbatch는 첫 실행 줄에서 지시자 해석을 멈춘다.
+
+    스크립트 전체를 훑으면 본문 뒤의 `#SBATCH`까지 적용되어, 같은 파일을 `sbatch`로
+    냈을 때와 **다른 파티션으로 도는** 갈림이 조용히 생긴다.
+    """
+    from app.services.job import parse_sbatch
+
+    props, _ = parse_sbatch(
+        "#!/bin/bash\n"
+        "\n"
+        "#SBATCH --partition=cpu\n"
+        "srun ./run.sh\n"
+        "#SBATCH --partition=gpu\n"  # sbatch는 여기를 읽지 않는다
+    )
+    assert props["partition"] == "cpu"
+
+
 def test_job_properties_match_v0_0_41_types():
     from app.services.job import JobSpec, _slurm_job_properties
 
@@ -584,3 +624,123 @@ def test_non_gpu_gres_is_reported_not_guessed(client, cluster, user_token, slurm
     assert resp.status_code == 200, resp.text
     assert "--gres" in resp.json()["ignored_directives"]
     assert "tres_per_node" not in _submitted_spec(slurm_client)["job"]
+
+
+# --- 취소는 Slurm이 조용히 거부할 수 있다 (실측 2026-08-08) -------------------
+# 남의 Job에 DELETE를 보내면 HTTP 200에 errors도 비어 있는데 Job은 그대로 살아 있다.
+# 응답만 믿으면 화면에는 "취소했습니다"가 뜨고 Job은 계속 돈다 — 실제로 그렇게 당했다.
+
+
+def test_admin_cancel_impersonates_the_job_owner(client, cluster, admin_token, slurm_client):
+    """요청자 이름으로 보내면 Slurm이 조용히 거부한다 — 소유자로 위장해야 먹는다."""
+    resp = client.delete(
+        f"/api/v1/clusters/{cluster.id}/jobs/45813", headers=auth_headers(admin_token)
+    )
+    assert resp.status_code == 200
+    call = [kw for n, kw in slurm_client.calls if n == "cancel_job"][0]
+    assert call["as_user"] == "seonsj"  # 관리자(opadmin)가 아니라 Job 소유자
+    assert slurm_client.cancelled == ["45813"]
+
+
+def test_own_cancel_still_goes_as_self(client, cluster, user_token, slurm_client):
+    """본인 Job이면 소유자 = 요청자다 — 스코프가 넓어지지 않는다."""
+    client.delete(f"/api/v1/clusters/{cluster.id}/jobs/45812", headers=auth_headers(user_token))
+    call = [kw for n, kw in slurm_client.calls if n == "cancel_job"][0]
+    assert call["as_user"] == "jrpark"
+
+
+def test_silent_refusal_is_reported_instead_of_claiming_success(
+    client, cluster, user_token, slurm_client
+):
+    """Job이 그대로 살아 있으면 성공이라고 답하지 않는다.
+
+    slurmrestd는 거부를 본문 `errors`로도 알리지 않는다 — 상태를 다시 읽는 것이
+    유일한 확인 수단이다.
+    """
+
+    def refuse(job_id, *, as_user):
+        slurm_client._record("cancel_job", job_id=job_id, as_user=as_user)
+        return {"errors": [], "warnings": []}  # 200 · 오류 없음 · 그런데 안 죽는다
+
+    slurm_client.cancel_job = refuse
+    resp = client.delete(
+        f"/api/v1/clusters/{cluster.id}/jobs/45812", headers=auth_headers(user_token)
+    )
+    assert resp.status_code == 502
+    assert "취소를 받아들이지 않았습니다" in resp.json()["message"]
+
+
+def test_states_are_read_as_a_set_not_just_the_first(client):
+    """Slurm은 `["CANCELLED","COMPLETING"]`처럼 겹쳐 준다 — 첫 칸만 보면 취소를 놓친다."""
+    from app.services.job import _all_states
+
+    assert _all_states({"job_state": ["CANCELLED", "COMPLETING"]}) == ["CANCELLED", "COMPLETING"]
+    assert _all_states({"job_state": {"current": ["COMPLETED"]}}) == ["COMPLETED"]
+    assert _all_states({"job_state": "RUNNING"}) == ["RUNNING"]
+    assert _all_states({}) == []
+
+
+# --- 폼 기본값이 노드보다 크면 첫 제출부터 실패한다 (실측 2026-08-08) ----------
+# 기본 8코어·32GB를 CPU 2개·3915MB 노드에 요청 → 2014 "Requested node configuration
+# is not available". 화면이 상한을 알아야 기본값을 그 안으로 끌어내릴 수 있다.
+
+
+def test_options_report_per_node_capacity(client, cluster, user_token, slurm_client):
+    slurm_client.nodes_payload = {
+        "nodes": [
+            {"name": "n1", "cpus": 2, "real_memory": 3915, "partitions": ["cpu"]},
+            {"name": "n2", "cpus": 8, "real_memory": 16000, "partitions": ["cpu", "big"]},
+        ],
+        "errors": [],
+    }
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/job-options", headers=auth_headers(user_token)
+    ).json()
+    # 합계가 아니라 **가장 큰 노드 한 대**다 — Job은 노드 경계를 넘지 못한다.
+    assert body["capacity"]["cpu"] == {"max_cpus_per_node": 8, "max_memory_mb": 16000}
+    assert body["capacity"]["big"] == {"max_cpus_per_node": 8, "max_memory_mb": 16000}
+
+
+def test_capacity_is_empty_when_nodes_cannot_be_read(client, cluster, user_token, slurm_client):
+    """모르면 빈 dict — 화면이 상한을 강제하지 않는다(gpu_partitions의 None과 같은 태도)."""
+
+    def boom(*a, **kw):
+        raise RuntimeError("slurmrestd down")
+
+    slurm_client.get_nodes = boom
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/job-options", headers=auth_headers(user_token)
+    ).json()
+    assert body["capacity"] == {}
+    assert body["gpu_partitions"] is None
+
+
+def test_slurm_rejection_is_translated_not_dumped():
+    """Slurm은 거절 사유를 본문에 적어 준다 — 버리면 화면에 응답 원문이 통째로 찍힌다."""
+    import httpx
+    import pytest as _pytest
+
+    from app.clients.slurm.client import SlurmrestdClient
+    from app.core.errors import ExternalServiceError
+
+    body = {
+        "errors": [
+            {
+                "description": "Batch job submission failed",
+                "error_number": 2014,
+                "error": "Requested node configuration is not available",
+                "source": "slurm_submit_batch_job()",
+            }
+        ]
+    }
+    transport = httpx.MockTransport(lambda request: httpx.Response(500, json=body))
+    slurm = SlurmrestdClient(
+        "http://slurm:6820", token_provider=lambda: "t", transport=transport, max_retries=0
+    )
+    with _pytest.raises(ExternalServiceError) as exc:
+        slurm.submit_job({"script": "x", "job": {}}, as_user="jrpark")
+    assert "Batch job submission failed" in exc.value.message
+    assert "Requested node configuration is not available" in exc.value.message
+    # 2014는 무엇을 줄여야 하는지 말해 주지 않는다 — 포털이 덧붙인다.
+    assert "자원 값을 줄여" in exc.value.message
+    assert exc.value.detail["error_number"] == 2014

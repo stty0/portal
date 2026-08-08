@@ -97,3 +97,35 @@ def test_root_itself_cannot_be_removed_or_moved():
             LoginNodeClient._reject_root(root, ROOTS)
     # 하위 항목은 정상적으로 지워진다.
     LoginNodeClient._reject_root("/home/jrpark/data", ROOTS)
+
+
+# --- df·quota 파싱 (U-FM-01 스토리지 현황) ---------------------------------
+# "미설정 환경이 흔하다 — 실패를 오류로 올리지 않는다"는 약속은 **명령 실패만이 아니라
+# 파싱 실패에도** 적용되어야 한다. 한 줄이 이상해서 화면 전체가 죽으면 안 된다.
+
+
+def _client_running(output: str) -> LoginNodeClient:
+    client = LoginNodeClient.__new__(LoginNodeClient)
+    client._run_as = lambda user, argv: output  # type: ignore[method-assign]
+    return client
+
+
+def test_df_skips_rows_with_non_numeric_columns():
+    rows = _client_running(
+        "Filesystem 1024-blocks Used Available Capacity Mounted on\n"
+        "/dev/sda1 10485760 5242880 5242880 50% /home\n"
+        "weirdfs - - - - /mnt/odd\n"  # 숫자를 안 주는 파일시스템이 있다
+    ).filesystems("jrpark")
+    assert [r["mount"] for r in rows] == ["/home"]
+    assert rows[0]["total_bytes"] == 10485760 * 1024
+
+
+def test_quota_skips_unparsable_rows_instead_of_failing():
+    rows = _client_running(
+        "Disk quotas for user jrpark (uid 1000):\n"
+        "     Filesystem  blocks   quota   limit   grace   files\n"
+        "/dev/sda1  1024*  2048  4096  none  10\n"
+        "/dev/sdb1  none  none  none  none  none\n"
+    ).quota("jrpark")
+    assert [r["filesystem"] for r in rows] == ["/dev/sda1"]
+    assert rows[0]["used_bytes"] == 1024 * 1024

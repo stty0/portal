@@ -10,6 +10,12 @@ export interface JobOptions {
   gpu_partitions: string[] | null
   accounts: string[]
   qos: string[]
+  /**
+   * 파티션별 **노드 한 대의 최대치**. 합계가 아니다 — `--cpus-per-task`·`--mem`은 노드
+   * 경계를 넘지 못해서, 이보다 큰 값을 요청하면 Slurm이 제출을 거부한다(2014).
+   * 비어 있으면 '모른다'이고, 그때는 화면이 상한을 강제하지 않는다.
+   */
+  capacity?: Record<string, { max_cpus_per_node: number; max_memory_mb: number }>
 }
 
 export const jobApi = {

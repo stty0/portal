@@ -143,7 +143,18 @@ class FakeSlurmClient:
         return {"job_id": self.next_job_id}
 
     def cancel_job(self, job_id, *, as_user):
+        """실물처럼 동작한다 — **소유자가 아니면 조용히 거부한다.**
+
+        실측(2026-08-08): 남의 Job에 DELETE를 보내면 HTTP 200에 `errors`도 비어 있는데
+        Job은 그대로 살아 있다. 응답만 보고는 알 수 없고 상태를 다시 읽어야 안다.
+        대역이 항상 성공하면 이 갈래가 테스트에서 사라진다.
+        """
         self._record("cancel_job", job_id=job_id, as_user=as_user)
+        for job in self.jobs:
+            if str(job.get("job_id")) == str(job_id):
+                if job.get("user_name") != as_user:
+                    return {"errors": [], "warnings": []}  # 조용한 거부
+                job["job_state"] = ["CANCELLED", "COMPLETING"]
         self.cancelled.append(str(job_id))
         return {"ok": True}
 

@@ -17,6 +17,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.clients.slurm.adapters import int_or as slurm_int
 from app.models import Cluster
 from app.services.cluster import ClusterService
 
@@ -80,9 +81,9 @@ class ReportService:
         """
         cluster = self.clusters.get(cluster_id)
         jobs, start, end = self._jobs(cluster, days=days)
-        total_cpus = sum(
-            int(n.get("cpus") or 0) for n in self.clusters.nodes(cluster_id)
-        )
+        # `cpus`는 맨 숫자로도 `{set,infinite,number}` 래퍼로도 온다 — 해석은 어댑터에 맡긴다.
+        # 여기서 `int()`로 직접 풀면 래퍼가 오는 순간 TypeError로 화면 전체가 죽는다.
+        total_cpus = sum(slurm_int(n.get("cpus")) for n in self.clusters.nodes(cluster_id))
 
         by_day: dict[str, float] = collections.defaultdict(float)
         for job in jobs:

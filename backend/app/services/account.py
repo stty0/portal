@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.clients.slurm.adapters import number as slurm_number
 from app.clients.ssh.client import LoginNodeClient
 from app.core.config import Settings
 from app.core.secrets import SecretStore
@@ -177,18 +178,6 @@ def _gpu_hours(job: dict[str, Any]) -> float:
     return gpus * elapsed / 3600
 
 
-def _number(node: Any) -> int | None:
-    """slurmdbd의 `{set, infinite, number}` 삼중항 → 값.
-
-    `set=false`거나 `infinite=true`면 **한도 없음**이다. 0으로 접으면 "0 제한"으로 오해된다.
-    """
-    if not isinstance(node, dict):
-        return None
-    if not node.get("set") or node.get("infinite"):
-        return None
-    return int(node.get("number") or 0)
-
-
 def _qos_limits(qos: dict[str, Any]) -> dict[str, Any]:
     limits = qos.get("limits") if isinstance(qos.get("limits"), dict) else {}
     maximum = limits.get("max") if isinstance(limits.get("max"), dict) else {}
@@ -198,11 +187,11 @@ def _qos_limits(qos: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": qos.get("name"),
         "description": qos.get("description"),
-        "priority": _number(qos.get("priority")),
-        "usage_factor": _number(qos.get("usage_factor")),
-        "max_wall_minutes": _number(_dig(wall, "per", "job")),
-        "max_jobs_per_user": _number(_dig(active, "per", "user")),
-        "max_submit_per_user": _number(_dig(jobs, "per", "user")),
+        "priority": slurm_number(qos.get("priority")),
+        "usage_factor": slurm_number(qos.get("usage_factor")),
+        "max_wall_minutes": slurm_number(_dig(wall, "per", "job")),
+        "max_jobs_per_user": slurm_number(_dig(active, "per", "user")),
+        "max_submit_per_user": slurm_number(_dig(jobs, "per", "user")),
     }
 
 

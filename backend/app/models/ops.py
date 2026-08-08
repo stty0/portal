@@ -2,6 +2,26 @@
 
 A-BL은 SCP 클라우드 청구 비용, A-RP-05(chargeback_rate)는 Slurm 사용량×요율의
 내부 과금이다 — 출처가 다르다(정의서 §3.9 각주).
+
+## 아직 쓰이지 않는 표가 있다 (2026-08-08 확인)
+
+`billing_snapshot`·`license_server`·`license_feature_snapshot`·`report_schedule`·
+`chargeback_rate`는 **정의 파일 밖에서 참조가 0이다** — 서비스도 라우터도 없고 비어 있다.
+`content.py`의 `ticket`도 같다.
+
+2026-08-07에 `job_template` 표를 지운 이유가 정확히 이 상태였다("이미지도 입력 인터페이스도
+없어서 관리자가 등록해도 되는 일이 없었다"). **그런데도 이 여섯은 남긴다** — 지운 표와
+다른 점이 하나 있다: 전부 정의서에 있는 기능의 스키마이고, 그 기능이 아직 안 만들어졌을 뿐이다.
+
+| 표 | 기능 | 상태 |
+|---|---|---|
+| `license_server`·`license_feature_snapshot` | A-LM-01·02·05 (SCR-17) | 미구현 |
+| `ticket` (content.py) | A-OP-05 · U-AC-04 | 미구현 |
+| `report_schedule` | A-RP-04 정기 리포트 발송 | 미구현 |
+| `chargeback_rate` | A-RP-05 과금 연계 | 미구현 |
+| `billing_snapshot` | A-BL-03·04 비용 수집 이력 | 미구현(현재는 SCP를 매번 조회한다) |
+
+**여기서 지우려면 그 기능을 안 만들기로 정한 뒤에 지운다.** 반대로 하면 스키마만 왔다 갔다 한다.
 """
 
 from datetime import datetime

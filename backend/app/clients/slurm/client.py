@@ -13,7 +13,7 @@ from typing import Any
 import httpx
 
 from app.clients.base_http import BaseHttpClient
-from app.core.errors import SlurmUnauthorized
+from app.core.errors import ExternalServiceError, SlurmUnauthorized
 
 
 class SlurmrestdClient(BaseHttpClient):
@@ -44,6 +44,13 @@ class SlurmrestdClient(BaseHttpClient):
                 "클러스터 JWT가 만료되었거나 유효하지 않습니다. 토큰을 재등록하세요.",
                 detail={"status": 401},
             )
+        if response.status_code >= 400:
+            # **Slurm은 거절 사유를 본문에 정확히 적어 준다.** 그걸 버리고 "외부 서비스
+            # 호출이 실패했습니다"만 올리면, 화면에는 응답 원문이 통째로 찍히고 사용자는
+            # 무엇을 고쳐야 할지 알 수 없다(실측: 자원 초과 제출이 그렇게 보였다).
+            failure = _slurm_error(response)
+            if failure is not None:
+                return failure
         return super()._map_status(response)
 
     def _call(self, method: str, group: str, path: str, *, as_user: str | None, **kw) -> Any:
@@ -204,3 +211,37 @@ class SlurmrestdClient(BaseHttpClient):
 
     def get_slurm_user(self, username: str, *, as_user: str | None = None) -> Any:
         return self._call("GET", "slurmdb", f"/user/{username}", as_user=as_user)
+
+
+#: 사용자가 스스로 고칠 수 있는 거절에 붙이는 안내. Slurm의 원문만으로는 **무엇을**
+#: 줄여야 하는지 알 수 없다 — 특히 2014는 CPU·메모리·GPU 중 무엇이 넘쳤는지 말해 주지 않는다.
+_SLURM_HINTS = {
+    2014: "요청한 CPU·메모리·GPU가 이 파티션의 노드 한 대보다 큽니다 — 자원 값을 줄여 보세요.",
+    2015: "요청한 파티션이 없거나 쓸 수 없습니다.",
+    2043: "요청한 파티션에 접근 권한이 없습니다.",
+    2072: "이 클러스터에 요청한 GRES(GPU 등)가 없습니다.",
+    2115: "TRES 표기가 올바르지 않습니다.",
+    5005: "이 계정·QOS로는 제출할 수 없습니다.",
+}
+
+
+def _slurm_error(response: httpx.Response) -> ExternalServiceError | None:
+    """slurmrestd 오류 본문 → 읽을 수 있는 예외. 형태가 다르면 None(상위 기본 처리)."""
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    errors = body.get("errors") if isinstance(body, dict) else None
+    first = errors[0] if isinstance(errors, list) and errors and isinstance(errors[0], dict) else None
+    if first is None:
+        return None
+    number = first.get("error_number")
+    reason = first.get("description") or first.get("error") or "요청이 거부되었습니다."
+    detail_text = first.get("error")
+    if detail_text and detail_text != reason:
+        reason = f"{reason} ({detail_text})"
+    hint = _SLURM_HINTS.get(number if isinstance(number, int) else -1)
+    return ExternalServiceError(
+        f"Slurm이 요청을 거부했습니다: {reason}" + (f" — {hint}" if hint else ""),
+        detail={"status": response.status_code, "error_number": number, "body": body},
+    )

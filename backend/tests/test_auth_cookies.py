@@ -71,6 +71,33 @@ def test_refresh_rotates_and_old_token_dies(client, bootstrapped):
     assert client.post("/api/v1/auth/refresh", json={"refresh_token": first}).status_code == 401
 
 
+def test_reused_refresh_token_kills_the_whole_session(client, bootstrapped):
+    """재사용은 **사본이 돌아다닌다는 신호**다 — 회전만으로는 방어가 되지 않는다.
+
+    회전만 하면 먼저 쓴 쪽(공격자)이 받아 간 새 토큰이 그대로 살아 있다. 정상 사용자는
+    "만료됐네" 하고 다시 로그인할 뿐이고, 공격자 세션은 절대 상한까지 유지된다.
+    그래서 재사용을 보면 그 세션 자체를 끊는다.
+    """
+    body = _login(client).json()
+    first = body["refresh_token"]
+    access = body["access_token"]
+
+    second = client.post("/api/v1/auth/refresh", json={"refresh_token": first}).json()
+    assert client.get("/api/v1/auth/me", headers=auth_headers(second["access_token"])).status_code == 200
+
+    # 이미 쓴 토큰이 다시 들어온다.
+    replay = client.post("/api/v1/auth/refresh", json={"refresh_token": first})
+    assert replay.status_code == 401
+    assert "세션을 종료했습니다" in replay.json()["message"]
+
+    # 회전으로 받아 간 토큰도, 원래 액세스 토큰도 함께 죽는다.
+    assert client.get("/api/v1/auth/me", headers=auth_headers(second["access_token"])).status_code == 401
+    assert client.get("/api/v1/auth/me", headers=auth_headers(access)).status_code == 401
+    assert client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": second["refresh_token"]}
+    ).status_code == 401
+
+
 def test_access_token_is_short_lived(client, bootstrapped, settings):
     """30분. 길게 잡으면 유출 시 창이 넓어지고, 짧게 잡으면 refresh가 감당한다."""
     from jose import jwt

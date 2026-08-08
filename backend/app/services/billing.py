@@ -37,7 +37,9 @@ class BillingService:
 
     # --- 설정 (A-BL-01) --------------------------------------------------
     def _config(self) -> BillingConfig | None:
-        return self.session.scalar(select(BillingConfig).limit(1))
+        # 정렬을 붙인다 — 어쩌다 행이 둘이 되어도 **매번 같은 행**을 집어야 화면의 연동
+        # 상태가 새로고침마다 달라지지 않는다.
+        return self.session.scalar(select(BillingConfig).order_by(BillingConfig.id).limit(1))
 
     def config(self) -> dict[str, Any]:
         """연동 상태만 돌려준다 — **키 값은 어떤 경로로도 응답에 넣지 않는다**."""
@@ -135,14 +137,17 @@ class BillingService:
 
         # 계정 ID·엔드포인트는 손 입력이 아니라 **응답에서 확인된 값**을 정본으로 삼는다
         # (클러스터 이름을 slurm.conf에서 가져오는 것과 같은 원칙).
-        conf = self._config() or BillingConfig()
-        conf.last_verified_at = utcnow()
-        conf.api_endpoint = f"https://{COST_API}.e.samsungsdscloud.com"
-        if rows:
-            conf.scp_account_id = str(rows[0].get("account_id") or "") or None
-        if conf.id is None:
-            self.session.add(conf)
-        self.session.commit()
+        #
+        # **다만 없는 행을 만들지는 않는다.** 조회가 행을 만들면 동시에 두 번 들어왔을 때
+        # "단일 행"이 둘이 되고, 그 뒤로는 어느 행이 잡히는지가 운에 달린다. 행을 만드는
+        # 것은 `save_credentials()`의 몫이고, 여기서는 **이미 있는 행을 맞추기만** 한다.
+        conf = self._config()
+        if conf is not None:
+            conf.last_verified_at = utcnow()
+            conf.api_endpoint = f"https://{COST_API}.e.samsungsdscloud.com"
+            if rows:
+                conf.scp_account_id = str(rows[0].get("account_id") or "") or None
+            self.session.commit()
 
         return {
             "start": str(start),

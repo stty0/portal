@@ -6,7 +6,7 @@ Secret(JWT·SSH 개인키)은 응답 모델에 필드 자체가 없다 — 마�
 import re
 from datetime import datetime
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 

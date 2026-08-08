@@ -249,6 +249,24 @@ def test_job_unknown_to_slurm_counts_as_ended(service, db, cluster, owner, slurm
     assert service.get(s.id, user=owner)["state"] == "ENDED"
 
 
+def test_ended_state_is_actually_persisted(service, db, cluster, owner, slurm_client):
+    """조회가 되돌려 놓은 대장 상태는 **그 자리에서 확정되어야** 한다.
+
+    `session_scope()`는 정상 종료 시 커밋하지 않는다. 커밋을 붙이지 않으면 변경이 조용히
+    버려지고, 뒤에 다른 커밋이 따라오는 경로에서만 우연히 저장된다 — 저장 여부가 무관한
+    코드에 달리게 된다. DB에서 다시 읽어 확인한다.
+    """
+    s = make_session(db, cluster, owner)
+    slurm_client.jobs = [{"job_id": 90001, "job_state": ["COMPLETED"]}]
+
+    service.get(s.id, user=owner)
+
+    db.expire_all()  # 메모리에 남은 객체가 아니라 저장된 값을 본다
+    saved = db.get(InteractiveSession, s.id)
+    assert saved.status == STATUS_ENDED
+    assert saved.terminated_at is not None
+
+
 def test_listing_survives_a_slurm_outage(service, db, cluster, owner, slurm_client):
     def boom(*a, **kw):
         raise RuntimeError("slurmrestd down")

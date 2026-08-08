@@ -92,6 +92,39 @@ watch(gpuAvailable, (ok) => {
   if (!ok) form.gpus = 0
 })
 
+/**
+ * 이 파티션의 **노드 한 대** 최대치. 합계가 아니다 — CPU/rank와 메모리는 노드 경계를
+ * 넘지 못하므로, 이보다 크면 Slurm이 제출 자체를 거부한다(2014, 실측).
+ */
+const limit = computed(() => options.value.capacity?.[form.partition ?? ''] ?? null)
+
+const limitHint = computed(() => {
+  const cap = limit.value
+  if (!cap) return ''
+  const gb = (cap.max_memory_mb / 1024).toFixed(1)
+  return `노드 한 대: CPU ${cap.max_cpus_per_node}개 · 메모리 ${gb}GB`
+})
+
+/**
+ * 파티션이 정해지면 자원 값을 그 안으로 끌어내린다.
+ *
+ * 기본값을 상수로 두면 **첫 제출부터 실패한다** — 실제로 그랬다(기본 8코어·32GB를
+ * CPU 2개·3.8GB 노드에 요청 → 2014). 사용자가 올린 값을 임의로 깎지 않도록
+ * **줄이기만** 한다.
+ */
+watch(
+  limit,
+  (cap) => {
+    if (!cap) return
+    if (cap.max_cpus_per_node > 0 && (form.cpus_per_task ?? 0) > cap.max_cpus_per_node) {
+      form.cpus_per_task = cap.max_cpus_per_node
+    }
+    const maxGb = Math.max(1, Math.floor(cap.max_memory_mb / 1024))
+    if (cap.max_memory_mb > 0 && (form.memory_gb ?? 0) > maxGb) form.memory_gb = maxGb
+  },
+  { immediate: true },
+)
+
 /** 상위로 벗어나는 표기는 애초에 막는다. */
 const subPathError = computed(() => {
   const v = subPath.value.trim()
@@ -228,7 +261,12 @@ const inputClass =
           <input v-model="form.walltime" :class="[inputClass, 'mono']" />
         </Field>
         <Field label="노드 수"><input v-model.number="form.nodes" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
-        <Field label="CPU / task"><input v-model.number="form.cpus_per_task" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
+        <Field label="CPU / task" :hint="limitHint">
+          <input
+            v-model.number="form.cpus_per_task" type="number" min="1"
+            :max="limit?.max_cpus_per_node || undefined" :class="[inputClass, 'mono']"
+          />
+        </Field>
         <Field label="MPI 랭크" hint="비우면 Slurm 기본(노드당 1)">
           <input v-model.number="form.ntasks" type="number" min="1" :class="[inputClass, 'mono']" placeholder="비우면 기본" />
         </Field>
@@ -240,7 +278,13 @@ const inputClass =
             :class="[inputClass, 'mono', gpuAvailable ? '' : 'bg-bg text-ink-3']"
           />
         </Field>
-        <Field label="메모리 (GB)"><input v-model.number="form.memory_gb" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
+        <Field label="메모리 (GB)" hint="노드 한 대의 메모리를 넘으면 Slurm이 제출을 거부합니다">
+          <input
+            v-model.number="form.memory_gb" type="number" min="1"
+            :max="limit ? Math.floor(limit.max_memory_mb / 1024) || 1 : undefined"
+            :class="[inputClass, 'mono']"
+          />
+        </Field>
         <!--
           배열·의존성은 렌더링 워크플로의 핵심이다. 없으면 240 프레임을 내도 1장만 나오고,
           단계가 이어지지 않는다. 형식 검사는 Slurm에 맡긴다 — 여기서 문법을 다시 정의하면

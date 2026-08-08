@@ -237,10 +237,13 @@ tres_per_job   tres_per_node    tres_per_socket  tres_per_task   ntasks_per_tres
 #SBATCH --partition=viz
 #SBATCH --gres=gpu:1
 #SBATCH --array=1-240
-apptainer exec --nv -B $HOME/.cache/ov:/root/.cache/ov \
-  /home/images/isaac-sim-5.1.0.sif \
-  isaac-sim --render --frame $SLURM_ARRAY_TASK_ID -o frames/f$SLURM_ARRAY_TASK_ID.png
+apptainer exec --nv --env ACCEPT_EULA=Y /home/portal/images/isaac-sim-5.1.0.sif \
+  /isaac-sim/python.sh -u sdg.py --config shard.yaml
 ```
+
+> 이 예시는 2026-08-08에 §8-1의 실측으로 고쳤다. 원래는
+> `-B $HOME/.cache/ov:/root/.cache/ov`가 붙어 있었는데 **그 경로는 Isaac Sim 4.x의 것이고**
+> (5.1은 rootless라 캐시가 `/isaac-sim/` 아래다), Apptainer에서는 애초에 bind가 필요 없다.
 
 **2단계 (L40 도입 후)** — 위 스크립트를 **손으로 한 번 돌린다.** 여기서 bind mount가 몇 개
 필요한지, Isaac Sim이 실제로 받는 인자가 무엇인지, **사용자가 매번 바꾸는 값이 무엇인지**를
@@ -250,9 +253,9 @@ apptainer exec --nv -B $HOME/.cache/ov:/root/.cache/ov \
 만들었고 화면은 `/batch-apps`(SCR-21)다. 인터랙티브 앱 카탈로그와 같은 모양이며 **이미지·실행
 커맨드·파라미터가 한 몸**이다.
 
-**다만 앱은 전부 `ready=False`다** — 이미지가 없다. GROMACS 항목의 커맨드·파라미터는
-**가정이지 실측이 아니다.** 실제 이미지가 생기면 2단계(손으로 한 번 돌려보기)를 거쳐
-카탈로그를 맞춰야 한다. 그 순서를 건너뛰면 `job_template`을 다시 만드는 것과 같다.
+**카탈로그 상태(2026-08-08 기준)**: OpenFOAM은 `ready=True`다 — 이미지를 만들고
+실제 케이스(`pitzDaily`)를 돌려 파라미터를 확정했다. Isaac Sim은 `ready=False`다(§8-1).
+2단계(손으로 한 번 돌려보기)를 건너뛰고 카탈로그를 확정하면 `job_template`을 다시 만드는 것과 같다.
 
 > **2단계를 건너뛰고 3단계를 설계하면 2026-08-07에 지운 `job_template` 표를 다시 만들게 된다.**
 > 그 표가 지워진 이유가 정확히 "solver 컨테이너 이미지도, 입력 인터페이스도 없이 만들어졌기

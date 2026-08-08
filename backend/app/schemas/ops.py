@@ -1,7 +1,6 @@
 """포털 운영 설정 스키마 (api.md §9, A-OP-01·02·03·04)."""
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 

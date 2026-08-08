@@ -4,11 +4,11 @@
 결과는 홈 디렉터리에 떨어진다.
 """
 
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
-from app.core.deps import CurrentUser, DbSession
+from app.core.deps import CurrentUser
 from app.schemas.batch_app import AppParamOut, BatchAppOut, BatchAppSubmitRequest
 from app.schemas.job import JobSubmitResponse
 from app.services import batch_apps

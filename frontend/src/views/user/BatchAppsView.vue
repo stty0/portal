@@ -92,6 +92,36 @@ watch(gpuAvailable, (ok) => {
   if (!ok) form.gpus = 0
 })
 
+/**
+ * 이 파티션의 **노드 한 대** 최대치. Job 제출 화면과 같은 규칙이다 — CPU/rank와 메모리는
+ * 노드 경계를 넘지 못하므로, 이보다 크면 Slurm이 제출 자체를 거부한다(2014, 실측).
+ * 기본값을 상수로 두면 첫 제출부터 실패하므로 **줄이기만** 한다.
+ */
+const limit = computed(() => options.value.capacity?.[form.partition] ?? null)
+
+const limitHint = computed(() => {
+  const cap = limit.value
+  if (!cap) return ''
+  return `노드 한 대: CPU ${cap.max_cpus_per_node}개 · 메모리 ${(cap.max_memory_mb / 1024).toFixed(1)}GB`
+})
+
+watch(
+  limit,
+  (cap) => {
+    if (!cap) return
+    if (cap.max_cpus_per_node > 0) {
+      if (form.cpus_per_task > cap.max_cpus_per_node) form.cpus_per_task = cap.max_cpus_per_node
+      // MPI 랭크도 노드 한 대의 코어를 넘으면 노드 수를 늘리지 않는 한 붙지 못한다.
+      if (form.ntasks > cap.max_cpus_per_node * form.nodes) {
+        form.ntasks = cap.max_cpus_per_node * form.nodes
+      }
+    }
+    const maxGb = Math.max(1, Math.floor(cap.max_memory_mb / 1024))
+    if (cap.max_memory_mb > 0 && form.memory_gb > maxGb) form.memory_gb = maxGb
+  },
+  { immediate: true },
+)
+
 const workDir = computed(() => {
   if (!home.value) return null
   const v = subPath.value.trim().replace(/^\/+|\/+$/g, '')
@@ -238,12 +268,22 @@ const inputClass =
         <!--
           MPI는 **랭크 수가 정본**이다. OpenFOAM은 이 값이 케이스의
           decomposeParDict(numberOfSubdomains)와 같아야 하는데, 그 값은 파일 안에 있어
-          화면에서 보이지 않는다 — 그래서 스크립트가 세어 보고 다르면 사유를 적고 멈춘다.
+          화면에서 보이지 않는다 — 그래서 배치 스크립트가 **이 값으로 덮어쓴다**
+          (batch_apps.py: `foamDictionary … -entry numberOfSubdomains -set {{ntasks}}`).
+          즉 케이스 파일이 아니라 이 칸이 분해 수를 정한다.
         -->
-        <Field label="MPI 랭크 (--ntasks)" hint="병렬 solver의 프로세스 수">
+        <Field
+          label="MPI 랭크 (--ntasks)"
+          hint="병렬 solver의 프로세스 수 · OpenFOAM은 이 값으로 케이스의 분해 수를 맞춥니다"
+        >
           <input v-model.number="form.ntasks" type="number" min="1" :class="[inputClass, 'mono']" />
         </Field>
-        <Field label="CPU / rank"><input v-model.number="form.cpus_per_task" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
+        <Field label="CPU / rank" :hint="limitHint">
+          <input
+            v-model.number="form.cpus_per_task" type="number" min="1"
+            :max="limit?.max_cpus_per_node || undefined" :class="[inputClass, 'mono']"
+          />
+        </Field>
         <Field
           label="GPU 수"
           :hint="gpuAvailable ? '' : `'${form.partition}' 파티션에는 GPU 노드가 없습니다`"
@@ -253,7 +293,13 @@ const inputClass =
             :class="[inputClass, 'mono', gpuAvailable ? '' : 'bg-bg text-ink-3']"
           />
         </Field>
-        <Field label="메모리 (GB)"><input v-model.number="form.memory_gb" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
+        <Field label="메모리 (GB)" hint="노드 한 대의 메모리를 넘으면 Slurm이 제출을 거부합니다">
+          <input
+            v-model.number="form.memory_gb" type="number" min="1"
+            :max="limit ? Math.floor(limit.max_memory_mb / 1024) || 1 : undefined"
+            :class="[inputClass, 'mono']"
+          />
+        </Field>
         <Field label="Walltime" hint="D-HH:MM:SS 또는 HH:MM:SS">
           <input v-model="form.walltime" :class="[inputClass, 'mono']" />
         </Field>

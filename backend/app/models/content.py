@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, utcnow
@@ -27,7 +27,10 @@ class Notice(Base):
 
 
 class Ticket(Base):
-    """U-AC-04 / A-OP-05."""
+    """U-AC-04 / A-OP-05. **미구현 기능의 선행 스키마** — 참조하는 코드가 아직 없다.
+
+    남겨 두는 근거는 `models/ops.py` 머리말 참조(같은 상태의 표가 다섯 더 있다).
+    """
 
     __tablename__ = "ticket"
 

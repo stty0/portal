@@ -144,12 +144,16 @@ class SessionService:
         for record in records:
             if record.cluster_id not in by_cluster:
                 by_cluster[record.cluster_id] = self._job_states(record.cluster_id, user=user)
-        return [self._view(r, by_cluster.get(r.cluster_id, {})) for r in records]
+        views = [self._view(r, by_cluster.get(r.cluster_id, {})) for r in records]
+        self._persist_state()
+        return views
 
     def get(self, session_id: int, *, user: User) -> dict[str, Any]:
         record = self._owned(session_id, user=user)
         states = self._job_states(record.cluster_id, user=user)
-        return self._view(record, states)
+        view = self._view(record, states)
+        self._persist_state()
+        return view
 
     def connection(self, session_id: int, *, user: User) -> dict[str, Any]:
         """접속 대상. 세션이 실행 중이 아니면 거부한다.
@@ -158,7 +162,13 @@ class SessionService:
         `cluster.login_node`가 아니다. 개발 환경은 둘이 같지만 분리되면 갈라진다
         (docs/plan.md §3.2).
         """
-        record = self._owned(session_id, user=user)
+        return self._connection_for(self._owned(session_id, user=user), user=user)
+
+    def _connection_for(self, record: InteractiveSession, *, user: User) -> dict[str, Any]:
+        """소유권이 **이미 확인된** 레코드로 접속 대상을 읽는다.
+
+        `connection()`과 `open_stream()`이 같은 세션을 두 번 조회하지 않도록 분리해 둔다.
+        """
         state = self._job_states(record.cluster_id, user=user).get(record.slurm_job_id or "", "")
         if state.upper() in TERMINAL_STATES:
             raise ValidationFailed("이미 종료된 세션입니다.", detail={"state": state})
@@ -195,8 +205,9 @@ class SessionService:
         호스트·포트는 여기서만 알고 **브라우저에 내보내지 않는다**(OnDemand의
         `/node/<host>/<port>/`와 달리 열린 프록시가 되지 않게).
         """
-        target = self.connection(session_id, user=user)
-        cluster = self.clusters.get(self._owned(session_id, user=user).cluster_id)
+        record = self._owned(session_id, user=user)
+        target = self._connection_for(record, user=user)
+        cluster = self.clusters.get(record.cluster_id)
         tunnel = TcpTunnel(
             ssh_target_for(cluster, secrets=self.secrets, credentials=self.credentials),
             dest_host=target["host"],
@@ -264,6 +275,16 @@ class SessionService:
             # 원자적 교체(mv)를 쓰므로 정상적으로는 안 나온다.
             return None
         return info if isinstance(info, dict) else None
+
+    def _persist_state(self) -> None:
+        """`_view`가 되돌려 놓은 대장 상태를 **확정한다**.
+
+        `session_scope()`는 정상 종료 시 커밋하지 않는다(커밋은 서비스가 정한다). 이걸
+        부르지 않으면 상태 변경이 조용히 버려지고, 뒤에 다른 커밋이 따라오는 경로
+        (웹소켓 접속 등)에서만 **우연히** 저장된다 — 저장 여부가 무관한 코드에 달리게 된다.
+        """
+        if self.session.dirty:
+            self.session.commit()
 
     def _view(self, record: InteractiveSession, states: dict[str, str]) -> dict[str, Any]:
         state = states.get(record.slurm_job_id or "", "")

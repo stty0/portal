@@ -15,6 +15,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.clients.factory import ClusterClientFactory
+from app.clients.slurm.adapters import int_or as slurm_int
+from app.clients.slurm.adapters import number as slurm_number
 from app.core.errors import Conflict, ExternalServiceError, NotFound, ValidationFailed
 from app.core.secrets import SecretStore, build_secret_ref
 from app.core.security import decode_slurm_token_exp
@@ -582,16 +584,9 @@ def label_of(cluster: Cluster) -> str:
     return cluster.name or cluster.alias or f"cluster#{cluster.id}"
 
 
-def _number(value: Any) -> int | float | None:
-    """`{set, infinite, number}` 래퍼를 숫자로. 무제한·미설정은 None."""
-    if isinstance(value, (int, float)):
-        return value
-    if isinstance(value, dict):
-        if value.get("infinite") or value.get("set") is False:
-            return None
-        number = value.get("number")
-        return number if isinstance(number, (int, float)) else None
-    return None
+#: 숫자 해석은 `clients/slurm/adapters.py` 한 곳에만 둔다 — 서비스마다 따로 풀면
+#: 같은 필드에 대한 답이 갈린다(실제로 갈렸던 적이 있다).
+_number = slurm_number
 
 
 #: 이 상태의 노드는 새 일을 받지 못한다 — 남은 CPU를 "가용"으로 세면 안 된다.
@@ -610,7 +605,7 @@ def _cpu_usage_by_partition(nodes: list[dict[str, Any]]) -> dict[str, dict[str, 
         total = _number(node.get("cpus"))
         if total is None:
             continue
-        allocated = int(_number(node.get("alloc_cpus")) or 0)
+        allocated = slurm_int(node.get("alloc_cpus"))
         states = node.get("state") or []
         if isinstance(states, str):
             states = [states]

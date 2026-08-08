@@ -15,7 +15,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.core.errors import NotFound, ValidationFailed
+from app.clients.slurm.adapters import int_or as slurm_int
+from app.core.errors import ExternalServiceError, NotFound, ValidationFailed
 from app.models import Cluster, User
 from app.services.audit import AuditService
 from app.services.cluster import ClusterService
@@ -23,6 +24,10 @@ from app.services.cluster import ClusterService
 
 # 아직 끝나지 않은 상태 — 이력 대체 조회에서 제외한다.
 RUNNING_STATES = {"RUNNING", "PENDING", "SUSPENDED", "CONFIGURING", "COMPLETING", "RESIZING"}
+
+#: 취소 뒤에도 이 상태로 남아 있으면 **취소가 먹지 않은 것**이다.
+#: `COMPLETING`은 빠져 있다 — 그건 이미 내려가는 중이라는 뜻이다.
+_LIVE_AFTER_CANCEL = {"RUNNING", "PENDING", "SUSPENDED", "CONFIGURING", "RESIZING"}
 
 
 @dataclass
@@ -207,11 +212,16 @@ class JobService:
             payload = client.get_qos(as_user=user.username)
             return _names(payload.get("qos") if isinstance(payload, dict) else None)
 
+        nodes = _fetch_nodes(client, as_user=user.username)
         return {
             "partitions": safe(partitions, "partitions"),
             "accounts": safe(accounts, "accounts"),
             "qos": safe(qos, "qos"),
-            "gpu_partitions": _gpu_partitions(client, as_user=user.username),
+            "gpu_partitions": _gpu_partitions(nodes),
+            # 폼이 노드보다 큰 값을 기본값으로 들고 있으면 **첫 제출부터 실패한다**
+            # (실측: cpus_per_task=8·mem=32G 기본값 → 2014 Requested node configuration
+            # is not available. 이 클러스터의 노드는 CPU 2개·메모리 3915MB다).
+            "capacity": _partition_capacity(nodes),
         }
 
     # --- 제출 -----------------------------------------------------------
@@ -302,12 +312,44 @@ class JobService:
     # --- 제어 -----------------------------------------------------------
     def cancel(self, cluster: Cluster, job_id: str, *, user: User, is_admin: bool) -> None:
         # 소유권 확인이 먼저다 — 확인 없이 scancel하면 남의 Job을 죽인다.
-        self.get_job(cluster, job_id, user=user, is_admin=is_admin)
-        self.clusters.slurm_client(cluster).cancel_job(job_id, as_user=user.username)
+        job = self.get_job(cluster, job_id, user=user, is_admin=is_admin)
+        client = self.clusters.slurm_client(cluster)
+        # **소유자로 위장해 취소한다.** 요청자 이름으로 보내면 남의 Job은 Slurm이
+        # *조용히 거부한다* — HTTP 200, `errors`도 비어 있고, Job만 그대로 살아 있다
+        # (실측 2026-08-08: 남으로 위장한 DELETE → RUNNING 유지 / 소유자 → CANCELLED).
+        #
+        # "대상 사용자는 언제나 요청자 본인" 규칙을 넓히는 것이 아니다 — 남의 Job에
+        # 닿는 것은 `_assert_visible`을 통과한 **관리자뿐**이고(A-JB-01), 본인 Job이면
+        # 이 값은 요청자와 같다.
+        owner = self._owner_of(job) or user.username
+        client.cancel_job(job_id, as_user=owner)
+        self._assert_cancelled(client, job_id, as_user=owner)
         self.audit.record(
             actor=user, action="JOB_CANCEL", target=job_id, cluster_id=cluster.id
         )
         self.session.commit()
+
+    def _assert_cancelled(self, client, job_id: str, *, as_user: str) -> None:
+        """취소가 **실제로 먹었는지** Job 상태로 확인한다.
+
+        slurmrestd는 거부를 본문 `errors`로도 알려주지 않는다. 응답만 믿으면 화면에는
+        "취소했습니다"가 뜨고 Job은 계속 돈다 — 사용자가 몇 번을 눌러도 같다.
+
+        취소는 즉시 상태에 반영된다(실측: DELETE 직후 `["CANCELLED","COMPLETING"]`)
+        — 그래서 기다리지 않고 한 번만 다시 읽는다. 조회가 실패하면 판단하지 않는다.
+        """
+        try:
+            jobs = _as_job_list(client.get_job(job_id, as_user=as_user))
+        except Exception:  # noqa: BLE001 — 조회 실패로 "취소 실패"라고 단정하지 않는다
+            return
+        if not jobs:
+            return  # Slurm이 이미 잊은 Job = 끝난 것이다
+        states = {s.upper() for s in _all_states(jobs[0])}
+        if states & _LIVE_AFTER_CANCEL and not states & {"CANCELLED"}:
+            raise ExternalServiceError(
+                "Slurm이 취소를 받아들이지 않았습니다. Job이 계속 실행 중입니다.",
+                detail={"job_id": job_id, "state": sorted(states)},
+            )
 
     def control(
         self, cluster: Cluster, job_id: str, *, user: User, action: str, priority: int | None = None
@@ -356,6 +398,17 @@ def _as_job_list(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _all_states(job: dict[str, Any]) -> list[str]:
+    """상태 **전부**. Slurm은 `["CANCELLED","COMPLETING"]`처럼 겹쳐서 준다 —
+    첫 칸만 보면 취소 여부를 놓친다."""
+    state = job.get("job_state") or job.get("state") or ""
+    if isinstance(state, dict):
+        state = state.get("current") or ""
+    if isinstance(state, list):
+        return [str(s) for s in state]
+    return [str(state)] if state else []
+
+
 def _state_of(job: dict[str, Any]) -> str:
     state = job.get("job_state") or job.get("state") or ""
     if isinstance(state, list):
@@ -387,12 +440,21 @@ def walltime_minutes(walltime: str) -> int:
     `Expected integer but got "00:05:00"`(9202)로 제출이 거부된다(실측).
     초는 올림한다 — 30초짜리를 0분으로 만들면 즉시 종료된다.
     """
+    invalid = ValidationFailed(
+        "Walltime 형식이 올바르지 않습니다. D-HH:MM:SS · HH:MM:SS · 분 중 하나로 적으세요.",
+        detail={"walltime": walltime},
+    )
     text = walltime.strip()
     days = 0
-    if "-" in text:
-        head, _, text = text.partition("-")
-        days = int(head)
-    parts = [int(p) for p in text.split(":")] if text else [0]
+    try:
+        if "-" in text:
+            head, _, text = text.partition("-")
+            days = int(head)
+        parts = [int(p) for p in text.split(":")] if text else [0]
+    except ValueError:
+        # **숫자가 아닌 입력은 사용자 오타다.** 그대로 ValueError로 두면 500이 나가
+        # 자기 오타를 서버 장애로 읽는다(폼 모드에는 형식 검사가 없다 — 여기가 유일한 관문).
+        raise invalid from None
     if len(parts) == 1:
         h, m, s = 0, parts[0], 0
     elif len(parts) == 2:
@@ -400,7 +462,9 @@ def walltime_minutes(walltime: str) -> int:
     elif len(parts) == 3:
         h, m, s = parts
     else:
-        raise ValidationFailed("Walltime 형식이 올바르지 않습니다.", detail={"walltime": walltime})
+        raise invalid
+    if days < 0 or min(parts) < 0:
+        raise invalid
     return days * 1440 + h * 60 + m + (1 if s else 0)
 
 
@@ -415,7 +479,38 @@ def _environment(spec: JobSpec) -> list[str]:
     return [f"{k}={v}" for k, v in env.items()]
 
 
-def _gpu_partitions(client, *, as_user: str) -> list[str] | None:
+def _fetch_nodes(client, *, as_user: str) -> list[dict[str, Any]] | None:
+    """노드 목록. **못 읽으면 `None`(=모른다)** — 빈 목록과 구분해야 한다.
+
+    GPU 판별과 자원 상한이 같은 응답에서 나오므로 한 번만 읽는다.
+    """
+    try:
+        payload = client.get_nodes(as_user=as_user)
+    except Exception:  # noqa: BLE001 — 못 읽으면 '모른다'로 남긴다
+        return None
+    nodes = payload.get("nodes") if isinstance(payload, dict) else None
+    return [n for n in nodes if isinstance(n, dict)] if isinstance(nodes, list) else None
+
+
+def _partition_capacity(nodes: list[dict[str, Any]] | None) -> dict[str, dict[str, int]]:
+    """파티션별 **노드 한 대의 최대치**(CPU·메모리 MB).
+
+    합계가 아니라 최대치다 — `--cpus-per-task`와 `--mem`은 노드 경계를 넘지 못하므로,
+    노드 한 대보다 큰 값을 요청하면 Slurm이 2014로 **제출 자체를 거부한다**(실측).
+    모르면 빈 dict — 화면은 그때 상한을 강제하지 않는다.
+    """
+    capacity: dict[str, dict[str, int]] = {}
+    for node in nodes or []:
+        cpus = slurm_int(node.get("cpus"))
+        memory = slurm_int(node.get("real_memory"))
+        for name in node.get("partitions") or []:
+            slot = capacity.setdefault(str(name), {"max_cpus_per_node": 0, "max_memory_mb": 0})
+            slot["max_cpus_per_node"] = max(slot["max_cpus_per_node"], cpus)
+            slot["max_memory_mb"] = max(slot["max_memory_mb"], memory)
+    return capacity
+
+
+def _gpu_partitions(nodes: list[dict[str, Any]] | None) -> list[str] | None:
     """GPU를 가진 노드가 하나라도 있는 파티션 이름.
 
     파티션 응답에서 GRES를 읽지 않고 **노드에서 거슬러 올라간다** — 노드의 `gres`·
@@ -424,12 +519,7 @@ def _gpu_partitions(client, *, as_user: str) -> list[str] | None:
     **알 수 없으면 `None`을 돌려준다.** 빈 목록으로 뭉뚱그리면 조회 실패가 "GPU 없음"으로
     둔갑해 멀쩡한 제출을 막는다 — 고를 수 있어야 할 것을 못 고르게 만드는 쪽이 더 나쁘다.
     """
-    try:
-        payload = client.get_nodes(as_user=as_user)
-    except Exception:  # noqa: BLE001 — 못 읽으면 '모른다'로 남긴다
-        return None
-    nodes = payload.get("nodes") if isinstance(payload, dict) else None
-    if not isinstance(nodes, list):
+    if nodes is None:
         return None
     found: list[str] = []
     for node in nodes:
@@ -469,6 +559,26 @@ def _memory_mb(text: str) -> int:
     return int(number * (unit or 1))
 
 
+def _directive_lines(script: str) -> list[str]:
+    """`#SBATCH` 지시자 줄만 뽑되 **첫 실행 줄에서 멈춘다**.
+
+    실제 `sbatch`는 비어 있지도 주석도 아닌 첫 줄을 만나면 지시자 해석을 그만둔다.
+    스크립트 전체를 훑으면 본문 뒤나 heredoc 안의 `#SBATCH`까지 옮겨져, **같은 파일을
+    `sbatch`로 냈을 때와 다른 자원으로 도는** 갈림이 조용히 생긴다.
+    """
+    lines: list[str] = []
+    for raw in script.splitlines():
+        stripped = raw.strip()
+        if not stripped:
+            continue
+        if not stripped.startswith("#"):  # shebang도 주석이라 여기서 걸리지 않는다
+            break
+        found = _SBATCH_LINE.match(raw)
+        if found:
+            lines.append(found.group(1))
+    return lines
+
+
 def parse_sbatch(script: str) -> tuple[dict[str, Any], list[str]]:
     """스크립트의 `#SBATCH` → (REST 속성, 옮기지 못한 지시자).
 
@@ -478,7 +588,7 @@ def parse_sbatch(script: str) -> tuple[dict[str, Any], list[str]]:
     props: dict[str, Any] = {}
     ignored: list[str] = []
 
-    for line in _SBATCH_LINE.findall(script):
+    for line in _directive_lines(script):
         try:
             tokens = shlex.split(line.split(" #", 1)[0])
         except ValueError:
