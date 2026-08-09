@@ -1,0 +1,61 @@
+{{- if .Values.ingress.enabled }}
+{{- $fullname := include "hpc-portal.fullname" . }}
+{{- $host := .Values.ingress.host }}
+# 같은 도메인·같은 포트에서 경로로 가른다: `/api/**` → 백엔드, 그 외 전부 → SPA.
+# priority를 명시해 API 규칙이 SPA catch-all보다 **반드시 먼저** 매칭되게 한다.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ $fullname }}-https-redirect
+  labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+spec:
+  redirectScheme:
+    scheme: https
+    port: {{ .Values.traefik.websecureHostPort | quote }}
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ $fullname }}-http
+  labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+spec:
+  entryPoints: [{{ .Values.ingress.entryPoints.web }}]
+  routes:
+    - match: Host(`{{ $host }}`)
+      kind: Rule
+      middlewares:
+        - name: {{ $fullname }}-https-redirect
+      services:
+        - name: {{ $fullname }}-frontend
+          port: 80
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ $fullname }}-api
+  labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+spec:
+  entryPoints: [{{ .Values.ingress.entryPoints.websecure }}]
+  routes:
+    # 백엔드가 노출하는 경로는 전부 `/api` 아래에 있다. `/healthz`는 probe 전용이라 열지 않는다.
+    - match: Host(`{{ $host }}`) && PathPrefix(`{{ .Values.ingress.apiPrefix }}`)
+      kind: Rule
+      priority: 100
+      services:
+        - name: {{ $fullname }}-backend
+          port: 8000
+    # 나머지 전부는 SPA. vue-router가 history 모드라 직접 진입도 index.html로 폴백된다(nginx.conf).
+    - match: Host(`{{ $host }}`)
+      kind: Rule
+      priority: 1
+      services:
+        - name: {{ $fullname }}-frontend
+          port: 80
+  {{- if .Values.ingress.tlsSecretName }}
+  tls:
+    # 인증서는 차트가 만들지 않는다 — 개인키가 values에 남으면 안 된다.
+    # certbot 갱신 시 Secret도 함께 갱신해야 한다(certbot-deploy-hook.sh).
+    secretName: {{ .Values.ingress.tlsSecretName }}
+  {{- end }}
+{{- end }}

@@ -29,9 +29,11 @@ from app.schemas.session import (
     SessionCreate,
     SessionOut,
 )
+from app.services.app_access import KIND_INTERACTIVE, AppAccessService
 from app.services.cluster import ClusterService
 from app.services.session import SessionService
 from app.services.session_apps import APPS
+from app.services.session_apps import get as session_app
 from app.services.session_script import SessionSpec
 
 router = APIRouter(tags=["sessions"])
@@ -51,19 +53,37 @@ def _service(
 SessionServiceDep = Annotated[SessionService, Depends(_service)]
 
 
+def _access(
+    db: DbSession, secrets: SecretStoreDep, clients: ClientFactoryDep
+) -> AppAccessService:
+    return AppAccessService(db, ClusterService(db, secrets=secrets, client_factory=clients))
+
+
+AppAccessServiceDep = Annotated[AppAccessService, Depends(_access)]
+
+
 @router.get(
-    "/interactive-apps",
+    "/clusters/{cid}/interactive-apps",
     response_model=list[InteractiveAppOut],
     summary="인터랙티브 앱 목록 (U-IA-01)",
 )
-def list_interactive_apps(user: CurrentUser) -> list[InteractiveAppOut]:
+def list_interactive_apps(
+    cid: int, user: CurrentUser, access: AppAccessServiceDep
+) -> list[InteractiveAppOut]:
     """앱 목록의 단일 출처. 프론트엔드가 같은 배열을 또 갖지 않게 한다.
 
     예정된 앱(`ready=false`)도 함께 내려보낸다 — 런처가 보여주되 고를 수 없게 한다.
+
+    **클러스터에 매인 목록이다.** 앱마다 쓸 수 있는 계정이 정해질 수 있고 계정은
+    클러스터별 slurmdbd 소유라, 같은 앱이 클러스터마다 다르게 잠긴다.
     """
+    cluster = access.clusters.get(cid)
+    verdict = access.allowances(cluster, KIND_INTERACTIVE, user=user)
     return [
         InteractiveAppOut(
-            id=a.id, name=a.name, description=a.description, fid=a.fid, ready=a.ready
+            id=a.id, name=a.name, description=a.description, fid=a.fid,
+            ready=a.ready, transport=a.transport, note=a.note,
+            allowed=verdict[a.id].allowed, accounts=verdict[a.id].accounts,
         )
         for a in APPS
     ]
@@ -76,14 +96,25 @@ def list_interactive_apps(user: CurrentUser) -> list[InteractiveAppOut]:
     summary="인터랙티브 세션 시작 (U-IA-01·02)",
 )
 def create_session(
-    cid: int, payload: SessionCreate, user: CurrentUser, service: SessionServiceDep
+    cid: int,
+    payload: SessionCreate,
+    user: CurrentUser,
+    service: SessionServiceDep,
+    access: AppAccessServiceDep,
 ) -> SessionOut:
     cluster = service.clusters.get(cid)
+    catalog = session_app(payload.app)
+    # 목록에서 잠그는 것만으로는 제한이 되지 않는다 — 여기서 막고, 배정된 앱이면
+    # **어느 계정으로 돌지도 여기서 정해진다**(안 골랐으면 서버가 채운다).
+    account = access.resolve_account(
+        cluster, KIND_INTERACTIVE, payload.app, user=user, account=payload.account
+    )
     spec = SessionSpec(
         image_ref=service.image_ref(cluster, payload.app),
         app=payload.app,
+        entry=catalog.entry,
         partition=payload.partition,
-        account=payload.account,
+        account=account,
         qos=payload.qos,
         cpus=payload.cpus,
         memory_gb=payload.memory_gb,

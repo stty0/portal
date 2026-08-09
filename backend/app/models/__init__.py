@@ -7,6 +7,8 @@ slurmdbd 소유라 여기에 없다. session/캐시/락은 Redis라 DB 밖이다
 from app.db.base import Base
 from app.models.cluster import AdConnection, Cluster, ClusterCredential
 from app.models.content import (
+    AppAccess,
+    AppCatalog,
     AuditLog,
     InteractiveSession,
     Notice,
@@ -42,6 +44,8 @@ __all__ = [
     "AuditLog",
     "InteractiveSession",
     "PortalSetting",
+    "AppAccess",
+    "AppCatalog",
     # Billing · License · 리포트
     "BillingConfig",
     "BillingRule",

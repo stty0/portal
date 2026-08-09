@@ -18,6 +18,10 @@ dependencies = [
     "pydantic-settings>=2.4",
     "python-jose[cryptography]>=3.3",
     "httpx>=0.27",
+    # HTTP 인터랙티브 앱 프록시가 **클라이언트로** 쓴다(U-IA-01 Jupyter 커널 채널).
+    # uvicorn[standard]가 딸려 설치해 주지만, 앱 코드가 쓰는 것은 명시한다 —
+    # 전이 의존성에 기대면 uvicorn 옵션이 바뀔 때 조용히 사라진다.
+    "websockets>=13",
     "redis>=5.0",
     "ldap3>=2.9",
     "paramiko>=3.4",

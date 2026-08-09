@@ -69,3 +69,50 @@ class AuditLogOut(BaseModel):
     target: str | None
     detail: str | None
     ip: str | None
+
+
+# --- A-OP-02 앱 카탈로그 ----------------------------------------------------
+APP_KIND = "^(interactive|batch)$"
+
+
+class AppCatalogOut(BaseModel):
+    """코드 카탈로그의 앱과 등록된 메타데이터를 겹친 한 줄."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    #: 등록 행의 PK. **None이면 아직 등록되지 않은 코드 앱**이다(수정이 아니라 등록 대상).
+    id: int | None
+    #: 코드 카탈로그(`session_apps`·`batch_apps`)에 있는 앱인가.
+    in_code: bool = False
+    kind: str
+    app_id: str
+    name: str
+    vendor: str | None
+    version: str | None
+    image_file: str | None
+    #: 아이콘 파일명(등록 폼이 고르는 값). 파일이 없으면 None.
+    icon_file: str | None = None
+    #: 화면이 그대로 <img src>에 넣는 주소. 서버가 파일명으로 만든다.
+    icon_url: str | None = None
+    description: str | None
+    updated_at: datetime | None = None
+
+
+class AppCatalogCreate(BaseModel):
+    kind: str = Field(..., pattern=APP_KIND)
+    app_id: str = Field(..., min_length=1, max_length=32)
+    name: str = Field(..., min_length=1, max_length=128)
+    vendor: str | None = Field(default=None, max_length=128)
+    version: str | None = Field(default=None, max_length=32)
+    image_file: str | None = Field(default=None, max_length=128)
+    icon_file: str | None = Field(default=None, max_length=64)
+    description: str | None = None
+
+
+class AppCatalogUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    vendor: str | None = Field(default=None, max_length=128)
+    version: str | None = Field(default=None, max_length=32)
+    image_file: str | None = Field(default=None, max_length=128)
+    icon_file: str | None = Field(default=None, max_length=64)
+    description: str | None = None

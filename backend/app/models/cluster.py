@@ -33,10 +33,8 @@ class Cluster(Base):
     # 서버가 인증 정보에서 채우므로 설정에 자리표시자를 두지 않는다.
     # 비우면 NSS(`getent passwd`)로 사용자별 자동 인식한다.
     home_base: Mapped[str | None] = mapped_column(String(255))
-    # U-IA-01·02 세션 컨테이너가 **들어 있는 곳**. 이미지 파일명은 앱 카탈로그가
-    # 갖는다(services/session_apps.py). 공유 SIF 디렉터리(/home/portal/images)와
-    # OCI 레지스트리(docker://, oras://)를 모두 받는다 — apptainer가 둘 다 실행한다.
-    image_repository: Mapped[str | None] = mapped_column(String(255))
+    # 세션 이미지가 있는 곳은 **포털 설정**(settings.app_image_dir)이고 어떤 파일을
+    # 쓸지는 앱 카탈로그가 갖는다 — 클러스터가 알 일이 아니다(마이그레이션 0017).
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     # A-CL-01 "마지막 헬스체크" — 상태 컬럼이 스스로 말하게 한다. NULL = 아직 확인 안 함.

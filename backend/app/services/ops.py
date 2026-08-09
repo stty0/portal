@@ -11,18 +11,23 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.core.errors import NotFound, ValidationFailed
-from app.models import Notice, PortalSetting, User
+from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.models import AppCatalog, Notice, PortalSetting, User
 from app.repositories.audit import AuditLogRepository
 from app.repositories.content import (
+    AppCatalogRepository,
     NoticeRepository,
     PortalSettingRepository,
 )
 from app.repositories.identity import UserRepository
+from app.services import batch_apps, session_apps
 from app.services.audit import AuditService
 
 #: 설정 변경 시 감사 로그에 남길 필드. 값이 아니라 **바뀐 필드 이름만** 남긴다 —
 #: SMTP 호스트·웹훅 URL이 로그로 새지 않게.
+#: 아이콘 주소의 접두사. 라우터 경로(`/app-icons/{name}`)와 짝이다.
+ICON_URL_PREFIX = "/api/v1/app-icons"
+
 SETTING_FIELDS = (
     "poll_interval_sec",
     "session_timeout_min",
@@ -37,6 +42,7 @@ class OpsService:
     def __init__(self, session: Session):
         self.session = session
         self.notices = NoticeRepository(session)
+        self.apps = AppCatalogRepository(session)
         self.settings_repo = PortalSettingRepository(session)
         self.audit_repo = AuditLogRepository(session)
         self.users = UserRepository(session)
@@ -111,6 +117,65 @@ class OpsService:
         self.audit.record(actor=actor, action="NOTICE_DELETE", target=title)
         self.session.commit()
 
+    # --- A-OP-02 앱 카탈로그 ------------------------------------------------
+    def list_apps(self) -> list[dict[str, Any]]:
+        """코드 카탈로그의 앱 + 등록된 메타데이터를 **합쳐서** 준다.
+
+        등록된 것만 주면 아직 등록하지 않은 앱은 관리 화면에서 존재하지 않는 것이 된다 —
+        관리자가 봐야 하는 것은 "무엇을 등록할 수 있는가"다. 코드에 없는 등록(도입 예정
+        앱)도 빠뜨리지 않는다.
+        """
+        registered = {(r.kind, r.app_id): r for r in self.apps.list_all()}
+        rows: list[dict[str, Any]] = []
+        in_code: set[tuple[str, str]] = set()
+        for kind, catalog in (("interactive", session_apps.APPS), ("batch", batch_apps.APPS)):
+            for app in catalog:
+                key = (kind, app.id)
+                in_code.add(key)
+                rows.append(_app_row(kind, app.id, registered.get(key), code=app))
+        for (kind, app_id), row in registered.items():
+            if (kind, app_id) not in in_code:
+                rows.append(_app_row(kind, app_id, row, code=None))  # 코드에 없는 등록
+        rows.sort(key=lambda r: (r["kind"], r["app_id"]))
+        return rows
+
+    def create_app(self, *, actor: User, kind: str, app_id: str, **values: Any) -> dict[str, Any]:
+        if self.apps.get_by_app(kind, app_id):
+            raise Conflict(
+                "같은 종류·id의 앱이 이미 등록되어 있습니다.",
+                detail={"kind": kind, "app_id": app_id},
+            )
+        app = AppCatalog(kind=kind, app_id=app_id, **values)
+        self.session.add(app)
+        self.audit.record(
+            actor=actor, action="APP_CREATE", target=app.name, detail=f"{kind}/{app_id}"
+        )
+        self.session.commit()
+        return _app_row(kind, app_id, app, code=_code_app(kind, app_id))
+
+    def update_app(self, app_pk: int, *, actor: User, **values: Any) -> dict[str, Any]:
+        app = self.apps.get(app_pk)
+        if app is None:
+            raise NotFound("앱을 찾을 수 없습니다.", detail={"id": app_pk})
+        # kind·app_id는 코드 카탈로그로 가는 연결 키다 — 바꾸면 다른 앱이 된다. 지우고 다시 등록한다.
+        for key, value in values.items():
+            setattr(app, key, value)
+        self.audit.record(
+            actor=actor, action="APP_UPDATE", target=app.name, detail=f"{app.kind}/{app.app_id}"
+        )
+        self.session.commit()
+        return _app_row(app.kind, app.app_id, app, code=_code_app(app.kind, app.app_id))
+
+    def delete_app(self, app_pk: int, *, actor: User) -> None:
+        app = self.apps.get(app_pk)
+        if app is None:
+            raise NotFound("앱을 찾을 수 없습니다.", detail={"id": app_pk})
+        name, ref = app.name, f"{app.kind}/{app.app_id}"
+        self.session.delete(app)
+        # 코드 카탈로그의 앱이면 등록만 사라지고 앱 자체는 계속 뜬다 — 화면이 그렇게 말한다.
+        self.audit.record(actor=actor, action="APP_DELETE", target=name, detail=ref)
+        self.session.commit()
+
     # --- A-OP-03 감사 로그 -------------------------------------------------
     def audit_logs(
         self,
@@ -167,6 +232,37 @@ class OpsService:
     def audit_actions(self) -> list[str]:
         """필터 드롭다운용 — 실제로 기록된 액션만 보여준다."""
         return self.audit_repo.distinct_actions()
+
+
+
+
+def _code_app(kind: str, app_id: str) -> Any:
+    """코드 카탈로그에서 같은 id의 앱을 찾는다. 없으면 None(도입 예정 앱)."""
+    catalog = session_apps.APPS if kind == "interactive" else batch_apps.APPS
+    return next((a for a in catalog if a.id == app_id), None)
+
+
+def _icon_url(name: str) -> str:
+    """DB의 파일명 → 화면이 쓸 주소. 경로 조립을 한 곳에만 둔다."""
+    return f"{ICON_URL_PREFIX}/{name}"
+
+
+def _app_row(kind: str, app_id: str, row: AppCatalog | None, *, code: Any) -> dict[str, Any]:
+    """등록분과 코드 카탈로그를 겹친다 — 등록이 없으면 코드의 이름·설명이 그대로 쓰인다."""
+    return {
+        "id": row.id if row else None,  # None = 아직 등록 안 함(POST 대상)
+        "kind": kind,
+        "app_id": app_id,
+        "name": (row.name if row else None) or (code.name if code else app_id),
+        "vendor": row.vendor if row else None,
+        "version": row.version if row else None,
+        "image_file": (row.image_file if row else None) or (code.image if code else None),
+        "icon_file": row.icon_file if row else None,
+        "icon_url": _icon_url(row.icon_file) if row and row.icon_file else None,
+        "description": (row.description if row else None) or (code.description if code else None),
+        "in_code": code is not None,
+        "updated_at": row.updated_at if row else None,
+    }
 
 
 def _check_period(start: datetime | None, end: datetime | None) -> None:

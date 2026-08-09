@@ -25,6 +25,11 @@ class BatchAppOut(BaseModel):
     needs_gpu: bool
     ready: bool
     params: list[AppParamOut]
+    #: 이 사용자가 쓸 수 있는가. `ready`와 다른 잠금이다 — 이미지는 있지만
+    #: **계정 배정에서 빠진** 경우다(services/app_access.py).
+    allowed: bool = True
+    #: 이 앱에 배정된 계정. 비어 있으면 전원 허용이다.
+    accounts: list[str] = Field(default_factory=list)
 
 
 class BatchAppSubmitRequest(JobSubmitRequest):
@@ -36,6 +41,6 @@ class BatchAppSubmitRequest(JobSubmitRequest):
     `script`·`mode`는 **서버가 정한다** — 본문은 앱 카탈로그가 만든다.
     """
 
-    #: 앱 파라미터. 키·형식은 `GET /batch-apps`가 알려 준다
+    #: 앱 파라미터. 키·형식은 `GET /clusters/{cid}/batch-apps`가 알려 준다
     #: (`text`·`number`·`path`·`select`·`bool`).
     params: dict[str, Any] = Field(default_factory=dict)

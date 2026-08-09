@@ -1,7 +1,7 @@
 """Batch 앱(해석 solver) 카탈로그 (U-JB-13).
 
 인터랙티브 앱(`session_apps.py`)과 **같은 모양**이다. 앱 목록이 코드에 있고, 이미지는
-클러스터 저장소(`cluster.image_repository`) 아래에서 찾는다. 다른 점은 하나다 —
+포털 공용 디렉터리(`settings.app_image_dir`) 아래에서 찾는다. 다른 점은 하나다 —
 **앱마다 해석 입력값이 다르므로 파라미터 스키마를 함께 둔다.**
 
 ## 왜 DB가 아니라 코드인가
@@ -351,24 +351,6 @@ def get(app_id: str) -> BatchApp:
         "지원하지 않는 앱입니다.",
         detail={"app": app_id, "supported": [a.id for a in APPS]},
     )
-
-
-def image_ref(repository: str | None, app: BatchApp) -> str:
-    """저장소 + 앱 → apptainer에 넘길 이미지 참조.
-
-    **제출 전에 막는다.** 저장소가 비었거나 아직 제공하지 않는 앱이면 Job은 워커까지 간
-    뒤에 죽고, 사용자에게는 원인이 안 보인다(인터랙티브 앱과 같은 판단).
-    """
-    if not app.ready or not app.image:
-        raise ValidationFailed(
-            f"'{app.name}'은(는) 아직 제공되지 않습니다.", detail={"app": app.id}
-        )
-    if not repository:
-        raise ValidationFailed(
-            "클러스터에 이미지 저장소가 설정되어 있지 않습니다.",
-            detail={"field": "image_repository"},
-        )
-    return f"{repository.rstrip('/')}/{app.image}"
 
 
 def _resolved(app: BatchApp, values: dict[str, str]) -> dict[str, str]:

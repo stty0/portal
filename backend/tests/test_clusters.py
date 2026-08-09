@@ -524,10 +524,13 @@ def test_partition_cpu_usage_is_summed_from_nodes(client, cluster, admin_token, 
     """파티션 응답에는 CPU 총량만 있어서 할당/가용은 노드를 더해 채운다."""
     slurm_client.nodes_payload = {
         "nodes": [
-            {"name": "cn01", "state": ["MIXED"], "cpus": 8, "alloc_cpus": 3, "partitions": ["debug"]},
-            {"name": "cn02", "state": ["IDLE"], "cpus": 8, "alloc_cpus": 0, "partitions": ["debug"]},
-            # 빠져 있는 노드: 돌던 Job은 할당으로 세지만 남은 CPU는 가용이 아니다.
-            {"name": "cn03", "state": ["ALLOCATED", "DRAIN"], "cpus": 8, "alloc_cpus": 2, "partitions": ["debug"]},
+            {"name": "cn01", "state": ["MIXED"], "cpus": 8, "alloc_cpus": 3, "partitions": ["debug"],
+             "real_memory": 8000, "alloc_memory": 3000, "gres": "gpu:a100:2", "gres_used": "gpu:a100:1(IDX:0)"},
+            {"name": "cn02", "state": ["IDLE"], "cpus": 8, "alloc_cpus": 0, "partitions": ["debug"],
+             "real_memory": 8000, "alloc_memory": 0, "gres": "gpu:a100:2", "gres_used": "gpu:a100:0(IDX:N/A)"},
+            # 빠져 있는 노드: 돌던 Job은 할당으로 세지만 남은 몫은 가용이 아니다.
+            {"name": "cn03", "state": ["ALLOCATED", "DRAIN"], "cpus": 8, "alloc_cpus": 2, "partitions": ["debug"],
+             "real_memory": 8000, "alloc_memory": 0, "gres": "gpu:a100:2", "gres_used": ""},
         ],
         "errors": [],
     }
@@ -535,7 +538,45 @@ def test_partition_cpu_usage_is_summed_from_nodes(client, cluster, admin_token, 
         f"/api/v1/clusters/{cluster.id}/partitions", headers=auth_headers(admin_token)
     )
     assert resp.status_code == 200
-    assert resp.json()[0]["cpu_usage"] == {"allocated": 5, "available": 13, "total": 24}
+    body = resp.json()[0]
+    assert body["cpu_usage"] == {"allocated": 5, "available": 13, "total": 24}
+    # 메모리·GPU도 같은 셈법으로 함께 센다 — 따로 돌면 offline 판정이 갈릴 수 있다.
+    assert body["memory_usage"] == {"allocated": 3000, "available": 13000, "total": 24000}
+    assert body["gpu_usage"] == {"allocated": 1, "available": 3, "total": 6}
+
+
+def test_partition_carries_its_nodes_for_the_user_view(client, cluster, user_token, slurm_client):
+    """파티션을 펼치면 노드가 보여야 한다 (U-CL-02).
+
+    `/nodes`는 관리자 전용이라 사용자 화면이 부를 수 없다 — 파티션 응답에 **필요한 필드만**
+    추려 싣는다. `reason`(운영자가 적는 drain 사유) 같은 운영 정보는 넣지 않는다.
+    """
+    slurm_client.nodes_payload = {
+        "nodes": [
+            {
+                "name": "cn02", "state": ["MIXED"], "cpus": 8, "alloc_cpus": 3,
+                "real_memory": 16000, "alloc_memory": 4000, "gres": "gpu:a100:2",
+                "partitions": ["debug"], "reason": "관리자 메모",
+            },
+            {"name": "cn01", "state": ["IDLE"], "cpus": 2, "partitions": ["debug", "gpu"]},
+        ],
+        "errors": [],
+    }
+    body = client.get(
+        f"/api/v1/clusters/{cluster.id}/partitions", headers=auth_headers(user_token)
+    ).json()
+    rows = next(p for p in body if p["name"] == "debug")["node_list"]
+    # 이름순이다 — 매번 순서가 흔들리면 화면이 깜빡인다.
+    assert [n["name"] for n in rows] == ["cn01", "cn02"]
+
+    nodes = {n["name"]: n for n in rows}
+    # **파티션 요약과 같은 모양**이다 — 화면이 같은 컬럼에 나란히 그린다.
+    assert nodes["cn02"]["cpu_usage"] == {"allocated": 3, "available": 5, "total": 8}
+    assert nodes["cn02"]["memory_usage"] == {"allocated": 4000, "available": 12000, "total": 16000}
+    assert nodes["cn02"]["gpu_usage"] == {"allocated": 0, "available": 2, "total": 2}
+    assert nodes["cn02"]["gres"] == "gpu:a100:2"
+    # 운영 정보는 새어 나가지 않는다.
+    assert all("reason" not in n for n in nodes.values())
 
 
 def test_partition_list_survives_partial_slurmdbd_error(client, cluster, admin_token):
@@ -748,18 +789,3 @@ def test_dashboard_endpoints_are_admin_only(client, cluster, user_token):
         assert client.get(
             f"/api/v1/clusters/{cluster.id}/{path}", headers=auth_headers(user_token)
         ).status_code == 403
-
-
-def test_image_repository_round_trips(client, admin_token, cluster):
-    """세션 이미지 **저장소**는 관리자가 설정한다 — 이미지 파일명은 앱 카탈로그가 안다."""
-    ref = "oras://reg.example.com/hpc"
-    resp = client.patch(
-        f"/api/v1/clusters/{cluster.id}",
-        json={"image_repository": ref},
-        headers=auth_headers(admin_token),
-    )
-    assert resp.status_code == 200
-    assert resp.json()["image_repository"] == ref
-    assert client.get(
-        f"/api/v1/clusters/{cluster.id}", headers=auth_headers(admin_token)
-    ).json()["image_repository"] == ref

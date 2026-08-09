@@ -64,7 +64,6 @@ def other_user(db) -> User:
 
 @pytest.fixture
 def desktop_cluster(db, cluster):
-    cluster.image_repository = "/home/portal/images"
     cluster.login_node = "login01"
     cluster.ssh_account = "svc"
     db.commit()
@@ -102,28 +101,50 @@ def test_create_submits_and_returns_state(
 
 
 # --- 앱 → 이미지 (U-IA-01) --------------------------------------------------
-# 클러스터는 이미지가 **있는 곳**만 갖고, 어떤 이미지인지는 앱 카탈로그가 정한다.
+# 있는 곳은 **포털 설정** 하나, 어떤 파일인지는 앱 카탈로그가 정한다(마이그레이션 0017).
 
 
-def test_image_is_resolved_from_the_repository_and_the_app():
-    ref = session_apps.image_ref("/home/portal/images", "desktop")
-    assert ref == f"/home/portal/images/{session_apps.get('desktop').image}"
+def _resolve(db, settings, app_id, image_dir="/home/portal/images"):
+    from app.services import app_images
+
+    object.__setattr__(settings, "app_image_dir", image_dir)
+    return app_images.resolve(db, settings, app_images.KIND_INTERACTIVE, app_id)
 
 
-def test_repository_trailing_slash_does_not_double_up():
-    """`/images/` + 파일명이 `/images//파일`이 되면 레지스트리 참조에서 깨진다."""
-    assert "//" not in session_apps.image_ref("/home/portal/images/", "desktop")
+def test_image_is_resolved_from_the_portal_dir_and_the_app(db, settings):
+    assert _resolve(db, settings, "desktop") == (
+        f"/home/portal/images/{session_apps.get('desktop').image}"
+    )
 
 
-def test_registry_repositories_are_joined_the_same_way():
-    ref = session_apps.image_ref("docker://reg.example.com/hpc", "desktop")
-    assert ref == f"docker://reg.example.com/hpc/{session_apps.get('desktop').image}"
+def test_image_dir_trailing_slash_does_not_double_up(db, settings):
+    """`/images/` + 파일명이 `/images//파일`이 되면 apptainer가 못 연다."""
+    assert "//" not in _resolve(db, settings, "desktop", "/home/portal/images/")
 
 
-def test_unknown_app_is_rejected():
+def test_registered_image_file_wins_over_the_code_default(db, settings):
+    """앱 관리에서 이미지를 바꾸면 코드 배포 없이 그 파일이 쓰인다."""
+    from app.models import AppCatalog
+
+    db.add(AppCatalog(kind="interactive", app_id="desktop", name="d", image_file="custom.sif"))
+    db.commit()
+    assert _resolve(db, settings, "desktop") == "/home/portal/images/custom.sif"
+
+
+def test_registered_image_file_with_a_path_is_rejected(db, settings):
+    """파일명만 받는다 — 경로가 섞이면 공용 디렉터리 밖을 가리킬 수 있다."""
+    from app.models import AppCatalog
+
+    db.add(AppCatalog(kind="interactive", app_id="desktop", name="d", image_file="../x.sif"))
+    db.commit()
+    with pytest.raises(ValidationFailed):
+        _resolve(db, settings, "desktop")
+
+
+def test_unknown_app_is_rejected(db, settings):
     """모르는 앱으로 Job을 던지면 워커에서 죽는다 — 제출 전에 막는다."""
     with pytest.raises(ValidationFailed):
-        session_apps.image_ref("/home/portal/images", "nope")
+        _resolve(db, settings, "nope")
 
 
 def test_submitted_script_uses_the_resolved_image(
@@ -140,7 +161,7 @@ def test_submitted_script_uses_the_resolved_image(
     assert f"/home/portal/images/{session_apps.get('paraview').image}" in script
 
 
-def test_each_app_resolves_to_its_own_image(monkeypatch):
+def test_each_app_resolves_to_its_own_image(db, settings, monkeypatch):
     """앱마다 이미지가 갈리는지 확인한다.
 
     지금은 두 앱이 **같은 이미지**를 쓰므로(하나의 Rocky 9 이미지에 MATE·ParaView가
@@ -152,34 +173,61 @@ def test_each_app_resolves_to_its_own_image(monkeypatch):
         session_apps.InteractiveApp("paraview", "ParaView", "", "paraview.sif", "U-IA-02"),
     )
     monkeypatch.setattr(session_apps, "APPS", split)
-    assert session_apps.image_ref("/images", "desktop") == "/images/mate.sif"
-    assert session_apps.image_ref("/images", "paraview") == "/images/paraview.sif"
+    assert _resolve(db, settings, "desktop", "/images") == "/images/mate.sif"
+    assert _resolve(db, settings, "paraview", "/images") == "/images/paraview.sif"
 
 
-def test_app_catalog_is_listed_for_the_launcher(client, user_token):
-    body = client.get("/api/v1/interactive-apps", headers=auth_headers(user_token)).json()
+def test_app_catalog_is_listed_for_the_launcher(client, desktop_cluster, user_token):
+    body = client.get(
+        f"/api/v1/clusters/{desktop_cluster.id}/interactive-apps",
+        headers=auth_headers(user_token),
+    ).json()
     assert {a["id"] for a in body} == {"desktop", "paraview", "jupyter", "code-server"}
-    assert {a["id"] for a in body if a["ready"]} == {"desktop", "paraview"}
+    # JupyterLab은 2026-08-08부터 실행된다(HTTP 프록시 경로).
+    assert {a["id"] for a in body if a["ready"]} == {"desktop", "paraview", "jupyter"}
+    # code-server는 **포털이 호스팅하지 않는다** — 하위 경로 서비스가 불가능해서
+    # Remote-SSH를 안내한다. 안내 문구가 없으면 "준비 중" 카드만 남아 물어볼 데가 없다.
+    guide = next(a for a in body if a["id"] == "code-server")
+    assert guide["ready"] is False and "Remote - SSH" in guide["note"]
     # 이미지는 운영 정보다 — 사용자에게 내려보내지 않는다.
     assert all("image" not in a for a in body)
 
 
-def test_app_catalog_requires_auth(client):
-    assert client.get("/api/v1/interactive-apps").status_code == 401
+def test_app_catalog_requires_auth(client, desktop_cluster):
+    url = f"/api/v1/clusters/{desktop_cluster.id}/interactive-apps"
+    assert client.get(url).status_code == 401
 
 
 def test_planned_apps_cannot_be_launched(client, desktop_cluster, user_token, fake_ssh):
     """예정된 앱은 이미지가 없다 — 제출되면 워커에서 죽으므로 여기서 막는다."""
     resp = client.post(
         f"/api/v1/clusters/{desktop_cluster.id}/sessions",
-        json={"app": "jupyter"},
+        json={"app": "code-server"},
         headers=auth_headers(user_token),
     )
     assert resp.status_code == 422
 
 
-def test_create_without_an_image_repository_is_rejected(client, db, cluster, user_token, fake_ssh):
-    cluster.image_repository = None
+def test_http_apps_start_a_different_container_entry(client, desktop_cluster, user_token, fake_ssh, slurm_client):
+    """JupyterLab은 X 서버가 없다 — VNC 기동 스크립트를 부르면 Xvnc부터 띄운다."""
+    resp = client.post(
+        f"/api/v1/clusters/{desktop_cluster.id}/sessions",
+        json={"app": "jupyter"},
+        headers=auth_headers(user_token),
+    )
+    assert resp.status_code == 201, resp.text
+    script = [kw["spec"] for n, kw in slurm_client.calls if n == "submit_job"][0]["script"]
+    assert "/opt/portal/start-jupyter.sh" in script
+    assert "start-desktop.sh" not in script
+
+
+def test_create_without_an_image_file_is_rejected(client, db, cluster, user_token, fake_ssh, monkeypatch):
+    """코드 기본값도 등록도 없으면 제출을 막는다 — 워커까지 가서 죽으면 원인이 안 보인다."""
+    from app.services import session_apps as sa
+
+    monkeypatch.setattr(
+        sa, "APPS", (sa.InteractiveApp("desktop", "데스크톱", "", "", "U-IA-02"),)
+    )
     cluster.login_node = "login01"
     cluster.ssh_account = "svc"
     db.commit()
@@ -284,3 +332,93 @@ def test_websocket_closes_when_the_session_dies(
             f"/api/v1/sessions/{s.id}/connect", subprotocols=[f"portal.token.{user_token}"]
         ) as ws:
             ws.receive_bytes()
+
+
+# --- HTTP 앱 리버스 프록시 (U-IA-01) ---------------------------------------
+# 경로가 컨테이너의 base_url과 **글자 하나까지** 같아야 한다. 어긋나면 Jupyter가 HTML에
+# 박아 넣은 링크가 포털 SPA로 떨어지고, 화면은 흰 페이지가 된다.
+
+
+def test_proxy_path_matches_the_container_base_url():
+    """`start-jupyter.sh`가 쓰는 접두사와 라우터 경로가 같아야 한다."""
+    import pathlib
+    import re
+
+    from app.routers.session_apps import router
+
+    script = (
+        pathlib.Path(__file__).resolve().parents[2]
+        / "deploy/images/rocky9-mate/start-jupyter.sh"
+    ).read_text(encoding="utf-8")
+    found = re.search(r'BASE_URL="([^"]+)"', script)
+    assert found, "start-jupyter.sh에서 BASE_URL을 찾지 못했다"
+    # 스크립트: /api/v1/session-apps/$JOB_ID/  · 라우터: /session-apps/{job_id}/{path}
+    assert found.group(1).startswith("/api/v1/session-apps/")
+    assert any("/session-apps/{job_id}/{path:path}" in r.path for r in router.routes)
+
+
+def test_proxy_rejects_anonymous_requests(client):
+    """프록시도 포털 인증을 지난다 — 세션 앱이 인증 우회로가 되면 안 된다."""
+    assert client.get("/api/v1/session-apps/12345/lab").status_code == 401
+
+
+def test_proxy_hides_other_peoples_sessions(client, user_token):
+    """남의 Job ID를 넣어도 **없는 것으로 답한다**(세션 조회와 같은 규칙)."""
+    resp = client.get(
+        "/api/v1/session-apps/999999/lab", headers=auth_headers(user_token)
+    )
+    assert resp.status_code == 404
+
+
+def test_proxy_reuses_the_resolved_target(client, user_token, monkeypatch):
+    """요청마다 DB+SSH를 다시 타면 한 페이지에 수십 번이다.
+
+    실측(2026-08-08): 캐시가 없을 때 JupyterLab 한 페이지가 커넥션 풀을 말려
+    `QueuePool limit of size 5 overflow 10 reached`가 났고 화면 전체가 느려졌다.
+    """
+    from app.services import session_proxy
+
+    session_proxy.TARGETS.clear()
+    calls: list[str] = []
+    original = session_proxy.SessionProxyService.target
+
+    def counted(self, job_id, *, user):
+        calls.append(job_id)
+        return original(self, job_id, user=user)
+
+    monkeypatch.setattr(session_proxy.SessionProxyService, "target", counted)
+    for _ in range(3):
+        client.get("/api/v1/session-apps/999999/lab", headers=auth_headers(user_token))
+    # 세션이 없어 캐시에 담기지 않는 경우다 — **인증은 매번 지나야 한다**는 것만 확인한다.
+    assert len(calls) == 3
+
+    # 담긴 뒤에는 느린 길을 타지 않는다.
+    target = session_proxy.AppTarget(
+        session_id=1, cluster_id=1, local_port=1, token="t", base_url="/b/"
+    )
+    from app.core.security import decode_session_token
+    from app.core.config import get_settings
+
+    session_proxy.TARGETS.put("999999", "guid-does-not-match", target)
+    assert session_proxy.TARGETS.get("999999", "guid-does-not-match") is target
+    # **소유자가 키에 들어 있다** — 남의 캐시를 타지 못한다.
+    assert session_proxy.TARGETS.get("999999", "other-guid") is None
+
+
+def test_starting_session_is_a_wait_not_an_error(client, db, desktop_cluster, user_token, fake_ssh, slurm_client):
+    """Slurm의 RUNNING과 "붙을 수 있다"는 같지 않다.
+
+    Job이 시작된 뒤 컨테이너가 connection.json을 쓰기까지 10~20초가 더 걸린다(실측).
+    그 사이를 오류로 던지면 사용자는 세션이 깨진 줄 알고 다시 만든다 — 화면이 "기다릴 일"과
+    "실패"를 구분할 수 있게 표식을 붙인다.
+    """
+    fake_ssh.connection = None  # 아직 안 쓰인 상태
+    resp = client.post(
+        f"/api/v1/clusters/{desktop_cluster.id}/sessions",
+        json={"app": "desktop"},
+        headers=auth_headers(user_token),
+    )
+    sid = resp.json()["id"]
+    info = client.get(f"/api/v1/sessions/{sid}/connection", headers=auth_headers(user_token))
+    assert info.status_code == 422
+    assert info.json()["detail"]["reason"] == "starting"

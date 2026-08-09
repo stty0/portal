@@ -144,7 +144,7 @@ kubectl -n hpc-portal get secret redis-credentials -o jsonpath='{.data.password}
 ```bash
 cd ../../backend
 set -a && . ./.env.dev && set +a     # 자격증명 포함 — .gitignore 처리됨
-.venv/bin/alembic upgrade head       # 20개 테이블(+alembic_version) + RBAC seed(운영에도 필요)
+.venv/bin/alembic upgrade head       # 21개 테이블(+alembic_version) + RBAC seed(운영에도 필요)
 .venv/bin/python scripts/seed_dev.py # 개발용 예시 데이터 (멱등, --reset 지원)
 ```
 
@@ -158,3 +158,15 @@ set -a && . ./.env.dev && set +a     # 자격증명 포함 — .gitignore 처리
 - **방화벽/포트포워딩** — 외부(`123.41.34.26`)에서 9080/9443이 이 호스트로 들어오도록 라우터·방화벽 설정이 필요하다. 이 서버 안에서는 hairpin NAT가 동작하지 않아 검증하지 못했다.
 - **로컬 스토리지** — local-path는 단일 노드 전용이다. §5.3의 "네트워크 스토리지" 요건을 만족하지 않는다.
 - **Secret 저장소** — 현재 백엔드는 `EnvSecretStore`(환경변수)를 쓴다. §9 미확정 항목으로, 멀티 replica에서는 런타임 등록 Secret이 공유되지 않는다.
+
+---
+
+## Helm 차트
+
+`deploy/helm/hpc-portal/`에 같은 구성을 차트로도 두었다. 이 디렉터리의 매니페스트는
+**현재 배포의 정본이자 차트의 원본**이다 — 둘 중 하나를 고치면 다른 쪽도 맞춰야 한다.
+
+차트가 더하는 것은 하나다: 위에서 `kubectl create secret`으로 치던 절차를 흡수하고,
+**업그레이드 때 기존 값을 지킨다**(비밀번호와, 운영 중 손으로 넣은 `PORTAL_SECRET_CLUSTER_*`).
+
+설치·인수 절차는 [helm/hpc-portal/README.md](../helm/hpc-portal/README.md) 참조.

@@ -39,6 +39,18 @@ export interface SlurmAccount {
   }[]
 }
 
+/**
+ * 앱 하나에 배정된 계정 (A-US-02). **`accounts`가 비면 전원 허용**이다 —
+ * 배정하지 않은 앱은 지금까지처럼 누구나 쓴다.
+ */
+export interface AppAccess {
+  /** interactive · batch — 두 카탈로그의 앱 id가 겹칠 수 있어 함께 키가 된다. */
+  kind: string
+  app_id: string
+  name: string
+  accounts: string[]
+}
+
 /** 클러스터 부하 요약 (A-DB-02). slurmctld 노드 상태에서 집계된다. */
 export interface ClusterMetrics {
   nodes: number
@@ -120,6 +132,10 @@ export const clusterApi = {
     api.post<{ ok: boolean }>(`/clusters/${cid}/accounts/${encodeURIComponent(name)}/users`, {
       username,
     }),
+  appAccess: (cid: number) => api.get<AppAccess[]>(`/clusters/${cid}/app-access`),
+  /** 계정 배정도 QOS와 같은 **덮어쓰기**다. 빈 배열을 보내면 그 앱이 다시 전원에게 열린다. */
+  setAppAccess: (cid: number, kind: string, appId: string, accounts: string[]) =>
+    api.put<AppAccess>(`/clusters/${cid}/app-access/${kind}/${appId}`, { accounts }),
   metrics: (cid: number) => api.get<ClusterMetrics>(`/clusters/${cid}/metrics`),
   events: (cid: number, limit = 20) =>
     api.get<ClusterEvent[]>(`/clusters/${cid}/events?limit=${limit}`),

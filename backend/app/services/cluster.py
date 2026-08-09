@@ -10,6 +10,7 @@
 # 미뤄 이름 충돌을 없앤다. Python 3.14는 기본으로 미루지만 런타임 이미지는 3.13이다.
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -214,13 +215,19 @@ class ClusterService:
         partitions = _items(client.get_partitions(), "partitions")
         # 파티션 응답에는 CPU **총량만** 있다(v0.0.41) — 할당량은 노드에만 있어서 노드를 모아 채운다.
         try:
-            usage = _cpu_usage_by_partition(_items(client.get_nodes(), "nodes"))
+            nodes = _items(client.get_nodes(), "nodes")
         except ExternalServiceError:
             return partitions  # 노드 조회가 실패해도 파티션 목록은 그대로 보여준다
+        usage = _usage_by_partition(nodes)
+        rows = _node_rows_by_partition(nodes)
         for partition in partitions:
-            stat = usage.get(str(partition.get("name") or ""))
+            name = str(partition.get("name") or "")
+            stat = usage.get(name)
             if stat:
-                partition["cpu_usage"] = stat
+                partition["cpu_usage"] = stat["cpu"]
+                partition["memory_usage"] = stat["memory_mb"]
+                partition["gpu_usage"] = stat["gpu"]
+            partition["node_list"] = rows.get(name, [])
         return partitions
 
     def reservations(self, cluster_id: int) -> list[dict[str, Any]]:
@@ -593,30 +600,108 @@ _number = slurm_number
 _OFFLINE_STATES = ("DOWN", "DRAIN", "DRNG", "FAIL", "INVAL", "NOT_RESPONDING")
 
 
-def _cpu_usage_by_partition(nodes: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
-    """노드를 파티션별로 더해 CPU 할당량·가용량을 낸다.
+def _gpu_count(gres: str) -> int:
+    """GRES 문자열에서 GPU 개수. `gpu:a100:2` · `gpu:2` · `gpu:a100:1(IDX:0)` 모두 받는다.
 
-    DOWN·DRAIN 노드의 남은 CPU는 **가용이 아니다** — 어느 쪽에도 넣지 않으므로
-    `할당 + 가용 ≤ 전체`가 된다. 이미 돌고 있는 Job의 CPU는 노드가 빠지는 중이어도
-    할당으로 센다. 한 노드가 여러 파티션에 속하면 파티션마다 잡힌다 — sinfo와 같은 셈법이다.
+    `gres`(전체)와 `gres_used`(사용)가 같은 형식이라 하나로 읽는다 — 사용 쪽에만 붙는
+    `(IDX:...)`는 떼어낸다(실측 형식).
     """
-    usage: dict[str, dict[str, int]] = {}
-    for node in nodes:
-        total = _number(node.get("cpus"))
-        if total is None:
+    total = 0
+    for term in str(gres or "").split(","):
+        text = re.sub(r"\(.*?\)", "", term).strip()
+        if not text.lower().startswith("gpu"):
             continue
-        allocated = slurm_int(node.get("alloc_cpus"))
+        parts = text.split(":")
+        if len(parts) >= 2 and parts[-1].isdigit():
+            total += int(parts[-1])
+    return total
+
+
+def _node_amounts(node: dict[str, Any]) -> tuple[bool, dict[str, tuple[int, int]]] | None:
+    """노드 하나의 (오프라인 여부, 자원별 (사용, 전체)). 셀 수 없는 노드는 None.
+
+    **집계와 노드별 표시가 같은 값을 써야 한다** — 규칙이 두 곳에 있으면 파티션 합계와
+    펼친 노드의 숫자가 어긋난다.
+    """
+    cpus = slurm_number(node.get("cpus"))
+    if cpus is None:
+        return None
+    states = node.get("state") or []
+    if isinstance(states, str):
+        states = [states]
+    offline = any(str(s).upper().startswith(_OFFLINE_STATES) for s in states)
+    return offline, {
+        "cpu": (slurm_int(node.get("alloc_cpus")), int(cpus)),
+        "memory_mb": (slurm_int(node.get("alloc_memory")), slurm_int(node.get("real_memory"))),
+        "gpu": (_gpu_count(node.get("gres_used")), _gpu_count(node.get("gres"))),
+    }
+
+
+def _triple(used: int, total: int, *, offline: bool) -> dict[str, int]:
+    """사용/가용/전체.
+
+    DOWN·DRAIN 노드의 남은 몫은 **가용이 아니다** — 일을 받지 못한다. 그래서
+    `사용 + 가용 ≤ 전체`가 된다. 돌던 Job의 몫은 노드가 빠지는 중이어도 사용으로 센다.
+    """
+    return {
+        "allocated": used,
+        "available": 0 if offline else max(0, total - used),
+        "total": total,
+    }
+
+
+def _usage_by_partition(nodes: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, int]]]:
+    """파티션별 CPU·메모리·GPU 사용량 (U-CL-02).
+
+    한 노드가 여러 파티션에 속하면 파티션마다 잡힌다 — sinfo와 같은 셈법이다.
+    """
+    usage: dict[str, dict[str, dict[str, int]]] = {}
+    for node in nodes:
+        amounts = _node_amounts(node)
+        if amounts is None:
+            continue
+        offline, values = amounts
+        for name in node.get("partitions") or []:
+            slot = usage.setdefault(
+                str(name),
+                {k: {"allocated": 0, "available": 0, "total": 0} for k in values},
+            )
+            for key, (used, total) in values.items():
+                one = _triple(used, total, offline=offline)
+                for field in ("allocated", "available", "total"):
+                    slot[key][field] += one[field]
+    return usage
+
+
+def _node_rows_by_partition(nodes: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """파티션별 노드 목록 (U-CL-02 펼치기).
+
+    **파티션 요약과 같은 모양**을 담는다 — 화면이 같은 컬럼에 나란히 그리기 때문이다.
+    사용자가 "이 파티션에 어떤 노드가 있고 지금 얼마나 차 있나"를 보는 데 필요한 것만 넣고,
+    `reason`(운영자가 적는 drain 사유) 같은 운영 정보는 넣지 않는다(A-ND-02는 관리자 화면이다).
+    """
+    rows: dict[str, list[dict[str, Any]]] = {}
+    for node in nodes:
+        amounts = _node_amounts(node)
+        if amounts is None:
+            continue
+        offline, values = amounts
         states = node.get("state") or []
         if isinstance(states, str):
             states = [states]
-        offline = any(str(s).upper().startswith(_OFFLINE_STATES) for s in states)
+        row = {
+            "name": str(node.get("name") or ""),
+            "state": [str(s) for s in states],
+            "cpu_usage": _triple(*values["cpu"], offline=offline),
+            "memory_usage": _triple(*values["memory_mb"], offline=offline),
+            "gpu_usage": _triple(*values["gpu"], offline=offline),
+            "gres": str(node.get("gres") or ""),
+        }
         for name in node.get("partitions") or []:
-            stat = usage.setdefault(str(name), {"allocated": 0, "available": 0, "total": 0})
-            stat["total"] += int(total)
-            stat["allocated"] += allocated
-            if not offline:
-                stat["available"] += max(0, int(total) - allocated)
-    return usage
+            rows.setdefault(str(name), []).append(row)
+    for items in rows.values():
+        items.sort(key=lambda r: r["name"])
+    return rows
 
 
 def _raise_on_errors(payload: Any) -> None:

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { batchAppApi, type BatchApp } from '@/api/batchApps'
 import { fileApi } from '@/api/files'
 import { jobApi, type JobOptions } from '@/api/jobs'
 import { useClusterStore } from '@/stores/cluster'
+import { hideBrokenIcon, useAppMeta } from '@/utils/appMeta'
 import Badge from '@/components/ui/Badge.vue'
 import Btn from '@/components/ui/Btn.vue'
 import Card from '@/components/ui/Card.vue'
@@ -24,6 +25,8 @@ import PageHead from '@/components/ui/PageHead.vue'
  */
 const clusters = useClusterStore()
 const apps = ref<BatchApp[]>([])
+// 아이콘·벤더·버전은 관리자가 등록한 값이다(A-OP-02). 없으면 카드가 그냥 지금과 같다.
+const { loadAppMeta, appMeta, appMetaLine } = useAppMeta('batch')
 const selected = ref<BatchApp | null>(null)
 const error = ref<unknown>(null)
 const busy = ref(false)
@@ -35,6 +38,7 @@ const params = reactive<Record<string, string>>({})
 const form = reactive({
   name: '',
   partition: '',
+  account: '',
   nodes: 1,
   ntasks: 1,
   cpus_per_task: 1,
@@ -48,24 +52,31 @@ const options = ref<JobOptions>({ partitions: [], accounts: [], qos: [], gpu_par
 const home = ref('')
 const subPath = ref('')
 
-onMounted(async () => {
-  try {
-    apps.value = await batchAppApi.list()
-  } catch (e) {
-    error.value = e
-  }
-})
-
 watch(
   () => clusters.selectedId,
   async (cid) => {
     if (!cid) return
-    const [h, o] = await Promise.allSettled([fileApi.browse(cid), jobApi.options(cid)])
+    loadAppMeta()
+    // 앱 목록도 클러스터에 매인다 — 앱마다 쓸 수 있는 계정이 클러스터별로 정해진다.
+    const [h, o, a] = await Promise.allSettled([
+      fileApi.browse(cid),
+      jobApi.options(cid),
+      batchAppApi.list(cid),
+    ])
     home.value = h.status === 'fulfilled' ? h.value.home : ''
     options.value =
       o.status === 'fulfilled'
         ? o.value
         : { partitions: [], accounts: [], qos: [], gpu_partitions: null }
+    if (a.status === 'fulfilled') {
+      apps.value = a.value
+      // 고른 앱이 잠겼으면(클러스터를 바꿨다) 선택을 놓는다 — 폼만 남으면 제출이 거부된다.
+      if (selected.value && !a.value.some((x) => x.id === selected.value?.id && usable(x))) {
+        selected.value = null
+      }
+    } else {
+      error.value = a.reason
+    }
     if (!form.partition && options.value.partitions.length) {
       form.partition = options.value.partitions[0]
     }
@@ -73,8 +84,24 @@ watch(
   { immediate: true },
 )
 
+/**
+ * 고를 수 있는가. **잠금이 두 가지**다 — `ready`는 이미지가 아직 없는 앱,
+ * `allowed`는 관리자가 정한 계정 배정에서 빠진 앱이다.
+ */
+const usable = (a: BatchApp) => a.ready && a.allowed
+
+/** 계정 선택지. **배정된 앱이면 그 계정만** 남긴다(고를 수 없는 값을 보이면 안 된다). */
+const accounts = computed(() => {
+  const mine = options.value.accounts ?? []
+  const only = selected.value?.accounts ?? []
+  return only.length ? mine.filter((a) => only.includes(a)) : mine
+})
+watch(accounts, (list) => {
+  if (form.account && !list.includes(form.account)) form.account = ''
+})
+
 function choose(app: BatchApp) {
-  if (!app.ready) return
+  if (!usable(app)) return
   selected.value = app
   submitted.value = null
   for (const key of Object.keys(params)) delete params[key]
@@ -145,6 +172,8 @@ async function submit() {
     const res = await batchAppApi.submit(cid, app.id, {
       name: form.name || app.id,
       partition: form.partition || null,
+      // 비우면 서버가 정한다 — 계정이 배정된 앱이면 그 계정으로 돈다.
+      account: form.account || null,
       nodes: form.nodes,
       ntasks: form.ntasks,
       cpus_per_task: form.cpus_per_task,
@@ -199,16 +228,30 @@ const inputClass =
             class="text-left border rounded-lg p-4 transition-colors"
             :class="[
               selected?.id === a.id ? 'border-brand-500 bg-brand-50' : 'border-line',
-              a.ready ? 'hover:border-brand-500' : 'opacity-60 cursor-not-allowed',
+              usable(a) ? 'hover:border-brand-500' : 'opacity-60 cursor-not-allowed',
             ]"
             @click="choose(a)"
           >
             <div class="flex items-start gap-2 mb-1.5">
-              <b class="flex-1 text-[15.5px] text-ink">{{ a.name }}</b>
-              <Badge :state="a.ready ? 'idle' : 'down'">{{ a.ready ? '사용 가능' : '준비 중' }}</Badge>
+              <img
+                v-if="appMeta(a.id)?.icon_url" :src="appMeta(a.id)!.icon_url!" alt=""
+                class="w-7 h-7 rounded object-contain shrink-0" @error="hideBrokenIcon"
+              />
+              <div class="flex-1">
+                <b class="text-[15.5px] text-ink">{{ a.name }}</b>
+                <p v-if="appMetaLine(a.id)" class="text-[12.5px] text-ink-3">{{ appMetaLine(a.id) }}</p>
+              </div>
+              <Badge :state="usable(a) ? 'idle' : 'down'">
+                {{ a.ready ? (a.allowed ? '사용 가능' : '계정 제한') : '준비 중' }}
+              </Badge>
             </div>
             <p class="text-[13.5px] text-ink-2">{{ a.description }}</p>
             <p v-if="a.needs_gpu" class="mt-1.5 text-[12.5px] text-ink-3">GPU 필요</p>
+            <!-- 숨기지 않는다 — 숨기면 "그 앱이 왜 안 보이나"를 물을 데가 없다. -->
+            <p v-if="a.ready && !a.allowed" class="mt-1.5 text-[12.5px] text-ink-2 leading-relaxed">
+              <b class="mono">{{ a.accounts.join(', ') }}</b> 계정에 소속된 사용자만 사용할 수
+              있습니다. 관리자에게 계정 연결을 요청하세요.
+            </p>
           </button>
         </div>
         <template #foot>
@@ -263,6 +306,20 @@ const inputClass =
             <option v-for="p in options.partitions" :key="p" :value="p">{{ p }}</option>
           </select>
           <input v-else v-model="form.partition" :class="[inputClass, 'mono']" placeholder="cpu" />
+        </Field>
+        <!-- 계정이 배정된 앱이면 선택지가 그 계정으로 좁혀진다(Job 제출 화면과 같은 규칙). -->
+        <Field
+          label="계정 (account)"
+          full
+          :hint="selected?.accounts.length
+            ? `'${selected.name}'은(는) ${selected.accounts.join(', ')} 계정으로만 실행됩니다`
+            : '비우면 Slurm 기본 계정으로 제출됩니다'"
+        >
+          <select v-if="accounts.length" v-model="form.account" :class="[inputClass, 'mono']">
+            <option value="">기본 계정</option>
+            <option v-for="a in accounts" :key="a" :value="a">{{ a }}</option>
+          </select>
+          <input v-else disabled :class="[inputClass, 'mono bg-bg']" value="기본 계정" />
         </Field>
         <Field label="노드 수"><input v-model.number="form.nodes" type="number" min="1" :class="[inputClass, 'mono']" /></Field>
         <!--

@@ -110,9 +110,7 @@ export interface Cluster extends ClusterSummary {
   login_node: string | null
   ssh_port: number | null
   ssh_account: string | null
-  /** U-IA-02 세션 이미지. SIF 경로 / oras:// / docker:// */
   home_base: string | null
-  image_repository: string | null
   created_at?: string | null
   last_health_at?: string | null
   last_health_ok?: boolean | null
@@ -130,7 +128,6 @@ export interface ClusterCreate {
   ssh_port?: number | null
   ssh_account?: string | null
   home_base?: string | null
-  image_repository?: string | null
   is_default?: boolean
 }
 

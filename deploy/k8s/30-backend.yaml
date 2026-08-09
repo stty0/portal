@@ -55,6 +55,14 @@ spec:
             - name: ssh-known-hosts
               mountPath: /etc/portal/ssh
               readOnly: true
+            # 앱 아이콘 (A-OP-02). 관리 화면에서 업로드하므로 **쓰기가 필요하다** —
+            # 호스트 디렉터리는 컨테이너 UID(10001) 소유여야 한다.
+            - name: app-icons
+              mountPath: /home/portal/app-icons
+            # 앱 컨테이너 이미지. 파드는 **파일명 목록을 읽을 뿐**이고 실행은 워커가 한다.
+            - name: app-images
+              mountPath: /home/portal/images
+              readOnly: true
           livenessProbe:
             httpGet: { path: /healthz, port: 8000 }
             initialDelaySeconds: 10
@@ -70,3 +78,13 @@ spec:
         - name: ssh-known-hosts
           secret:
             secretName: portal-ssh-known-hosts
+        # 노드(dev01)의 디렉터리를 그대로 쓴다. 없으면 파드가 뜨지 않게 Directory로 둔다 —
+        # DirectoryOrCreate는 오타 난 경로에 빈 디렉터리를 만들어 조용히 아이콘이 사라진다.
+        - name: app-icons
+          hostPath:
+            path: /home/portal/app-icons
+            type: Directory
+        - name: app-images
+          hostPath:
+            path: /home/portal/images
+            type: Directory

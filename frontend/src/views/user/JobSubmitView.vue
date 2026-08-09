@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { fileApi } from '@/api/files'
 import { jobApi, type JobOptions } from '@/api/jobs'
 import { useClusterStore } from '@/stores/cluster'
@@ -12,6 +13,7 @@ import Fid from '@/components/ui/Fid.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 
 const clusters = useClusterStore()
+const route = useRoute()
 
 type Mode = 'form' | 'script'
 const mode = ref<Mode>('form')
@@ -121,6 +123,21 @@ watch(
     }
     const maxGb = Math.max(1, Math.floor(cap.max_memory_mb / 1024))
     if (cap.max_memory_mb > 0 && (form.memory_gb ?? 0) > maxGb) form.memory_gb = maxGb
+  },
+  { immediate: true },
+)
+
+/**
+ * Job 상세의 "이 Job 다음에 실행"이 넘겨주는 값 (`?dependency=afterok:123`).
+ *
+ * Job ID는 제출해 봐야 알 수 있어서 지금까지는 눈으로 읽어 손으로 옮겨야 했다.
+ * **값은 그대로 폼에 넣는다** — 포털이 문법을 해석하지 않는 규칙은 여기서도 같다.
+ */
+watch(
+  () => route.query.dependency,
+  (value) => {
+    const text = Array.isArray(value) ? value[0] : value
+    if (text) form.dependency = String(text)
   },
   { immediate: true },
 )

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.clients.slurm.adapters import int_or as slurm_int
 from app.core.errors import ExternalServiceError, NotFound, ValidationFailed
 from app.models import Cluster, User
+from app.services.app_access import user_accounts
 from app.services.audit import AuditService
 from app.services.cluster import ClusterService
 
@@ -189,24 +190,8 @@ class JobService:
             return _names(payload.get("partitions") if isinstance(payload, dict) else None)
 
         def accounts() -> list[str]:
-            """**이 사용자에게 연결된 계정만** 돌려준다.
-
-            전체 계정 목록으로 대체하면 안 된다 — 소속되지 않은 계정을 골라 제출하면
-            Slurm이 거부한다. 고를 수 없는 값을 보여주는 화면이 더 나쁘다.
-
-            출처는 `/associations`다. `/user/{name}`은 응답에 associations를 채워주지
-            않아(항상 빈 배열 — 실측) 소속을 알 수 없다.
-            """
-            payload = client.get_associations(as_user=user.username)
-            associations = payload.get("associations") if isinstance(payload, dict) else None
-            found: list[str] = []
-            for assoc in associations or []:
-                if not isinstance(assoc, dict) or assoc.get("user") != user.username:
-                    continue
-                account = assoc.get("account")
-                if account and account not in found:
-                    found.append(str(account))
-            return found
+            # 앱 사용 허용(AppAccessService)이 같은 소속을 본다 — 한 곳에서만 푼다.
+            return user_accounts(client, user.username)
 
         def qos() -> list[str]:
             payload = client.get_qos(as_user=user.username)

@@ -26,7 +26,7 @@ const editing = ref<Cluster | null>(null)
 const form = reactive<ClusterCreate>({
   alias: '', slurmrestd_url: '', api_version: '',
   login_node: '', ssh_port: 22, ssh_account: 'svc-portal',
-  home_base: '', image_repository: '', is_default: false,
+  home_base: '', is_default: false,
 })
 
 /** API 버전 선택지. 서버가 지원하는 것만 고를 수 있게 목록을 받아 온다. */
@@ -63,7 +63,7 @@ function openCreate() {
   Object.assign(form, {
     alias: '', slurmrestd_url: '', api_version: apiVersions.value[0] ?? '',
     login_node: '', ssh_port: 22, ssh_account: 'svc-portal',
-    home_base: '', image_repository: '', is_default: false,
+    home_base: '', is_default: false,
   })
   resetFormNotes()
   showForm.value = true
@@ -80,7 +80,7 @@ function openEdit(c: Cluster) {
     alias: c.alias ?? '', slurmrestd_url: c.slurmrestd_url ?? '',
     api_version: c.api_version ?? apiVersions.value[0] ?? '',
     login_node: c.login_node ?? '', ssh_port: c.ssh_port ?? 22, ssh_account: c.ssh_account ?? '',
-    home_base: c.home_base ?? '', image_repository: c.image_repository ?? '',
+    home_base: c.home_base ?? '',
     is_default: c.is_default,
   })
   resetFormNotes()
@@ -403,15 +403,6 @@ function credentialStatus(kind: 'SLURM_JWT' | 'SSH_KEY'): string {
         hint="예: /home — 사용자 홈은 이 아래 사용자명이다(사용자명은 서버가 채운다). 비우면 getent passwd로 자동 인식"
       >
         <input v-model="form.home_base" :class="[inputClass, 'mono']" placeholder="/home" />
-      </Field>
-      <Field
-        label="이미지 저장소 (U-IA-01·02)" full
-        hint="이미지가 있는 곳만 지정한다 — 어떤 이미지를 쓸지는 앱이 정한다. 공유 SIF 디렉터리 또는 oras:// · docker:// 레지스트리"
-      >
-        <input
-          v-model="form.image_repository" :class="[inputClass, 'mono']"
-          placeholder="/home/portal/images"
-        />
       </Field>
       <!-- 설정이 아니라 '저장하면 무슨 일이 일어나는가'라서 본문과 가른다 -->
       <div class="sm:col-span-2 mt-2 pt-4 border-t border-line space-y-3">

@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { jobApi } from '@/api/jobs'
 import { useClusterStore } from '@/stores/cluster'
-import { canCancel, jobField, jobId, jobState, stateTone } from '@/utils/job'
+import {
+  canCancel, dependencyNoteText, dependencyText, formatDuration, formatTimestamp,
+  formatTimestampFull, isBlockedForever, jobDependency, jobElapsedSeconds, jobEndedAt,
+  jobField, jobId, jobStartedAt, jobState, parseDependency, stateTone, waitReasonText,
+} from '@/utils/job'
 import type { SlurmJob } from '@/types/api'
 import Badge from '@/components/ui/Badge.vue'
 import Btn from '@/components/ui/Btn.vue'
@@ -23,15 +27,67 @@ const tab = ref<'active' | 'history'>('active')
 /** 이력 출처. slurmdbd가 끊기면 slurmctld의 잔여 완료 Job으로 대체된다. */
 const source = ref<string | null>(null)
 
-const columns = [
-  { key: 'id', label: 'Job ID', width: '110px' },
-  { key: 'name', label: '이름' },
-  { key: 'state', label: '상태', width: '110px' },
-  { key: 'partition', label: '파티션', width: '110px' },
-  { key: 'account', label: '계정', width: '120px' },
-  { key: 'nodes', label: '노드', width: '120px' },
-  { key: 'actions', label: '액션', width: '150px' },
-]
+/**
+ * 컬럼은 탭마다 다르다.
+ *   진행 중 — "얼마나 돌았나"가 관심사다. 의존성도 여기서만 의미가 있다.
+ *   이력   — 시작·종료가 관심사다. **이력 응답의 dependency는 항상 null이다**(실측)
+ *            — 빈 칸만 차지하므로 뺀다.
+ */
+const columns = computed(() =>
+  tab.value === 'active'
+    ? [
+        { key: 'id', label: 'Job ID', width: '110px' },
+        { key: 'name', label: '이름' },
+        { key: 'state', label: '상태', width: '110px' },
+        { key: 'elapsed', label: '수행 시간', width: '120px', num: true },
+        { key: 'dependency', label: '의존성', width: '210px' },
+        { key: 'partition', label: '파티션', width: '110px' },
+        { key: 'account', label: '계정', width: '120px' },
+        { key: 'nodes', label: '노드', width: '120px' },
+        { key: 'actions', label: '액션', width: '150px' },
+      ]
+    : [
+        { key: 'id', label: 'Job ID', width: '110px' },
+        { key: 'name', label: '이름' },
+        { key: 'state', label: '상태', width: '110px' },
+        { key: 'start', label: '시작', width: '140px' },
+        { key: 'end', label: '종료', width: '140px' },
+        { key: 'elapsed', label: '수행 시간', width: '120px', num: true },
+        { key: 'partition', label: '파티션', width: '110px' },
+        { key: 'account', label: '계정', width: '120px' },
+        { key: 'nodes', label: '노드', width: '120px' },
+        { key: 'actions', label: '액션', width: '150px' },
+      ],
+)
+
+/**
+ * 흐르는 시계. 도는 Job의 수행 시간이 멈춰 보이면 값이 틀린 것처럼 읽힌다.
+ *
+ * **도는 Job이 있을 때만 돈다** — 이력만 보고 있을 때 1초마다 다시 그릴 이유가 없다
+ * (인터랙티브 앱 목록의 폴링과 같은 태도).
+ */
+const now = ref(Math.floor(Date.now() / 1000))
+let ticker: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  ticker = setInterval(() => {
+    if (jobs.value.some((j) => jobState(j).toUpperCase().startsWith('RUN'))) {
+      now.value = Math.floor(Date.now() / 1000)
+    }
+  }, 1000)
+})
+onBeforeUnmount(() => clearInterval(ticker))
+
+/**
+ * 앞 Job의 이름 — **지금 목록에 있을 때만.**
+ *
+ * 번호로 하나씩 조회하면 목록을 그리는 데 요청이 N개 붙는다. 끝난 Job은 Slurm이
+ * 잊기도 해서(MinJobAge) 조회해도 없는 경우가 많다 — 이름은 있으면 좋은 정보이고,
+ * 눌러서 가는 링크가 본체다.
+ */
+function nameOf(id: string): string {
+  const found = jobs.value.find((j) => jobId(j) === id)
+  return found ? jobField(found, 'name', '') : ''
+}
 
 async function load() {
   if (!clusters.selectedId) return
@@ -145,9 +201,61 @@ const filtered = computed(() => jobs.value)
           </RouterLink>
         </td>
         <td class="px-3.5 py-2.5">{{ jobField(job, 'name') }}</td>
+        <!--
+          상태 칸은 상태만 보여준다. 대기 사유는 hover로 남긴다 — 한 칸에 몰아넣으면
+          정작 상태가 안 읽힌다. 의존성 때문에 막힌 경우는 옆 칸이 따로 말해 준다.
+        -->
         <td class="px-3.5 py-2.5">
-          <Badge :state="stateTone(jobState(job))">{{ jobState(job) || '—' }}</Badge>
+          <span :title="waitReasonText(job) || undefined">
+            <Badge :state="stateTone(jobState(job))">{{ jobState(job) || '—' }}</Badge>
+          </span>
         </td>
+        <!--
+          앞 Job이 무엇인지 눌러서 갈 수 있어야 한다 — 번호만 적어 두면 사용자가
+          목록을 다시 뒤져야 한다. 이름은 지금 목록에 있을 때만 덧붙인다(끝난 Job은
+          Slurm이 잊기도 한다).
+        -->
+        <!-- 헤더 순서와 셀 순서를 같이 바꾼다 — 어긋나면 값이 옆 칸에 찍힌다. -->
+        <template v-if="tab === 'history'">
+          <td class="px-3.5 py-2.5 mono text-[13px]" :title="formatTimestampFull(jobStartedAt(job))">
+            {{ formatTimestamp(jobStartedAt(job)) }}
+          </td>
+          <td class="px-3.5 py-2.5 mono text-[13px]" :title="formatTimestampFull(jobEndedAt(job))">
+            {{ formatTimestamp(jobEndedAt(job)) }}
+          </td>
+          <td class="px-3.5 py-2.5 mono text-right">
+            {{ formatDuration(jobElapsedSeconds(job, now)) }}
+          </td>
+        </template>
+        <template v-else>
+          <!-- 도는 중이면 **지금까지** 돈 시간이다. now가 1초마다 바뀌어 같이 흐른다. -->
+          <td class="px-3.5 py-2.5 mono text-right">
+            {{ formatDuration(jobElapsedSeconds(job, now)) }}
+          </td>
+          <td class="px-3.5 py-2.5">
+          <span v-if="!jobDependency(job)" class="text-ink-3">—</span>
+          <template v-else>
+            <div v-for="(term, i) in parseDependency(jobDependency(job))" :key="i" class="text-[13px]">
+              <span class="mono text-ink-3" :title="dependencyText(term.type)">{{ term.type }}</span>
+              <template v-for="dep in term.jobs" :key="dep.id">
+                <RouterLink
+                  :to="`/jobs/${dep.id}`"
+                  class="mono text-brand-700 font-semibold ml-1 hover:underline"
+                >#{{ dep.id }}</RouterLink>
+                <span v-if="nameOf(dep.id)" class="text-ink-2"> {{ nameOf(dep.id) }}</span>
+                <span
+                  v-if="dep.note"
+                  class="text-[12px] ml-1"
+                  :class="dep.note === 'failed' ? 'text-err font-semibold' : 'text-ink-3'"
+                >({{ dependencyNoteText(dep.note) }})</span>
+              </template>
+            </div>
+            <p v-if="isBlockedForever(job)" class="mt-1 text-[12px] text-err font-semibold">
+              영원히 시작되지 않습니다 — 직접 취소해야 합니다
+            </p>
+          </template>
+          </td>
+        </template>
         <td class="px-3.5 py-2.5 mono">{{ jobField(job, 'partition') }}</td>
         <td class="px-3.5 py-2.5 mono">{{ jobField(job, 'account') }}</td>
         <td class="px-3.5 py-2.5 mono">{{ jobField(job, 'nodes') }}</td>

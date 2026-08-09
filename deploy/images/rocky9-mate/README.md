@@ -6,7 +6,7 @@ Rocky 9 + MATE + TigerVNC + ParaView. 워커 노드에서 Apptainer로 실행된
 지금은 두 앱이 같은 SIF를 쓴다 — 데스크톱 위에서 도는 앱이라 기반이 겹치기 때문이다.
 
 앱마다 이미지를 나누는 것도 가능하다. 클러스터 설정은 이미지가 **있는 곳**
-(`image_repository`)만 갖고, 앱↔이미지 매핑은 포털의 앱 카탈로그
+(`app_image_dir`)만 갖고, 앱↔이미지 매핑은 포털의 앱 카탈로그
 (`backend/app/services/session_apps.py`)에 있다. 나눌 때는 그 표의 `image`만 바꾼다.
 
 | `PORTAL_APP` | 실행되는 것 |

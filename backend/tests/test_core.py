@@ -157,12 +157,13 @@ def test_client_factory_survives_detached_cluster(db, settings, secret_store):
 def test_models_match_erd_entity_count():
     """db-erd.md의 엔티티 수와 일치해야 한다.
 
-    20 = 초기 21개 - `user_ssh_key`(U-AC-03, 0005) - `job_template`(U-JB-03/A-OP-02, 0012)
-    + `api_token`(C-01 기계 자격증명, 0013).
+    22 = 초기 21개 - `user_ssh_key`(U-AC-03, 0005) - `job_template`(U-JB-03/A-OP-02, 0012)
+    + `api_token`(C-01 기계 자격증명, 0013) + `app_access`(앱별 허용 계정, 0014)
+    + `app_catalog`(A-OP-02 앱 정보, 0015).
     """
     from app.models import Base
 
-    assert len(Base.metadata.tables) == 20
+    assert len(Base.metadata.tables) == 22
 
 
 def test_slurm_owned_entities_are_not_portal_tables():
@@ -260,3 +261,174 @@ def test_tables_without_code_are_the_documented_ones():
         "chargeback_rate",           # A-RP-05 미구현
         "billing_snapshot",          # A-BL-03·04 수집 이력 미구현
     }, f"쓰이지 않는 표 목록이 바뀌었다: {sorted(unused)} — models/ops.py 머리말도 함께 고칠 것"
+
+
+# --- A-OP-02 앱 카탈로그 -----------------------------------------------------
+def _app_body(**overrides):
+    return {
+        "kind": "interactive",
+        "app_id": "jupyter",
+        "name": "JupyterLab",
+        "vendor": "Project Jupyter",
+        "version": "4.2",
+        "image_location": "docker://reg.dt-hpc.net/hpc/jupyter:4.2",
+        "icon_file": "jupyter.svg",
+        "description": "노트북 세션",
+        **overrides,
+    }
+
+
+def test_app_catalog_crud_is_admin_only(client, admin_token, user_token):
+    from tests.conftest import auth_headers
+
+    # 읽기는 인증 사용자에게 열려 있다 — 사용자 화면이 아이콘·벤더를 읽는다.
+    assert client.get("/api/v1/apps", headers=auth_headers(user_token)).status_code == 200
+    assert client.post(
+        "/api/v1/apps", json=_app_body(), headers=auth_headers(user_token)
+    ).status_code == 403
+
+    created = client.post("/api/v1/apps", json=_app_body(), headers=auth_headers(admin_token))
+    assert created.status_code == 201
+    pk = created.json()["id"]
+
+    patched = client.patch(
+        f"/api/v1/apps/{pk}", json={"version": "4.3"}, headers=auth_headers(admin_token)
+    )
+    assert patched.status_code == 200
+    assert patched.json()["version"] == "4.3"
+    assert patched.json()["vendor"] == "Project Jupyter"  # 부분 수정이 다른 값을 지우지 않는다
+
+    assert client.delete(f"/api/v1/apps/{pk}", headers=auth_headers(admin_token)).status_code == 200
+    # 등록을 지워도 코드 카탈로그의 앱은 목록에 남는다 — 사라지는 것은 등록 정보뿐이다.
+    after = _find_app(client, admin_token, "interactive", "jupyter")
+    assert after["id"] is None
+    assert after["vendor"] is None
+
+
+def test_app_catalog_rejects_duplicate_and_unknown_kind(client, admin_token):
+    from tests.conftest import auth_headers
+
+    assert client.post(
+        "/api/v1/apps", json=_app_body(), headers=auth_headers(admin_token)
+    ).status_code == 201
+    # 같은 (kind, app_id)는 코드 카탈로그로 가는 연결 키라 하나여야 한다.
+    assert client.post(
+        "/api/v1/apps", json=_app_body(), headers=auth_headers(admin_token)
+    ).status_code == 409
+    # kind가 다르면 같은 app_id를 써도 다른 앱이다.
+    assert client.post(
+        "/api/v1/apps", json=_app_body(kind="batch"), headers=auth_headers(admin_token)
+    ).status_code == 201
+    assert client.post(
+        "/api/v1/apps", json=_app_body(kind="desktop"), headers=auth_headers(admin_token)
+    ).status_code == 422
+
+
+def test_app_catalog_changes_are_audited_by_reference_only(client, db, admin_token):
+    from app.models import AuditLog
+    from tests.conftest import auth_headers
+
+    client.post("/api/v1/apps", json=_app_body(), headers=auth_headers(admin_token))
+    entry = db.query(AuditLog).filter_by(action="APP_CREATE").one()
+    assert entry.target == "JupyterLab"
+    assert entry.detail == "interactive/jupyter"
+
+
+def test_icon_url_is_derived_from_stored_filename(client, admin_token):
+    """DB에는 파일명만 남고 주소는 서버가 만든다 — 배포 위치가 DB로 새지 않는다."""
+    from app.models import AppCatalog
+    from tests.conftest import auth_headers
+
+    created = client.post(
+        "/api/v1/apps", json=_app_body(), headers=auth_headers(admin_token)
+    ).json()
+    assert created["icon_file"] == "jupyter.svg"
+    assert created["icon_url"] == "/api/v1/app-icons/jupyter.svg"
+    assert not hasattr(AppCatalog, "icon_url")  # 컬럼이 아니라 파생값이다
+
+
+def test_app_icon_serving_rejects_traversal_and_unknown_types(client, admin_token, tmp_path):
+    """아이콘 디렉터리 밖은 어떤 형태로도 읽히면 안 된다."""
+    from app.core.config import get_settings
+    from tests.conftest import auth_headers
+
+    (tmp_path / "ok.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'/>")
+    (tmp_path / "secret.env").write_text("PORTAL_JWT_SECRET=leak")
+    outside = tmp_path.parent / "outside.svg"
+    outside.write_text("<svg/>")
+    (tmp_path / "link.svg").symlink_to(outside)
+
+    settings = get_settings()
+    original = settings.app_icon_dir
+    object.__setattr__(settings, "app_icon_dir", str(tmp_path))
+    try:
+        h = auth_headers(admin_token)
+        ok = client.get("/api/v1/app-icons/ok.svg", headers=h)
+        assert ok.status_code == 200
+        assert ok.headers["content-type"].startswith("image/svg+xml")
+        # SVG를 직접 열어도 스크립트가 돌지 않게 잠근다
+        assert ok.headers["content-security-policy"] == "default-src 'none'; style-src 'unsafe-inline'"
+        assert ok.headers["x-content-type-options"] == "nosniff"
+
+        for bad in ("../secret.env", "..%2Fsecret.env", "secret.env", ".hidden.svg", "link.svg"):
+            assert client.get(f"/api/v1/app-icons/{bad}", headers=h).status_code in (307, 404)
+
+        assert client.get("/api/v1/app-icons", headers=h).json() == ["ok.svg"]
+    finally:
+        object.__setattr__(settings, "app_icon_dir", original)
+
+
+def _find_app(client, token, kind, app_id):
+    from tests.conftest import auth_headers
+
+    rows = client.get("/api/v1/apps", headers=auth_headers(token)).json()
+    return next(r for r in rows if r["kind"] == kind and r["app_id"] == app_id)
+
+
+def test_app_list_includes_code_catalog_apps_without_registration(client, admin_token):
+    """등록이 0건이어도 코드 카탈로그의 앱은 보여야 한다.
+
+    등록된 것만 주면 아직 등록하지 않은 앱이 관리 화면에서 존재하지 않는 것이 된다.
+    """
+    from tests.conftest import auth_headers
+
+    rows = client.get("/api/v1/apps", headers=auth_headers(admin_token)).json()
+    keys = {(r["kind"], r["app_id"]) for r in rows}
+    assert ("interactive", "desktop") in keys
+    assert ("interactive", "paraview") in keys
+    assert ("batch", "openfoam") in keys
+
+    desktop = _find_app(client, admin_token, "interactive", "desktop")
+    assert desktop["id"] is None  # 아직 등록 안 함 → 등록 대상
+    assert desktop["in_code"] is True
+    assert desktop["name"]  # 이름·설명은 코드 카탈로그 값이 쓰인다
+    assert desktop["vendor"] is None
+
+
+def test_registered_metadata_overlays_code_catalog(client, admin_token):
+    from tests.conftest import auth_headers
+
+    client.post(
+        "/api/v1/apps",
+        json=_app_body(app_id="desktop", name="원격 데스크톱 (사내)", vendor="MATE"),
+        headers=auth_headers(admin_token),
+    )
+    row = _find_app(client, admin_token, "interactive", "desktop")
+    assert row["id"] is not None
+    assert row["in_code"] is True
+    assert row["name"] == "원격 데스크톱 (사내)"  # 등록 이름이 코드 이름을 덮는다
+    assert row["vendor"] == "MATE"
+
+
+def test_registration_for_app_not_in_code_is_kept(client, admin_token):
+    """도입 예정 앱을 미리 등록할 수 있다 — 코드에 없다고 목록에서 빠지면 안 된다."""
+    from tests.conftest import auth_headers
+
+    client.post(
+        "/api/v1/apps",
+        json=_app_body(app_id="ansys-fluent", name="Ansys Fluent"),
+        headers=auth_headers(admin_token),
+    )
+    row = _find_app(client, admin_token, "interactive", "ansys-fluent")
+    assert row["in_code"] is False
+    assert row["id"] is not None

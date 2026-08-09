@@ -22,7 +22,9 @@ from app.core.errors import ValidationFailed
 SESSION_SUBDIR = ".portal/sessions"
 LOG_SUBDIR = ".portal/logs"
 
-# 컨테이너 안의 기동 스크립트 (deploy/images/rocky9-mate/)
+# 컨테이너 안의 기동 스크립트 기본값 (deploy/images/rocky9-mate/).
+# **앱마다 다르다** — VNC 앱은 start-desktop.sh, HTTP 앱은 start-jupyter.sh다.
+# 정본은 앱 카탈로그(`session_apps.py`)이고 여기 값은 지정이 없을 때의 기본이다.
 CONTAINER_ENTRY = "/opt/portal/start-desktop.sh"
 
 # 호스트의 SSSD 소켓. 바인드하면 컨테이너에서 다른 AD 사용자 이름이 풀린다.
@@ -47,6 +49,8 @@ class SessionSpec:
     walltime: str | None = None
     geometry: str = "1920x1080"
     exclusive: bool = False
+    #: 컨테이너 안에서 실행할 기동 스크립트. 앱 카탈로그가 정한다.
+    entry: str = CONTAINER_ENTRY
 
 
 def session_dir(home: str, job_id: str | int) -> str:
@@ -76,7 +80,7 @@ def build_session_script(spec: SessionSpec) -> str:
     if not spec.image_ref:
         raise ValidationFailed(
             "세션 이미지가 정해지지 않았습니다.",
-            detail={"field": "image_repository"},
+            detail={"field": "image_file"},
         )
     if not _GEOMETRY_RE.match(spec.geometry):
         raise ValidationFailed(
@@ -108,7 +112,7 @@ def build_session_script(spec: SessionSpec) -> str:
     image = shlex.quote(spec.image_ref)
     geometry = shlex.quote(spec.geometry)
     app = shlex.quote(spec.app)
-    entry = shlex.quote(CONTAINER_ENTRY)
+    entry = shlex.quote(spec.entry or CONTAINER_ENTRY)
     pipes = shlex.quote(SSSD_PIPES)
 
     body = f"""

@@ -34,3 +34,18 @@ class InteractiveSessionRepository(BaseRepository[InteractiveSession]):
                 InteractiveSession.user_guid == user_guid,
             )
         )
+
+    def owned_by_job(self, slurm_job_id: str, user_guid: str) -> InteractiveSession | None:
+        """Slurm Job ID로 찾되 **소유자 조건을 조회에 붙인다**(`owned`와 같은 이유).
+
+        HTTP 앱 프록시는 세션 ID가 아니라 Job ID로 들어온다 — 컨테이너가 자기 base_url을
+        정할 때 아는 것이 Job ID뿐이기 때문이다(세션 ID는 제출 뒤에 생긴다).
+        """
+        return self.session.scalar(
+            select(InteractiveSession)
+            .where(
+                InteractiveSession.slurm_job_id == str(slurm_job_id),
+                InteractiveSession.user_guid == user_guid,
+            )
+            .order_by(InteractiveSession.id.desc())
+        )

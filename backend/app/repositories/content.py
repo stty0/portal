@@ -1,10 +1,10 @@
-"""공지·포털 설정 repository (A-OP-01·04, U-CL-03)."""
+"""공지·포털 설정·앱 카탈로그 repository (A-OP-01·02·04, U-CL-03)."""
 
 from datetime import datetime
 
 from sqlalchemy import or_, select
 
-from app.models import Notice, PortalSetting
+from app.models import AppCatalog, Notice, PortalSetting
 from app.repositories.base import BaseRepository
 
 
@@ -44,3 +44,21 @@ class PortalSettingRepository(BaseRepository[PortalSetting]):
             self.session.add(row)
             self.session.flush()
         return row
+
+
+class AppCatalogRepository(BaseRepository[AppCatalog]):
+    """A-OP-02. `(kind, app_id)`가 업무 키다 — id는 화면 조작용."""
+
+    model = AppCatalog
+
+    def list_all(self) -> list[AppCatalog]:
+        return list(
+            self.session.scalars(
+                select(AppCatalog).order_by(AppCatalog.kind, AppCatalog.app_id)
+            )
+        )
+
+    def get_by_app(self, kind: str, app_id: str) -> AppCatalog | None:
+        return self.session.scalar(
+            select(AppCatalog).where(AppCatalog.kind == kind, AppCatalog.app_id == app_id)
+        )

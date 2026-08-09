@@ -37,9 +37,9 @@ def _body(app, values, **kw):
 # --- 카탈로그 --------------------------------------------------------------
 
 
-def test_catalog_exposes_the_parameter_schema(client, user_token):
+def test_catalog_exposes_the_parameter_schema(client, cluster, user_token):
     """화면은 이 스키마로 폼을 그린다 — 필드를 화면이 갖고 있으면 앱마다 화면을 고쳐야 한다."""
-    body = client.get(f"{API}/batch-apps", headers=auth_headers(user_token)).json()
+    body = client.get(f"{API}/clusters/{cluster.id}/batch-apps", headers=auth_headers(user_token)).json()
     foam = next(a for a in body if a["id"] == "openfoam")
     keys = [p["key"] for p in foam["params"]]
     assert keys[:2] == ["case", "solver"]
@@ -65,16 +65,23 @@ def test_not_ready_app_is_blocked_before_submitting(
     assert "제공되지 않습니다" in resp.json()["message"]
 
 
-def test_ready_app_resolves_its_image_from_the_repository(client):
-    """준비된 앱은 클러스터 저장소 아래에서 이미지를 찾는다."""
+def _resolve_batch(db, settings, app_id, image_dir="/home/portal/images"):
+    from app.services import app_images
+
+    object.__setattr__(settings, "app_image_dir", image_dir)
+    return app_images.resolve(db, settings, app_images.KIND_BATCH, app_id)
+
+
+def test_ready_app_resolves_its_image_from_the_portal_dir(db, settings):
+    """준비된 앱은 포털 공용 디렉터리 아래에서 이미지를 찾는다."""
     foam = B.get("openfoam")
     assert foam.ready and foam.image
-    assert B.image_ref("/home/portal/images", foam) == "/home/portal/images/openfoam-2512.sif"
+    assert _resolve_batch(db, settings, "openfoam") == "/home/portal/images/openfoam-2512.sif"
 
 
-def test_isaac_sim_is_listed_as_a_gpu_app_that_is_not_ready_yet(client, user_token):
+def test_isaac_sim_is_listed_as_a_gpu_app_that_is_not_ready_yet(client, cluster, user_token):
     """이미지도 GPU 노드도 없다 — 목록에는 보이되 고를 수 없어야 한다."""
-    body = client.get(f"{API}/batch-apps", headers=auth_headers(user_token)).json()
+    body = client.get(f"{API}/clusters/{cluster.id}/batch-apps", headers=auth_headers(user_token)).json()
     isaac = next(a for a in body if a["id"] == "isaac-sim")
     assert isaac["needs_gpu"] is True
     assert isaac["ready"] is False
@@ -160,11 +167,20 @@ def test_catalog_mismatch_is_reported_not_shipped(client):
     assert "nowhere" in e.value.message
 
 
-def test_image_reference_needs_a_repository(client):
+def test_app_without_an_image_file_is_rejected(db, settings, monkeypatch):
+    """코드 기본값도 등록도 없으면 제출 전에 막는다."""
+    monkeypatch.setattr(B, "APPS", (_app(image=""),))
     with pytest.raises(ValidationFailed) as e:
-        B.image_ref(None, _app())
-    assert "이미지 저장소" in e.value.message
-    assert B.image_ref("/home/images/", _app()) == "/home/images/demo.sif"
+        _resolve_batch(db, settings, "demo")
+    assert "이미지 파일" in e.value.message
+
+
+def test_registered_image_file_wins_over_the_code_default(db, settings):
+    from app.models import AppCatalog
+
+    db.add(AppCatalog(kind="batch", app_id="openfoam", name="f", image_file="foam-next.sif"))
+    db.commit()
+    assert _resolve_batch(db, settings, "openfoam") == "/home/portal/images/foam-next.sif"
 
 
 # --- 다단계 실행 -----------------------------------------------------------
@@ -304,7 +320,6 @@ def test_submitted_script_comes_from_the_catalog_not_the_request(
 ):
     """요청의 `script`를 무시하지 않으면 카탈로그를 두는 의미가 없다."""
     monkeypatch.setattr(B, "APPS", (_app(),))
-    cluster.image_repository = "/home/images"
     db.commit()
 
     resp = client.post(
@@ -324,7 +339,7 @@ def test_submitted_script_comes_from_the_catalog_not_the_request(
 
     spec = [kw["spec"] for n, kw in slurm_client.calls if n == "submit_job"][0]
     assert "rm -rf /" not in spec["script"]
-    assert "/home/images/demo.sif" in spec["script"]
+    assert "/home/portal/images/demo.sif" in spec["script"]
     # 자원 입력은 Job 제출과 같은 경로를 탄다.
     assert spec["job"]["tasks"] == 16
     assert spec["job"]["array"] == "1-4"

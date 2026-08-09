@@ -56,17 +56,31 @@ RUN dnf -y install "dnf-command(config-manager)" \
  && dnf clean all \
  && rm -rf /var/cache/dnf
 
+# JupyterLab (U-IA-01). **VNC를 쓰지 않는 첫 앱이다** — HTTP 서비스라 X 서버가 없어도 된다.
+# 포털이 경로 접두사를 붙여 리버스 프록시하고, Jupyter는 `--ServerApp.base_url`로 자기
+# 주소를 안다(그게 없으면 HTML의 링크가 전부 `/`로 나가 포털 SPA로 떨어진다).
+#
+# rocky9의 python3는 3.9라 최신 JupyterLab이 안 붙는다 — AppStream의 3.11을 쓴다.
+# `--no-cache-dir`: 캐시를 남기면 이미지가 수백 MB 커진다.
+RUN dnf -y install python3.11 python3.11-pip \
+ && python3.11 -m pip install --no-cache-dir --upgrade pip \
+ && python3.11 -m pip install --no-cache-dir jupyterlab notebook ipywidgets \
+ && ln -sf /usr/bin/python3.11 /usr/local/bin/python3-portal \
+ && dnf clean all \
+ && rm -rf /var/cache/dnf /root/.cache
+
 # 스크린세이버/잠금은 컨테이너 세션에서 의미가 없고, 잠기면 되살릴 방법이 없다.
 RUN rm -f /etc/xdg/autostart/mate-screensaver.desktop \
           /etc/xdg/autostart/blueman.desktop \
           /etc/xdg/autostart/pulseaudio.desktop 2>/dev/null || true
 
-COPY start-desktop.sh start-mate.sh start-paraview.sh reset-window-policy.sh /opt/portal/
+COPY start-desktop.sh start-mate.sh start-paraview.sh start-jupyter.sh reset-window-policy.sh /opt/portal/
 # tint2 설정은 이미지에 둔다 — `-c`로 지정하지 않으면 tint2가 사용자 홈(NFS)에 기본
 # 설정을 만들고, 그것이 세션·노드를 넘어 따라온다.
 COPY tint2rc /opt/portal/tint2rc
 RUN chmod 755 /opt/portal/start-desktop.sh /opt/portal/start-mate.sh \
-              /opt/portal/start-paraview.sh /opt/portal/reset-window-policy.sh \
+              /opt/portal/start-paraview.sh /opt/portal/start-jupyter.sh \
+              /opt/portal/reset-window-policy.sh \
  && chmod 644 /opt/portal/tint2rc
 
 # Apptainer는 이 ENTRYPOINT를 쓰지 않는다(exec로 스크립트를 직접 부른다).

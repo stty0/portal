@@ -1,0 +1,77 @@
+{{- $fullname := include "hpc-portal.fullname" . }}
+{{- $secret := include "hpc-portal.backendSecretName" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-backend
+  labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "hpc-portal.name" . }}
+    app.kubernetes.io/component: backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-backend
+  labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "hpc-portal.name" . }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        {{- include "hpc-portal.labels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+      annotations:
+        # Secret이 바뀌면 파드를 다시 띄운다 — 안 그러면 옛 자격증명으로 계속 돈다.
+        checksum/env: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+    spec:
+      {{- if .Values.backend.migrate }}
+      # 스키마를 먼저 맞춘 뒤에 앱이 뜨게 한다. replica를 늘릴 때는 동시 실행을 피하도록
+      # Job/Helm hook으로 분리해야 한다(§5.5).
+      initContainers:
+        - name: migrate
+          image: {{ include "hpc-portal.backendImage" . }}
+          imagePullPolicy: {{ .Values.image.backend.pullPolicy }}
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - secretRef: { name: {{ $secret }} }
+      {{- end }}
+      containers:
+        - name: backend
+          image: {{ include "hpc-portal.backendImage" . }}
+          imagePullPolicy: {{ .Values.image.backend.pullPolicy }}
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - secretRef: { name: {{ $secret }} }
+          volumeMounts:
+            # 로그인 노드 호스트키 (U-FM-01). 없으면 SSH 접속을 거부한다.
+            - name: ssh-known-hosts
+              mountPath: /etc/portal/ssh
+              readOnly: true
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources: {{- toYaml .Values.backend.resources | nindent 12 }}
+      volumes:
+        - name: ssh-known-hosts
+          secret:
+            secretName: {{ include "hpc-portal.knownHostsSecretName" . }}
+            # 호스트키가 아직 없어도 파드는 떠야 한다 — 파일 브라우저만 막히고
+            # Job 제출·모니터링은 REST라 동작한다.
+            optional: true

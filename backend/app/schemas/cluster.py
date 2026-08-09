@@ -54,7 +54,6 @@ class ClusterOut(ClusterSummary):
     ssh_port: int | None
     ssh_account: str | None
     home_base: str | None = None
-    image_repository: str | None = None
     created_at: datetime | None = None
     last_health_at: datetime | None = None
     last_health_ok: bool | None = None
@@ -74,9 +73,7 @@ class ClusterCreate(BaseModel):
     login_node: str | None = None
     ssh_port: int | None = 22
     ssh_account: str | None = None
-    #: U-IA-01·02 세션 이미지 **저장소**. 이미지명은 앱 카탈로그가 갖는다.
     home_base: str | None = None
-    image_repository: str | None = None
     is_default: bool = False
 
 
@@ -90,7 +87,6 @@ class ClusterUpdate(BaseModel):
     ssh_port: int | None = None
     ssh_account: str | None = None
     home_base: str | None = None
-    image_repository: str | None = None
     is_default: bool | None = None
 
 
@@ -222,3 +218,18 @@ class SlurmQosAssign(BaseModel):
     """association에 허용할 QOS 집합. **덮어쓰기**이므로 전체를 보낸다."""
 
     qos: list[str] = Field(default_factory=list, max_length=32)
+
+
+class AppAccessOut(BaseModel):
+    """앱 하나의 배정 현황 (A-US-02). `accounts`가 비면 전원 허용이다."""
+
+    kind: str
+    app_id: str
+    name: str
+    accounts: list[str]
+
+
+class AppAccessAssign(BaseModel):
+    """앱에 허용할 계정 집합. QOS 배정과 같은 규칙 — **덮어쓰기**라 전체를 보낸다."""
+
+    accounts: list[str] = Field(default_factory=list, max_length=64)

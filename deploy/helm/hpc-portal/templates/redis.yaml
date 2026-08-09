@@ -1,0 +1,83 @@
+{{- if .Values.redis.enabled }}
+{{- $fullname := include "hpc-portal.fullname" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-redis
+  labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "hpc-portal.name" . }}
+    app.kubernetes.io/component: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+{{- if .Values.dev.nodePorts.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-redis-nodeport
+  labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: {{ include "hpc-portal.name" . }}
+    app.kubernetes.io/component: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      nodePort: {{ .Values.dev.nodePorts.redis }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-redis
+  labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "hpc-portal.name" . }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "hpc-portal.labels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          # 영속성 없음(--save "") — 캐시·세션 용도라 유실을 허용한다(§5.4).
+          command: ["sh", "-c", 'exec redis-server --requirepass "$REDIS_PASSWORD" --save ""']
+          ports:
+            - containerPort: 6379
+              name: redis
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ include "hpc-portal.redisSecretName" . }}, key: password }
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", 'redis-cli -a "$REDIS_PASSWORD" ping']
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", 'redis-cli -a "$REDIS_PASSWORD" ping']
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources: {{- toYaml .Values.redis.resources | nindent 12 }}
+      volumes:
+        - name: data
+          emptyDir: {}
+{{- end }}

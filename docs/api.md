@@ -76,7 +76,7 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 | GET | `/cluster-api-versions` | 등록 폼의 API 버전 선택지. **목록의 단일 출처** — 응답 파싱이 버전에 묶여 있어 늘리려면 코드 변경이 따라온다 | A-CL-02 | admin:access | 필수 |
 | POST | `/clusters` | 클러스터 등록(`api_version`은 지원 목록, `auth_method`는 `jwt`만 허용 — munge는 범위 밖). **이름은 받지 않는다** — `alias`(별칭)만 필수이고, `name`은 REST 연결 테스트가 slurm.conf `ClusterName`으로 채운다 | A-CL | admin:access | 필수 |
 | GET | `/clusters/{cid}` | 클러스터 상세(Secret 마스킹). `last_health_at`·`last_health_ok`와 자격증명 참조 목록(`credentials`: kind·expires_at, **값 없음**) 포함 | A-CL | admin:access | 필수 |
-| PATCH | `/clusters/{cid}` | 수정(별칭·엔드포인트·SSH·홈/이미지 경로·기본 여부). **이름은 수정할 수 없다.** `api_version`·`auth_method`는 등록과 같은 제약을 받는다 | A-CL | admin:access | 필수 |
+| PATCH | `/clusters/{cid}` | 수정(별칭·엔드포인트·SSH·홈 경로·기본 여부). **이름은 수정할 수 없다.** `api_version`·`auth_method`는 등록과 같은 제약을 받는다 | A-CL | admin:access | 필수 |
 | DELETE | `/clusters/{cid}` | 삭제(비활성화) | A-CL | admin:access | 필수 |
 | DELETE | `/clusters/{cid}/purge` | 완전 삭제. 비활성 + 무참조(감사 로그·세션·공지·기본 클러스터)일 때만 허용, 아니면 409. 자격증명·Secret 실값 동반 파기 | A-CL | admin:access | 권장 |
 | PUT | `/clusters/{cid}/credentials` | JWT/SSH 키 등록·교체(kind=SLURM_JWT/SSH_KEY, 무중단 교체) | C-03 | admin:access | 필수 |
@@ -108,7 +108,7 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 | ~~GET~~ | ~~`/clusters/{cid}/jobs/{job_id}/logs`~~ | stdout/stderr 실시간 tail (SSE) — **미구현**| U-JB-06 | 인증 | 필수 |
 | GET | `/clusters/{cid}/jobs/history` | 완료 Job 이력(sacct — 기간·자원 사용량·종료 코드) | U-JB-09, A-JB-04 | 인증 | 필수 |
 | GET | `/clusters/{cid}/job-options` | 제출 폼 선택지(파티션·계정·QOS·`gpu_partitions`) — 폼이 자유 입력 대신 실제 값을 고르게 한다. `gpu_partitions`는 **`null`이면 '모름'**(노드 조회 실패), 빈 배열이면 'GPU 없음' | U-JB-01 | 인증 | 필수 |
-| GET | `/batch-apps` | Batch 앱(해석 solver) 카탈로그 — 파라미터 스키마 포함. **예정 앱도 내려보낸다**(`ready=false`) | U-JB-13 | 인증 | 권장 |
+| GET | `/clusters/{cid}/batch-apps` | Batch 앱(해석 solver) 카탈로그 — 파라미터 스키마 포함. **예정 앱도 내려보낸다**(`ready=false`). **클러스터에 매인다** — 앱을 쓸 수 있는 계정이 클러스터별로 정해지고, 배정에서 빠진 앱은 `allowed=false`로 온다 | U-JB-13 | 인증 | 권장 |
 | POST | `/clusters/{cid}/batch-apps/{app_id}/jobs` | 앱 + 파라미터 → **여러 단계** 배치 스크립트 → sbatch. **스크립트는 서버가 만든다** — 요청의 `script`·`mode`는 무시한다. 자원 필드는 Job 제출과 동일 | U-JB-13 | 인증 | 권장 |
 | POST | `/clusters/{cid}/jobs/preview-script` | 폼 값으로 생성될 스크립트 미리보기(제출 없음) | U-JB-02 | 인증 | 필수 |
 
@@ -139,6 +139,8 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 | POST | `/clusters/{cid}/accounts/{name}/users` | 계정에 사용자 추가(association 생성) | A-US-02 | admin:access | 필수 |
 | DELETE | `/clusters/{cid}/accounts/{name}/users/{username}` | 계정에서 사용자 제거 | A-US-02 | admin:access | 필수 |
 | PUT | `/clusters/{cid}/accounts/{name}/users/{username}/qos` | 사용자별 QOS 지정(association 단위) | A-US-03 | admin:access | 필수 |
+| GET | `/clusters/{cid}/app-access` | 앱별 허용 계정. **카탈로그 전체**가 오고 배정이 없는 앱은 `accounts=[]`(=전원 허용) | A-US-02 | admin:access | 권장 |
+| PUT | `/clusters/{cid}/app-access/{kind}/{app_id}` | 앱에 계정 배정. QOS와 같은 **덮어쓰기** — 빈 배열이면 그 앱이 다시 전원에게 열린다. `kind`는 `interactive`·`batch` | A-US-02 | admin:access | 권장 |
 | ~~PUT~~ | ~~`/clusters/{cid}/accounts/{name}/users`~~ | 계정↔사용자 N:M 매핑(association 추가/제거) — **미구현**| A-US-02 | admin:access | 필수 |
 | GET | `/clusters/{cid}/qos` | QOS 목록 | A-US-03 | admin:access | 필수 |
 | POST | `/clusters/{cid}/qos` | QOS 생성(한도·우선순위) | A-US-03 | admin:access | 필수 |
@@ -190,9 +192,9 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 | Method | Path | 설명 | 기능 ID | 권한 | 우선순위 |
 |---|---|---|---|---|---|
 | WS | `/clusters/{cid}/terminal` | 로그인 노드 셸 (WS·PTY, `sudo -n -u <user> -i`) | U-SH-01 | 인증 | 권장 |
-| GET | `/interactive-apps` | 앱 카탈로그(id·이름·설명·`fid`·`ready`). **목록의 단일 출처** — 화면이 같은 배열을 따로 갖지 않는다. 어떤 이미지를 쓰는지는 담지 않는다(운영 정보) | U-IA-01 | 인증 | 필수 |
+| GET | `/clusters/{cid}/interactive-apps` | 앱 카탈로그(id·이름·설명·`fid`·`ready`·`allowed`·`accounts`). **목록의 단일 출처** — 화면이 같은 배열을 따로 갖지 않는다. 어떤 이미지를 쓰는지는 담지 않는다(운영 정보). **클러스터에 매인다** — 계정 배정이 클러스터별 slurmdbd 소속으로 판정되기 때문이다 | U-IA-01 | 인증 | 필수 |
 | GET | `/clusters/{cid}/sessions` | 내 인터랙티브 세션 목록(클러스터 스코프) | U-IA-04 | 인증 | 필수 |
-| POST | `/clusters/{cid}/sessions` | 세션 실행(`app`=desktop/paraview + 자원 스펙 → slurmrestd 제출). 이미지는 **클러스터의 `image_repository` + 앱 카탈로그의 이미지명**으로 서버가 정한다 — 클라이언트가 지정할 수 없다. 제출 직후는 `PENDING` — 준비되면 `is_running` | U-IA-01·02 | 인증 | 필수 |
+| POST | `/clusters/{cid}/sessions` | 세션 실행(`app`=desktop/paraview + 자원 스펙 → slurmrestd 제출). 이미지는 **포털 설정 `app_image_dir` + 앱 카탈로그의 `image_file`**(없으면 코드 기본값)로 서버가 정한다 — 클라이언트가 지정할 수 없다. 제출 직후는 `PENDING` — 준비되면 `is_running` | U-IA-01·02 | 인증 | 필수 |
 | GET | `/sessions/{sid}` | 세션 상태(Slurm Job 상태가 권위 있는 출처) | U-IA-04 | 인증 | 필수 |
 | GET | `/sessions/{sid}/connection` | RFB 핸드셰이크용 **비밀번호·해상도만**. **host/port는 응답에 필드 자체가 없다** — 열린 프록시가 되지 않게 | U-IA-02 | 인증(소유자) | 필수 |
 | WS | `/sessions/{sid}/connect` | 브라우저 noVNC ↔ 워커 Xvnc RFB 바이트 중계. 토큰은 subprotocol `portal.token.<jwt>`로 전달 | U-IA-02 | 인증(소유자) | 필수 |
@@ -225,6 +227,14 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 | POST | `/notices` | 공지 등록(배너·기간). 대상 클러스터는 **받지 않는다** | A-OP-01 | admin:access | 필수 |
 | PATCH | `/notices/{id}` | 공지 수정 | A-OP-01 | admin:access | 필수 |
 | DELETE | `/notices/{id}` | 공지 삭제 | A-OP-01 | admin:access | 필수 |
+| GET | `/apps` | 앱 목록 — **코드 카탈로그의 앱 + 등록된 메타데이터를 합친다**(아이콘·벤더·버전·이미지 위치·설명). `id=null`은 아직 정보가 등록되지 않은 코드 앱, `in_code=false`는 코드에 없는 등록(도입 예정). 실행 방식은 포함하지 않는다 | A-OP-02 | 인증 | 필수 |
+| GET | `/app-icons` | 아이콘 디렉터리(`app_icon_dir`)의 파일명 목록 — 등록 폼의 선택지 | A-OP-02 | admin:access | 필수 |
+| POST | `/app-icons` | 아이콘 업로드(multipart, 512KB 이하). **형식은 내용으로 판정**하고 파일명은 서버가 정한다(중복이면 번호를 붙임). 응답은 갱신된 목록 | A-OP-02 | admin:access | 필수 |
+| GET | `/app-images` | 공용 이미지 디렉터리(`app_image_dir`)의 컨테이너 이미지 파일명 목록 | A-OP-02 | admin:access | 필수 |
+| GET | `/app-icons/{name}` | 아이콘 파일. 이름 화이트리스트 + **정규화 뒤** 디렉터리 경계 확인(심볼릭 링크 거부), SVG는 `CSP: default-src 'none'`로 잠근다 | A-OP-02 | 인증 | 필수 |
+| POST | `/apps` | 앱 등록. `(kind, app_id)`가 코드 카탈로그로 가는 연결 키이며 중복이면 409 | A-OP-02 | admin:access | 필수 |
+| PATCH | `/apps/{id}` | 앱 수정. `kind`·`app_id`는 바꿀 수 없다(연결 키) | A-OP-02 | admin:access | 필수 |
+| DELETE | `/apps/{id}` | 앱 등록 삭제. 코드 카탈로그의 앱은 등록만 사라지고 계속 동작한다 | A-OP-02 | admin:access | 필수 |
 | ~~GET~~ | ~~`/tickets`~~ | 티켓 목록 — USER 본인, ADMIN 전체 — **미구현**| U-AC-04, A-OP-05 | 인증 | 선택 |
 | ~~POST~~ | ~~`/tickets`~~ | 티켓 제출(Job ID 자동 첨부) — **미구현**| U-AC-04 | 인증 | 선택 |
 | ~~PATCH~~ | ~~`/tickets/{id}`~~ | 응답/상태 변경(담당자 배정) — **미구현**| A-OP-05 | admin:access | 선택 |

@@ -64,3 +64,13 @@ class InteractiveAppOut(BaseModel):
     description: str
     fid: str
     ready: bool
+    #: 접속 방식. 화면이 **어디로 보낼지**를 이 값으로 정한다 — `vnc`는 원격 데스크톱
+    #: 화면, `http`는 프록시 주소다. 화면이 앱 id로 분기하면 앱을 늘릴 때마다 화면을 고쳐야 한다.
+    transport: str = "vnc"
+    #: 실행할 수 없는 앱에 붙는 안내. 비어 있으면 화면이 표시하지 않는다.
+    note: str = ""
+    #: 이 사용자가 쓸 수 있는가. `ready`와 다른 잠금이다 — 앱은 준비됐지만
+    #: **계정 배정에서 빠진** 경우다(services/app_access.py).
+    allowed: bool = True
+    #: 이 앱에 배정된 계정. 비어 있으면 전원 허용이라 화면이 아무 말도 하지 않는다.
+    accounts: list[str] = Field(default_factory=list)

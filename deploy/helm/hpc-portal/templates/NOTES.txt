@@ -1,0 +1,25 @@
+{{ .Chart.Name }} {{ .Chart.Version }} 를 네임스페이스 {{ .Release.Namespace }} 에 배포했습니다.
+
+  포털      https://{{ .Values.ingress.host }}:{{ .Values.traefik.websecureHostPort }}/
+  API       https://{{ .Values.ingress.host }}:{{ .Values.traefik.websecureHostPort }}{{ .Values.ingress.apiPrefix }}/v1
+  Swagger   .../v1/docs
+
+상태 확인:
+  kubectl -n {{ .Release.Namespace }} get pod,svc
+
+최초 설정 토큰(첫 관리자 생성에 쓴다):
+  kubectl -n {{ .Release.Namespace }} get secret {{ include "hpc-portal.backendSecretName" . }} \
+    -o jsonpath='{.data.PORTAL_SETUP_TOKEN}' | base64 -d; echo
+{{- if not .Values.backend.sshKnownHosts }}
+
+⚠ 로그인 노드 호스트키가 비어 있습니다. 파일 관리자·웹 터미널·인터랙티브 앱이 SSH 접속을
+  거부합니다(U-FM-01). 아래로 채우고 다시 업그레이드하세요:
+
+    ssh-keyscan <로그인노드> > known_hosts
+    helm upgrade {{ .Release.Name }} . -n {{ .Release.Namespace }} \
+      --set-file backend.sshKnownHosts=known_hosts
+{{- end }}
+{{- if not .Values.ingress.tlsSecretName }}
+
+⚠ TLS Secret이 지정되지 않아 HTTPS가 열리지 않습니다.
+{{- end }}

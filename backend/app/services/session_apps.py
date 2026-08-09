@@ -5,14 +5,9 @@
 코드 배포는 어차피 따라온다. 대신 목록을 **여기 한 곳에만** 두고 API로 내려보내
 프론트엔드가 같은 배열을 또 갖지 않게 한다.
 
-이미지는 클러스터의 **저장소**(`cluster.image_repository`) 아래에서 찾는다. 앱마다
-이미지가 다를 수 있고, 저장소만 클러스터 설정으로 받는다. 저장소는 두 형식을 모두 받는다:
-
-- 공유 SIF 디렉터리 — `/home/portal/images`
-- OCI 레지스트리 — `docker://reg.example.com/hpc`, `oras://…`
-
-apptainer가 둘 다 그대로 실행하므로 포털은 구분하지 않는다. 다만 레지스트리는 기동마다
-pull + SIF 변환이 일어나고 그 캐시가 사용자 홈(NFS)에 쌓인다 — 운영 판단이 필요하다.
+이미지는 포털 공용 디렉터리(`settings.app_image_dir`) 아래에서 찾는다. 여기 `image`는
+**기본 파일명**이고, 앱 카탈로그(`app_catalog.image_file`)에 등록이 있으면 그쪽이 이긴다 —
+해석은 `services/app_images.py`가 한 곳에서 한다.
 """
 
 from __future__ import annotations
@@ -34,6 +29,13 @@ class InteractiveApp:
     fid: str
     #: 지금 실행할 수 있는가. 런처는 예정된 앱도 보여주되 고를 수 없게 한다.
     ready: bool = True
+    #: 컨테이너 안의 기동 스크립트. VNC 앱과 HTTP 앱이 서로 다른 경로를 쓴다.
+    entry: str = "/opt/portal/start-desktop.sh"
+    #: 접속 방식. `vnc`는 RFB 바이트 중계, `http`는 리버스 프록시다 — **화면이
+    #: 어디로 보낼지 정하는 값**이라 카탈로그가 알려 준다.
+    transport: str = "vnc"
+    #: 준비되지 않은 앱에 붙이는 안내. "언젠가 되나?"에 답할 자리가 없으면 안 적는 것보다 나쁘다.
+    note: str = ""
 
 
 #: 앱 목록의 **단일 출처**. 예정된 앱까지 여기 둔다 — 화면이 따로 갖고 있으면
@@ -57,21 +59,39 @@ APPS: tuple[InteractiveApp, ...] = (
         image="rocky9-mate-1.5.sif",
         fid="U-IA-02",
     ),
+    # JupyterLab은 **VNC를 쓰지 않는 첫 앱이다**. X 서버 없이 HTTP로 뜨고, 포털이
+    # `session-apps/{job_id}/**`로 리버스 프록시한다. 컨테이너가 자기 base_url을 그
+    # 경로로 맞춰 띄우므로(start-jupyter.sh) 포털은 본문을 고쳐 쓰지 않는다.
     InteractiveApp(
         id="jupyter",
         name="JupyterLab",
-        description="노트북 세션",
-        image="",
+        description="노트북 세션 (Python 3.11)",
+        image="rocky9-mate-1.6.sif",
         fid="U-IA-01",
-        ready=False,
+        entry="/opt/portal/start-jupyter.sh",
+        transport="http",
     ),
+    # **code-server는 포털이 호스팅하지 않는다.**
+    #
+    # 하위 경로로 서비스할 수 없기 때문이다 — code-server는 base path 지원을 제거했고,
+    # 에셋 일부가 절대 경로로 링크돼 접두사 프록시에서 루트로 새어 나간다(Jupyter의
+    # `--ServerApp.base_url`에 해당하는 것이 없다). 세션마다 서브도메인을 주면 되지만
+    # 와일드카드 DNS와 인증서가 필요해 포털 밖 결정이다.
+    #
+    # HPC에서 가장 흔한 구성인 **VS Code Remote-SSH**를 안내한다 — 사용자 기계의 VS Code가
+    # 로그인 노드로 붙는다. 포털이 만들 것이 없고, 확장·설정도 사용자 것을 그대로 쓴다.
     InteractiveApp(
         id="code-server",
-        name="VS Code Server",
-        description="웹 코드 편집",
+        name="VS Code (Remote-SSH)",
+        description="사용자 기계의 VS Code로 로그인 노드에 접속합니다",
         image="",
         fid="U-IA-03",
         ready=False,
+        note=(
+            "포털이 호스팅하지 않습니다. VS Code에 **Remote - SSH** 확장을 설치하고 "
+            "로그인 노드로 접속하세요 — 확장·설정이 그대로 따라오고, 터미널에서 "
+            "srun·sbatch를 바로 쓸 수 있습니다."
+        ),
     ),
 )
 
@@ -84,22 +104,3 @@ def get(app_id: str) -> InteractiveApp:
         "지원하지 않는 앱입니다.",
         detail={"app": app_id, "supported": [a.id for a in APPS]},
     )
-
-
-def image_ref(repository: str | None, app_id: str) -> str:
-    """저장소 + 앱 → apptainer에 넘길 이미지 참조.
-
-    **제출 전에 막는다.** 저장소가 비었거나 아직 제공하지 않는 앱이면 Job은 워커까지
-    간 뒤에 죽고, 사용자에게는 원인이 안 보인다.
-    """
-    app = get(app_id)
-    if not app.ready or not app.image:
-        raise ValidationFailed(
-            f"'{app.name}'은(는) 아직 제공되지 않습니다.", detail={"app": app_id}
-        )
-    if not repository:
-        raise ValidationFailed(
-            "클러스터에 이미지 저장소가 설정되어 있지 않습니다.",
-            detail={"field": "image_repository"},
-        )
-    return f"{repository.rstrip('/')}/{app.image}"

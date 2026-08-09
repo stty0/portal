@@ -68,6 +68,12 @@ class Settings(BaseSettings):
     # 업로드 상한 (U-FM-02). 스트리밍이라 메모리는 안 늘지만, 실수로 홈을 채우는 것과
     # 무한 전송을 막는다. 대용량은 여전히 scp/rsync가 맞다.
     file_upload_max_mb: int = 2048
+    # 앱 아이콘 파일이 있는 디렉터리 (A-OP-02). 파드에 읽기 전용으로 마운트한다.
+    # DB에는 파일명만 남고 실제 경로는 여기서 정해진다 — 배포 위치가 바뀌어도 DB는 그대로다.
+    app_icon_dir: str = "/home/portal/app-icons"
+    # 앱 컨테이너 이미지(SIF)가 있는 공용 디렉터리. **워커 노드 기준 경로**다 —
+    # apptainer가 거기서 실행한다. 어떤 파일을 쓸지는 앱 카탈로그가 정한다.
+    app_image_dir: str = "/home/portal/images"
 
     # --- Secret 저장소 (§9 미확정 — 현재 환경변수 구현) ---
     secret_env_prefix: str = "PORTAL_SECRET_"

@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import RFB from '@novnc/novnc'
 import { sessionApi, type Session } from '@/api/sessions'
-import Badge from '@/components/ui/Badge.vue'
+import { PortalApiError } from '@/api/client'
 import Btn from '@/components/ui/Btn.vue'
-import Card from '@/components/ui/Card.vue'
 import ErrorNote from '@/components/ui/ErrorNote.vue'
-import Fid from '@/components/ui/Fid.vue'
-import PageHead from '@/components/ui/PageHead.vue'
 
 /**
  * SCR-06 원격 데스크톱 화면 (U-IA-02).
@@ -18,7 +15,6 @@ import PageHead from '@/components/ui/PageHead.vue'
  * 서버가 소유자를 확인하고 터널을 연다.
  */
 const route = useRoute()
-const router = useRouter()
 const sid = Number(route.params.sid)
 
 const screen = ref<HTMLDivElement | null>(null)
@@ -37,6 +33,32 @@ let disposed = false
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/**
+ * 접속 정보가 준비될 때까지 기다린다.
+ *
+ * **Slurm의 RUNNING과 "붙을 수 있다"는 같지 않다.** Job이 시작된 뒤 컨테이너가 Xvnc와
+ * 데스크톱을 띄우고 `connection.json`을 쓰기까지 10~20초가 더 걸린다(실측). 그 사이의
+ * 접속은 실패가 아니라 **기다릴 일**이라 서버가 `reason: "starting"`으로 알려 준다.
+ *
+ * 그걸 그대로 오류로 띄우면 사용자는 세션이 깨진 줄 알고 다시 만든다 — 실제로 그랬다.
+ */
+async function waitForConnection(gen: number) {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    if (disposed || gen !== generation) return null
+    try {
+      return await sessionApi.connection(sid)
+    } catch (e) {
+      const starting =
+        e instanceof PortalApiError &&
+        (e.detail as { reason?: string } | null)?.reason === 'starting'
+      if (!starting) throw e
+      closeReason.value = `세션이 시작되는 중입니다… (${attempt * 2}초)`
+      await sleep(2000)
+    }
+  }
+  throw new Error('세션이 준비되지 않았습니다. 잠시 뒤 재연결해 보세요.')
+}
+
 async function connect() {
   if (!screen.value) return
   disconnect()
@@ -49,7 +71,8 @@ async function connect() {
   try {
     session.value = await sessionApi.get(sid)
     // 비밀번호만 받는다. 호스트·포트는 응답에 없다.
-    const info = await sessionApi.connection(sid)
+    const info = await waitForConnection(gen)
+    if (info === null) return // 화면을 떠났거나 새 연결로 갈아탔다
     const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
     const client = new RFB(
       screen.value,
@@ -108,7 +131,7 @@ async function confirmSessionEnded() {
       if (!s.is_running) {
         closeReason.value = '세션이 종료되었습니다. 목록으로 돌아갑니다…'
         await sleep(1500)
-        if (!disposed) router.push({ name: 'apps' })
+        if (!disposed) leave()
         return
       }
     } catch {
@@ -127,10 +150,17 @@ function sendCtrlAltDel() {
 }
 
 /**
- * 화면을 브라우저 창 전체로 넓힌다. 컨테이너 크기만 바꾸면 되고 재연결은 필요 없다 —
- * noVNC가 컨테이너를 ResizeObserver로 보고 있어 `scaleViewport`가 알아서 다시 맞춘다.
+ * 탭을 닫는다. 목록에서 새 탭으로 연 화면이라 `window.close()`가 먹는다.
+ *
+ * 주소를 직접 열었거나 브라우저가 거부하면 안 닫힌다 — 그때는 **전체 새로고침으로**
+ * 목록으로 보낸다. SPA 내부 이동으로 가면 이 라우트가 `bare`라 사이드바 없는 목록이 뜬다.
  */
-const maximized = ref(false)
+function leave() {
+  window.close()
+  setTimeout(() => {
+    if (!disposed) window.location.href = '/apps'
+  }, 150)
+}
 
 onMounted(connect)
 onBeforeUnmount(() => {
@@ -140,46 +170,61 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <PageHead
-    title="원격 데스크톱"
-    :crumbs="['HPC Portal', '작업 환경', '인터랙티브 앱']"
-    :sub="session ? `Job ${session.job_id} · ${session.state}` : `세션 #${sid}`"
-  >
-    <template #actions>
-      <Btn @click="router.push({ name: 'apps' })">목록</Btn>
-      <Btn :disabled="state !== 'open'" @click="sendCtrlAltDel">Ctrl+Alt+Del</Btn>
-      <Btn v-if="state !== 'open'" variant="primary" @click="connect">재연결</Btn>
-      <Btn v-else variant="danger" @click="disconnect">연결 끊기</Btn>
-      <Btn @click="maximized = true">최대화</Btn>
-    </template>
-  </PageHead>
-
-  <Card title="화면" flush>
-    <template #title-extra><Fid id="U-IA-02" /></template>
-    <template #head>
-      <Badge :state="state === 'open' ? 'idle' : state === 'connecting' ? 'pending' : 'down'">
-        {{ state === 'open' ? '연결됨' : state === 'connecting' ? '연결 중' : '끊김' }}
-      </Badge>
-    </template>
-
-    <ErrorNote :error="error" class="m-4" />
-    <p v-if="closeReason" class="px-4 py-2 text-[13.5px] text-ink-3">{{ closeReason }}</p>
-
+  <!--
+    새 탭으로 여는 화면이라 **VNC가 창을 통째로 쓴다**(JupyterLab이 자기 탭을 꽉 채우는
+    것과 같다). 사이드바·톱바는 `route.meta.bare`로 App.vue가 이미 빼고, 여기서는
+    카드·머리말도 두지 않는다 — 데스크톱 안에 또 데스크톱 껍데기를 그릴 이유가 없다.
+    조작 버튼은 화면 위에 띄우고, 마우스를 올릴 때만 진하게 한다.
+  -->
+  <div class="fixed inset-0 bg-side-bg">
     <!-- noVNC가 이 요소 안에 캔버스를 만든다 -->
+    <div ref="screen" class="w-full h-full" />
+
+    <!--
+      **오버레이는 클릭을 가로채면 안 된다.** 앱의 메뉴·툴바는 화면 맨 위에 있어서
+      폭 전체를 덮는 띠를 두면 그 높이의 클릭이 전부 여기로 온다(실측: ParaView의
+      File·Edit 메뉴를 누를 수 없었다).
+
+      그래서 바깥은 `pointer-events-none`이고 **버튼만** 이벤트를 받는다. 표시용 글자는
+      끝까지 투명하게 지나간다.
+    -->
     <div
-      ref="screen"
-      class="bg-side-bg overflow-hidden"
-      :class="maximized ? 'fixed inset-0 z-50' : 'h-[75vh] rounded-b-card'"
-    />
-    <!-- 최대화 중에는 페이지 헤더가 가려지므로 조작 버튼을 화면 위에 띄운다. -->
-    <div v-if="maximized" class="fixed top-3 right-3 z-50 flex gap-2">
-      <Btn size="sm" :disabled="state !== 'open'" @click="sendCtrlAltDel">Ctrl+Alt+Del</Btn>
-      <Btn size="sm" @click="maximized = false">작게</Btn>
+      class="pointer-events-none select-none fixed top-1 left-2 z-10 mono text-[12px]
+             text-side-ink opacity-40"
+    >
+      Job {{ session?.job_id ?? sid }} · {{ session?.state ?? '…' }}
     </div>
 
-    <template #foot>
-      본인 세션에만 접속할 수 있습니다 — 서버가 소유자를 확인한 뒤 워커 노드로 터널을 엽니다.
-      접속 위치는 브라우저에 전달되지 않습니다.
-    </template>
-  </Card>
+    <!--
+      조작 버튼은 **아래쪽 구석**에 둔다. 메뉴·툴바가 있는 위쪽을 피하고, 막는 넓이도
+      버튼 자기 크기뿐이다. 평소에는 흐리게 두고 마우스를 올릴 때만 진해진다.
+    -->
+    <div class="pointer-events-none fixed bottom-3 right-3 z-10 flex gap-2">
+      <Btn
+        size="sm"
+        class="pointer-events-auto opacity-30 hover:opacity-100 transition-opacity"
+        :disabled="state !== 'open'"
+        @click="sendCtrlAltDel"
+      >Ctrl+Alt+Del</Btn>
+      <!-- 끊긴 상태에서는 화면이 죽어 있으므로 가려도 상관없다 — 진하게 보여준다. -->
+      <Btn
+        v-if="state !== 'open'"
+        size="sm"
+        variant="primary"
+        class="pointer-events-auto"
+        @click="connect"
+      >재연결</Btn>
+    </div>
+
+    <!-- 준비 중·오류. 이때는 화면이 아직 없거나 죽어 있다. -->
+    <div
+      v-if="error || (closeReason && state !== 'open')"
+      class="pointer-events-none fixed inset-x-0 top-16 z-10 flex justify-center px-4"
+    >
+      <div class="max-w-lg w-full rounded-lg bg-surface shadow-pop px-4 py-3">
+        <ErrorNote :error="error" />
+        <p v-if="closeReason" class="text-[13.5px] text-ink-2">{{ closeReason }}</p>
+      </div>
+    </div>
+  </div>
 </template>

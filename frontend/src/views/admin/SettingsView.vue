@@ -124,7 +124,7 @@ const inputClass =
   <PageHead
     title="포털 운영 설정"
     :crumbs="['HPC Portal Admin', '운영']"
-    sub="공지·템플릿·세션 정책·감사 로그"
+    sub="공지·앱·세션 정책·감사 로그"
   >
     <template #actions><Btn @click="load">↻ 새로고침</Btn></template>
   </PageHead>

@@ -1,0 +1,48 @@
+{{/*
+  **클러스터 전역 객체다.** 여러 릴리스가 공유하므로 기본은 꺼져 있고, 처음 한 번만 켠다.
+  이미 있는 클러스터에 켜면 Helm이 소유권 충돌로 설치를 멈춘다.
+*/}}
+{{- if .Values.storageClass.create }}
+# k3s 기본 local-path는 reclaimPolicy가 Delete라 PVC를 지우면 데이터가 함께 사라진다(§5.3).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.storageClass.name }}
+  labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+provisioner: {{ .Values.storageClass.provisioner }}
+reclaimPolicy: {{ .Values.storageClass.reclaimPolicy }}
+volumeBindingMode: WaitForFirstConsumer
+{{- end }}
+{{- if .Values.traefik.configure }}
+---
+# k3s 내장 Traefik의 hostPort를 연다. 매니페스트를 직접 고치면 k3s가 되돌리므로
+# HelmChartConfig로 값만 병합한다.
+#
+# **service.spec.type을 ClusterIP로 고정한다.** 차트 기본값은 LoadBalancer이고, 그러면
+# k3s servicelb가 hostPort 80/443을 잡는 파드를 띄워 **그 노드의 기존 80/443 서비스를
+# DNAT으로 가로챈다**(실제로 겪은 사고다). 외부 노출은 아래 hostPort로만 한다.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    service:
+      spec:
+        type: ClusterIP
+    # hostPort는 노드당 하나만 바인딩되므로 RollingUpdate는 새 파드가 옛 파드와 포트를
+    # 다투다 Pending으로 멈춘다. 순간 중단을 감수하고 Recreate를 쓴다.
+    updateStrategy:
+      type: Recreate
+      rollingUpdate: null
+    # 액세스 로그 — "요청이 서버까지 왔는가"를 판별하는 유일한 근거.
+    logs:
+      access:
+        enabled: true
+    ports:
+      web:
+        hostPort: {{ .Values.traefik.webHostPort }}
+      websecure:
+        hostPort: {{ .Values.traefik.websecureHostPort }}
+{{- end }}

@@ -84,7 +84,7 @@ L40 1장 = **Isaac Sim 세션/Job 1개**(Slurm이 `gres=gpu:1`을 통째로 준�
 
 `nvcr.io`는 익명 pull이 안 된다(NGC 계정 + API 키). 그런데 클러스터 설정에 **레지스트리
 자격증명 자리가 없다.** 개발 단계에는 자격증명이 있는 기계에서 받아 SIF로 넣는다 —
-`image_repository`가 경로 접두사라 **포털 변경이 필요 없다.**
+`app_image_dir`가 경로 접두사라 **포털 변경이 필요 없다** — 이미지 파일을 넣고 앱 관리에서 고르면 된다.
 
 ```bash
 docker login nvcr.io                      # Username: $oauthtoken / Password: NGC API key

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { clusterApi, type SlurmAccount, type SlurmQos } from '@/api/clusters'
+import { clusterApi, type AppAccess, type SlurmAccount, type SlurmQos } from '@/api/clusters'
 import { useClusterStore } from '@/stores/cluster'
 import Badge from '@/components/ui/Badge.vue'
 import Btn from '@/components/ui/Btn.vue'
@@ -20,7 +20,12 @@ const error = ref<unknown>(null)
 
 /** QOS 목록은 편집 선택지로 쓴다 — 없는 QOS를 지정하면 Slurm이 거부한다. */
 const qosCatalog = ref<SlurmQos[]>([])
-/** 편집 중인 대상: 'account:<name>' 또는 'user:<account>/<user>' */
+/**
+ * 앱별 허용 계정. 카탈로그 전체가 오고, `accounts`가 빈 앱은 **전원 허용**이다.
+ * 계정 관리 화면에 두는 이유는 배정 대상이 계정이기 때문이다(A-US-02).
+ */
+const appAccess = ref<AppAccess[]>([])
+/** 편집 중인 대상: 'account:<name>' · 'user:<account>/<user>' · 'app:<kind>/<id>' */
 const editing = ref<string | null>(null)
 const draft = ref<string[]>([])
 
@@ -30,9 +35,14 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    const [list, qos] = await Promise.all([clusterApi.accounts(cid), clusterApi.qos(cid)])
+    const [list, qos, apps] = await Promise.all([
+      clusterApi.accounts(cid),
+      clusterApi.qos(cid),
+      clusterApi.appAccess(cid),
+    ])
     accounts.value = list
     qosCatalog.value = qos
+    appAccess.value = apps
     editing.value = null
   } catch (e) {
     error.value = e
@@ -103,6 +113,13 @@ function toggle(name: string) {
   draft.value = draft.value.includes(name)
     ? draft.value.filter((q) => q !== name)
     : [...draft.value, name]
+}
+
+function saveAppAccess(app: AppAccess) {
+  const cid = clusters.selectedId
+  if (!cid) return
+  // QOS와 같은 규칙 — 덮어쓰기라 현재 선택 전체를 보낸다.
+  run(() => clusterApi.setAppAccess(cid, app.kind, app.app_id, draft.value))
 }
 
 function saveQos(account: string, username: string | null) {
@@ -201,6 +218,58 @@ const inputClass =
           </td>
         </tr>
       </Table>
+    </Card>
+
+    <!--
+      앱 사용 허용. 배정 대상이 계정이라 계정 화면에 둔다.
+      **기본은 열려 있다** — 배정하지 않은 앱은 지금까지처럼 전원이 쓴다.
+    -->
+    <Card title="앱 사용 허용" flush>
+      <template #title-extra><Fid id="A-US-02" /></template>
+      <Empty v-if="!appAccess.length" text="앱 카탈로그를 불러오지 못했습니다." />
+      <Table
+        v-else
+        :columns="[
+          { key: 'app', label: '앱', width: '220px' },
+          { key: 'kind', label: '종류', width: '120px' },
+          { key: 'accounts', label: '허용 계정' },
+        ]"
+      >
+        <tr v-for="a in appAccess" :key="`${a.kind}/${a.app_id}`" class="border-b border-line last:border-0">
+          <td class="px-3.5 py-2.5">
+            <b>{{ a.name }}</b>
+            <span class="ml-1.5 mono text-[12.5px] text-ink-3">{{ a.app_id }}</span>
+          </td>
+          <td class="px-3.5 py-2.5 text-[13.5px] text-ink-2">
+            {{ a.kind === 'interactive' ? '인터랙티브' : 'Batch' }}
+          </td>
+          <td class="px-3.5 py-2.5">
+            <div v-if="editing === `app:${a.kind}/${a.app_id}`" class="flex flex-wrap items-center gap-1">
+              <Chip
+                v-for="acc in accounts"
+                :key="acc.name"
+                :tone="draft.includes(acc.name) ? 'brand' : 'gray'"
+                class="cursor-pointer"
+                @click="toggle(acc.name)"
+              >{{ acc.name }}</Chip>
+              <Btn size="sm" variant="primary" :disabled="busy" @click="saveAppAccess(a)">저장</Btn>
+              <Btn size="sm" :disabled="busy" @click="editing = null">취소</Btn>
+            </div>
+            <div v-else class="flex flex-wrap items-center gap-1">
+              <Chip v-for="acc in a.accounts" :key="acc" tone="brand">{{ acc }}</Chip>
+              <!-- 빈 값을 '—'로 두면 "아무도 못 쓴다"로 읽힌다. 반대이므로 말로 적는다. -->
+              <span v-if="!a.accounts.length" class="text-[13px] text-ink-3">전원 허용</span>
+              <Btn size="sm" @click="startEdit(`app:${a.kind}/${a.app_id}`, a.accounts)">편집</Btn>
+            </div>
+          </td>
+        </tr>
+      </Table>
+      <template #foot>
+        계정을 하나도 고르지 않으면 그 앱은 <b>전원이 사용</b>합니다. 배정된 앱은
+        그 계정에 연결된 사용자에게만 보이고, 제출된 Job도 <b>그 계정으로</b> 실행됩니다.
+        웹 터미널·SSH에서 직접 <span class="mono">sbatch</span>를 실행하는 것은 막지 않습니다 —
+        그 경계는 Slurm의 파티션 <span class="mono">AllowAccounts</span>가 맡습니다.
+      </template>
     </Card>
 
     <!-- 사용자↔계정 연결은 association이 정본이다. 계정 응답의 associations는 비어 온다(실측). -->

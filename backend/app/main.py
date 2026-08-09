@@ -28,6 +28,7 @@ from app.routers import (
     account,
     api_tokens,
     batch_apps,
+    session_apps,
     auth,
     billing,
     clusters,
@@ -82,6 +83,7 @@ async def lifespan(app: FastAPI):
     finally:
         if scheduler is not None:
             scheduler.shutdown(wait=False)
+        session_apps.close_forwards()
         app.state.client_factory.close_all()
         dispose_engine()
 
@@ -106,7 +108,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     for module in (
         auth, users, clusters, jobs, files, billing,
-        terminal, reports, sessions, account, ops, api_tokens, batch_apps,
+        terminal, reports, sessions, session_apps, account, ops, api_tokens, batch_apps,
     ):
         app.include_router(module.router, prefix=settings.api_prefix)
 

@@ -19,6 +19,8 @@ declare module 'vue-router' {
     group?: string
     /** 백엔드 API에 연결되지 않은 화면(정적 데이터) */
     staticOnly?: boolean
+    /** 사이드바·톱바 없이 화면만 그린다(새 탭으로 여는 인터랙티브 앱). 인증과는 무관하다. */
+    bare?: boolean
   }
 }
 
@@ -85,7 +87,8 @@ const routes: RouteRecordRaw[] = [
     path: '/apps/:sid',
     name: 'desktop',
     component: () => import('@/views/user/DesktopView.vue'),
-    meta: { title: '원격 데스크톱', scr: 'SCR-06' },
+    // bare: 새 탭에서 화면만 보여준다 — 사이드바·톱바가 있으면 정작 데스크톱이 좁다.
+    meta: { title: '원격 데스크톱', scr: 'SCR-06', bare: true },
   },
   {
     path: '/files',
@@ -186,6 +189,12 @@ const routes: RouteRecordRaw[] = [
     name: 'admin-settings',
     component: () => import('@/views/admin/SettingsView.vue'),
     meta: { admin: true, console: 'portal', title: '포털 운영 설정', scr: 'SCR-15', icon: '⚙', group: '운영' },
+  },
+  {
+    path: '/admin/apps',
+    name: 'admin-apps',
+    component: () => import('@/views/admin/AppsCatalogView.vue'),
+    meta: { admin: true, console: 'portal', title: '앱 관리', scr: 'SCR-22', icon: '⊞', group: '운영' },
   },
 
   { path: '/:pathMatch(.*)*', redirect: '/' },

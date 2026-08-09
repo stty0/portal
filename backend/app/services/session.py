@@ -45,7 +45,7 @@ from app.services.ws_auth import authenticate_ws_token
 # Job 응답 파싱은 JobService에서 이미 slurmrestd 버전별 형태를 흡수해 두었다.
 # 같은 응답을 다루므로 재사용한다 — 복제하면 한쪽만 고쳐지는 버그가 난다.
 from app.services.job import _as_job_list, _extract_job_id, _state_of, walltime_minutes
-from app.services.session_apps import image_ref as resolve_image_ref
+from app.services import app_images
 from app.services.session_script import (
     LOG_SUBDIR,
     SessionSpec,
@@ -91,8 +91,10 @@ class SessionService:
 
     # --- 제출 (U-IA-01) --------------------------------------------------
     def image_ref(self, cluster: Cluster, app: str) -> str:
-        """앱이 쓸 이미지. 클러스터는 **저장소**만 갖고 파일명은 앱 카탈로그가 안다."""
-        return resolve_image_ref(cluster.image_repository, app)
+        """앱이 쓸 이미지. 있는 곳은 포털 설정, 어떤 파일인지는 앱 카탈로그가 안다."""
+        return app_images.resolve(
+            self.session, self.settings, app_images.KIND_INTERACTIVE, app
+        )
 
     def create(self, cluster: Cluster, spec: SessionSpec, *, user: User) -> InteractiveSession:
         script = build_session_script(spec)
@@ -175,8 +177,12 @@ class SessionService:
 
         info = self._connection_file(record, user=user)
         if info is None:
+            # Slurm이 RUNNING으로 바꾸는 순간과 컨테이너가 접속 정보를 쓰는 순간 사이에
+            # 10~20초가 있다(데스크톱은 Xvnc+MATE 기동). 그 사이의 접속은 **실패가 아니라
+            # 기다릴 일**이다 — 화면이 구분할 수 있게 표식을 붙인다.
             raise ValidationFailed(
-                "세션이 아직 준비 중입니다.", detail={"state": state or "PENDING"}
+                "세션이 아직 준비 중입니다.",
+                detail={"state": state or "PENDING", "reason": "starting"},
             )
         host = info.get("node") or info.get("ip")
         port = info.get("port")
@@ -188,6 +194,11 @@ class SessionService:
             "password": info.get("password"),
             "view_password": info.get("view_password"),
             "geometry": info.get("geometry"),
+            # HTTP 앱(JupyterLab)에만 있는 값들. **브라우저로 나가지 않는다** —
+            # 라우터가 `SessionConnectInfo`로 추려서 password·geometry만 내보낸다.
+            "scheme": info.get("scheme"),
+            "token": info.get("token"),
+            "base_url": info.get("base_url"),
         }
 
     # --- 웹소켓 (U-IA-02) ------------------------------------------------

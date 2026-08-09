@@ -29,12 +29,15 @@ from app.schemas.cluster import (
     RestTestResult,
 )
 from app.schemas.cluster import (
+    AppAccessAssign,
+    AppAccessOut,
     SlurmAccountCreate,
     SlurmAssociationIn,
     SlurmQosAssign,
     SlurmQosCreate,
 )
 from app.schemas.common import OkResponse
+from app.services.app_access import AppAccessService
 from app.services.cluster import ClusterService
 
 router = APIRouter(tags=["clusters"])
@@ -47,6 +50,13 @@ def _service(
 
 
 ClusterServiceDep = Annotated[ClusterService, Depends(_service)]
+
+
+def _app_access(db: DbSession, service: ClusterServiceDep) -> AppAccessService:
+    return AppAccessService(db, service)
+
+
+AppAccessServiceDep = Annotated[AppAccessService, Depends(_app_access)]
 
 
 @router.get(
@@ -212,6 +222,39 @@ def set_user_qos(
     return service.set_association_qos(
         cid, actor=actor, account=name, username=username, qos=payload.qos
     )
+
+
+@router.get(
+    "/clusters/{cid}/app-access",
+    response_model=list[AppAccessOut],
+    summary="앱별 허용 계정 (A-US-02)",
+)
+def list_app_access(
+    cid: int, actor: AdminUser, service: AppAccessServiceDep
+) -> list[AppAccessOut]:
+    """카탈로그 전체 + 각 앱의 배정. **배정이 없는 앱도 내려보낸다** — 관리 화면이
+    무엇을 배정할 수 있는지 알아야 한다. `accounts`가 비면 전원 허용이다."""
+    return [AppAccessOut(**row) for row in service.assignments(cid)]
+
+
+@router.put(
+    "/clusters/{cid}/app-access/{kind}/{app_id}",
+    response_model=AppAccessOut,
+    summary="앱에 계정 배정 (A-US-02)",
+)
+def set_app_access(
+    cid: int,
+    kind: str,
+    app_id: str,
+    payload: AppAccessAssign,
+    actor: AdminUser,
+    service: AppAccessServiceDep,
+) -> AppAccessOut:
+    """QOS 배정과 같은 규칙 — **덮어쓰기**라 화면이 전체를 보낸다.
+
+    빈 목록을 보내면 배정이 사라지고 그 앱은 다시 전원이 쓴다.
+    """
+    return AppAccessOut(**service.assign(cid, kind, app_id, accounts=payload.accounts, actor=actor))
 
 
 @router.get("/clusters/{cid}/metrics", summary="클러스터 부하 요약 (A-DB-02)")

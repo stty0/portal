@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { sessionApi, type InteractiveApp, type Session } from '@/api/sessions'
 import { jobApi } from '@/api/jobs'
 import { useClusterStore } from '@/stores/cluster'
+import { hideBrokenIcon, useAppMeta } from '@/utils/appMeta'
 import Badge from '@/components/ui/Badge.vue'
 import Btn from '@/components/ui/Btn.vue'
 import Card from '@/components/ui/Card.vue'
@@ -31,6 +32,7 @@ const errors = ref<{ list: unknown; submit: unknown }>({ list: null, submit: nul
 
 const form = ref({
   partition: '',
+  account: '',
   cpus: 2,
   memory_gb: 3,
   walltime: '02:00:00',
@@ -44,10 +46,35 @@ const form = ref({
  * 대해 앞뒤가 갈린다.
  */
 const apps = ref<InteractiveApp[]>([])
+// 아이콘·벤더·버전은 관리자가 등록한 값이다(A-OP-02). 없으면 카드가 그냥 지금과 같다.
+const { loadAppMeta, appMeta, appMetaLine } = useAppMeta('interactive')
 const selectedApp = ref('desktop')
 const selected = computed(
   () => apps.value.find((a) => a.id === selectedApp.value) ?? apps.value[0] ?? null,
 )
+
+/**
+ * 고를 수 있는가. **잠금이 두 가지**라 한 자리에서 묶는다 —
+ * `ready`는 포털이 아직 제공하지 않는 앱, `allowed`는 관리자가 정한 계정 배정에서
+ * 빠진 앱이다. 사용자가 할 수 있는 일이 다르므로 문구는 카드가 따로 말한다.
+ */
+const usable = (a: InteractiveApp) => a.ready && a.allowed
+
+/**
+ * 계정 선택지. **배정된 앱이면 그 계정만** 남긴다 — 고를 수 없는 값을 보여주면
+ * 제출에서 거부당하고 이유는 화면에 없다.
+ */
+const accounts = computed(() => {
+  const mine = allAccounts.value
+  const only = selected.value?.accounts ?? []
+  return only.length ? mine.filter((a) => only.includes(a)) : mine
+})
+const allAccounts = ref<string[]>([])
+
+// 앱을 바꾸면 고를 수 있는 계정이 달라진다 — 남아 있으면 엉뚱한 계정으로 제출된다.
+watch(accounts, (list) => {
+  if (form.value.account && !list.includes(form.value.account)) form.value.account = ''
+})
 
 const active = computed(() => sessions.value.filter((s) => !s.terminated_at && s.state !== 'ENDED'))
 
@@ -58,19 +85,20 @@ async function load() {
   const [s, o, a] = await Promise.allSettled([
     sessionApi.list(cid),
     jobApi.options(cid),
-    sessionApi.apps(),
+    sessionApi.apps(cid),
   ])
   sessions.value = s.status === 'fulfilled' ? s.value : []
   errors.value.list = s.status === 'rejected' ? s.reason : null
   if (a.status === 'fulfilled') {
     apps.value = a.value
-    // 고른 앱이 목록에 없으면(카탈로그 변경) 실행 가능한 첫 앱으로 되돌린다.
-    if (!a.value.some((x) => x.id === selectedApp.value && x.ready)) {
-      selectedApp.value = a.value.find((x) => x.ready)?.id ?? ''
+    // 고른 앱이 목록에 없거나 잠겼으면(카탈로그 변경·계정 배정) 쓸 수 있는 첫 앱으로 되돌린다.
+    if (!a.value.some((x) => x.id === selectedApp.value && usable(x))) {
+      selectedApp.value = a.value.find(usable)?.id ?? ''
     }
   }
   if (o.status === 'fulfilled') {
     partitions.value = o.value.partitions ?? []
+    allAccounts.value = o.value.accounts ?? []
     if (!form.value.partition && partitions.value.length) form.value.partition = partitions.value[0]
   }
   loading.value = false
@@ -85,6 +113,8 @@ async function launch() {
     await sessionApi.create(cid, {
       app: selectedApp.value,
       partition: form.value.partition || null,
+      // 비우면 서버가 정한다 — 배정된 앱이면 그 계정, 아니면 Slurm 기본 계정이다.
+      account: form.value.account || null,
       cpus: form.value.cpus,
       memory_gb: form.value.memory_gb,
       walltime: form.value.walltime,
@@ -109,13 +139,33 @@ async function terminate(s: Session) {
   }
 }
 
+/**
+ * 세션에 붙는다. **어느 앱이든 새 탭으로 연다.**
+ *
+ * 인터랙티브 앱은 화면 전체와 키보드를 통째로 쓴다 — 데스크톱·ParaView는 창 관리자와
+ * 단축키가 있고, JupyterLab도 자기 단축키 체계를 갖는다. 포털 레이아웃(사이드바·톱바)
+ * 안에 끼워 두면 화면도 좁고 단축키도 서로 먹는다. 세션을 여러 개 동시에 띄우고
+ * 오가기도 탭 쪽이 편하다.
+ *
+ * 어디로 보낼지는 카탈로그의 `transport`가 정한다 — 화면이 앱 id로 분기하지 않는다.
+ *   vnc  — 포털의 원격 데스크톱 화면(`/apps/{sid}`). RFB 중계는 그 페이지가 한다.
+ *   http — 포털이 리버스 프록시하는 앱 주소(`/api/v1/session-apps/{job_id}/`).
+ *
+ * 인증은 둘 다 **쿠키가 나른다** — 같은 오리진이라 새 탭에도 그대로 실린다.
+ */
 function open(s: Session) {
-  router.push({ name: 'desktop', params: { sid: s.id } })
+  const app = apps.value.find((a) => a.id === s.app)
+  const url =
+    app?.transport === 'http' && s.job_id
+      ? `/api/v1/session-apps/${s.job_id}/`
+      : router.resolve({ name: 'desktop', params: { sid: s.id } }).href
+  window.open(url, '_blank', 'noopener')
 }
 
 /** 제출 직후엔 PENDING이라 붙을 수 없다 — RUNNING으로 바뀌는 것을 폴링으로 본다. */
 let timer: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
+  loadAppMeta()
   load()
   timer = setInterval(() => {
     if (active.value.length) load()
@@ -150,10 +200,10 @@ const inputClass =
           v-for="a in apps"
           :key="a.id"
           type="button"
-          :disabled="!a.ready"
+          :disabled="!usable(a)"
           class="text-left border rounded-lg p-3.5 transition-colors"
           :class="[
-            !a.ready
+            !usable(a)
               ? 'border-line opacity-60 cursor-not-allowed'
               : selectedApp === a.id
                 ? 'border-brand-700 ring-2 ring-brand-700/25 bg-bg'
@@ -162,11 +212,32 @@ const inputClass =
           @click="selectedApp = a.id"
         >
           <div class="flex items-center gap-2">
+            <img
+              v-if="appMeta(a.id)?.icon_url" :src="appMeta(a.id)!.icon_url!" alt=""
+              class="w-6 h-6 rounded object-contain shrink-0" @error="hideBrokenIcon"
+            />
             <b class="text-[15px]">{{ a.name }}</b>
             <Fid :id="a.fid" />
           </div>
+          <p v-if="appMetaLine(a.id)" class="mt-0.5 text-[12.5px] text-ink-3">{{ appMetaLine(a.id) }}</p>
           <p class="mt-1 text-[13px] text-ink-3">{{ a.description }}</p>
-          <Chip v-if="!a.ready" tone="gray" class="mt-2">준비 중</Chip>
+          <!--
+            안내가 있는 앱은 "준비 중"이 아니다 — 포털이 호스팅하지 않기로 정한 것이라
+            기다려도 생기지 않는다(VS Code = Remote-SSH). 그 차이를 카드가 말해야 한다.
+          -->
+          <p v-if="a.note" class="mt-2 text-[12.5px] text-ink-2 leading-relaxed">{{ a.note }}</p>
+          <!--
+            **계정 때문에 잠긴 앱은 숨기지 않는다.** 숨기면 사용자는 그 앱의 존재를
+            모른 채 "안 보인다"고 묻게 된다 — 누구에게 무엇을 요청해야 하는지 적어 준다.
+          -->
+          <p v-if="a.ready && !a.allowed" class="mt-2 text-[12.5px] text-ink-2 leading-relaxed">
+            <b class="mono">{{ a.accounts.join(', ') }}</b> 계정에 소속된 사용자만 사용할 수
+            있습니다. 관리자에게 계정 연결을 요청하세요.
+          </p>
+          <Chip v-if="!a.ready" tone="gray" class="mt-2">
+            {{ a.note ? '포털 밖에서 사용' : '준비 중' }}
+          </Chip>
+          <Chip v-else-if="!a.allowed" tone="gray" class="mt-2">계정 제한</Chip>
           <Chip v-else-if="selectedApp === a.id" tone="brand" class="mt-2">선택됨</Chip>
         </button>
       </div>
@@ -178,6 +249,23 @@ const inputClass =
           <select v-model="form.partition" :class="[inputClass, 'mt-1']">
             <option v-for="p in partitions" :key="p" :value="p">{{ p }}</option>
           </select>
+        </label>
+        <!--
+          계정을 고르면 그 계정에 Job이 붙는다(과금·fairshare가 여기를 본다).
+          비우면 서버가 정한다 — 계정이 배정된 앱이면 그 계정, 아니면 Slurm 기본 계정이다.
+          선택지가 없어도 칸을 남긴다. 빼면 아래 폼이 밀려 배치가 흔들린다.
+        -->
+        <label class="text-[13px] text-ink-3">
+          계정
+          <select
+            v-if="accounts.length"
+            v-model="form.account"
+            :class="[inputClass, 'mono mt-1']"
+          >
+            <option value="">기본 계정</option>
+            <option v-for="a in accounts" :key="a" :value="a">{{ a }}</option>
+          </select>
+          <input v-else disabled :class="[inputClass, 'mono mt-1 bg-bg']" value="기본 계정" />
         </label>
         <!-- 노드 독점이면 Slurm이 노드 전체를 할당한다 — 여기서 정할 것이 없다 -->
         <label class="text-[13px] text-ink-3" :class="{ 'opacity-50': form.exclusive }">
@@ -210,13 +298,17 @@ const inputClass =
             <option value="1920x1080">1920 × 1080</option>
           </select>
         </label>
-        <label class="sm:col-span-4 flex items-center gap-2 text-[13.5px] text-ink-2">
+        <label class="sm:col-span-3 flex items-center gap-2 text-[13.5px] text-ink-2">
           <input v-model="form.exclusive" type="checkbox" />
           노드 독점 (--exclusive) — 워커 노드를 통째로 씁니다. CPU·메모리를 노드 전체로
           잡고 다른 사용자의 작업이 배정되지 않아 렌더링 성능이 안정적이지만, 대기열이
           길어질 수 있습니다
         </label>
-        <Btn variant="primary" :disabled="submitting" @click="launch">
+        <Btn
+          variant="primary"
+          :disabled="submitting || !selected || !usable(selected)"
+          @click="launch"
+        >
           {{ submitting ? '제출 중…' : `${selected?.name ?? '앱'} 시작` }}
         </Btn>
       </div>
