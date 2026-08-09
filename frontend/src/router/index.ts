@@ -196,6 +196,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/admin/AppsCatalogView.vue'),
     meta: { admin: true, console: 'portal', title: '앱 관리', scr: 'SCR-22', icon: '⊞', group: '운영' },
   },
+  {
+    path: '/admin/audit',
+    name: 'admin-audit',
+    component: () => import('@/views/admin/AuditView.vue'),
+    meta: { admin: true, console: 'portal', title: '감사 로그', scr: 'SCR-23', icon: '☑', group: '운영' },
+  },
 
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
