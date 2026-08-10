@@ -11,6 +11,7 @@ import Fid from '@/components/ui/Fid.vue'
 import Modal from '@/components/ui/Modal.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
+import { inputClass } from '@/utils/form'
 
 /**
  * SCR-22 앱 관리 (A-OP-02) — 포탈 설정 콘솔.
@@ -149,8 +150,6 @@ async function remove(a: AppCatalog) {
   }
 }
 
-const inputClass =
-  'w-full px-3 py-2 rounded-lg border border-line-dark text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>

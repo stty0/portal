@@ -7,6 +7,7 @@ import Btn from '@/components/ui/Btn.vue'
 import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Field from '@/components/ui/Field.vue'
 import Fid from '@/components/ui/Fid.vue'
+import { inputClass } from '@/utils/form'
 
 /**
  * 최초 실행 부트스트랩 (C-02) — 2단계.
@@ -81,8 +82,6 @@ async function confirm() {
   }
 }
 
-const inputClass =
-  'w-full px-3 py-2 rounded-lg border border-line-dark text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>

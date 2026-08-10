@@ -11,6 +11,7 @@ import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Fid from '@/components/ui/Fid.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
+import { inputClass } from '@/utils/form'
 
 /** SCR-13 계정 — slurmdbd의 account와 association(사용자 연결)을 보여준다 (A-US-02). */
 const clusters = useClusterStore()
@@ -133,8 +134,6 @@ function saveQos(account: string, username: string | null) {
   )
 }
 
-const inputClass =
-  'w-full px-3 py-2 border border-line rounded-lg text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>

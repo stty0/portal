@@ -16,6 +16,7 @@ import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Fid from '@/components/ui/Fid.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
+import { inputBase, inputClass } from '@/utils/form'
 
 /** SCR-19 — SCP costexplorer 실 데이터. 키는 Secret 저장소에만 있고 화면에 오지 않는다. */
 /** 매핑 대상 선택지 — 등록된 클러스터. 톱바가 이미 받아 둔 목록을 재사용한다. */
@@ -126,14 +127,12 @@ function krwShort(v: number): string {
 const costTickEvery = computed(() =>
   Math.max(1, Math.ceil((trend.value?.daily.length ?? 1) / 6)),
 )
-const inputClass =
-  'w-full px-3 py-2 border border-line rounded-lg text-[14.5px] outline-none focus:border-brand-500'
 /**
  * 헤더 액션의 select는 폼 입력과 달리 폭을 내용에 맞춘다.
  * `[inputClass, 'w-auto']`처럼 덧붙이면 둘 다 width 유틸이라 CSS 생성 순서가 승자를 정한다
  * (여기선 w-full이 이겨 셀렉트가 헤더 폭을 다 먹고 세로로 접혔다). 아예 빼서 충돌을 없앤다.
  */
-const headSelectClass = inputClass.replace('w-full', 'w-auto')
+const headSelectClass = `${inputBase} w-auto`
 </script>
 
 <template>

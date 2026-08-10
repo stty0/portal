@@ -14,6 +14,7 @@ import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Fid from '@/components/ui/Fid.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
+import { inputClass } from '@/utils/form'
 
 /**
  * SCR-06 인터랙티브 앱 (U-IA-01 런처 · U-IA-04 세션 관리).
@@ -174,8 +175,6 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(timer))
 watch(() => clusters.selectedId, load)
 
-const inputClass =
-  'w-full px-3 py-2 border border-line rounded-lg text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>

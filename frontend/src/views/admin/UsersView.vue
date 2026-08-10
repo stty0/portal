@@ -13,6 +13,7 @@ import Fid from '@/components/ui/Fid.vue'
 import Modal from '@/components/ui/Modal.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
+import { inputClass } from '@/utils/form'
 
 /**
  * SCR-13 — 사용자 목록(C-02)과 AD 연결(A-US-01)을 한 화면에 둔다.
@@ -128,8 +129,6 @@ async function sync() {
   }
 }
 
-const inputClass =
-  "w-full px-3 py-2 rounded-lg border border-line-dark text-[14.5px] outline-none focus:border-brand-500"
 
 async function toggleActive(u: User) {
   const next = !u.is_active

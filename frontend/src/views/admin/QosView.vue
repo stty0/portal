@@ -10,6 +10,7 @@ import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Fid from '@/components/ui/Fid.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
+import { inputClass } from '@/utils/form'
 
 /** SCR-13 QOS — slurmdbd의 QOS 정의를 읽고 만든다 (A-US-03). */
 const clusters = useClusterStore()
@@ -80,8 +81,6 @@ async function remove(name: string) {
 
 /** 제한값이 비어 있으면 무제한이다 — 0과 구분되어야 한다. */
 const limit = (v: number | null, unit = '') => (v === null ? '무제한' : `${v}${unit}`)
-const inputClass =
-  'w-full px-3 py-2 border border-line rounded-lg text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>

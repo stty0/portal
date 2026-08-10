@@ -14,6 +14,7 @@ import Fid from '@/components/ui/Fid.vue'
 import Modal from '@/components/ui/Modal.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
+import { inputClass } from '@/utils/form'
 
 const store = useClusterStore()
 const rows = ref<Cluster[]>([])
@@ -211,8 +212,6 @@ async function saveCredential() {
   }
 }
 
-const inputClass =
-  'w-full px-3 py-2 rounded-lg border border-line-dark text-[14.5px] outline-none focus:border-brand-500'
 
 /**
  * 구역 머리말. 폼이 길어 **무엇을 설정하는 구역인지**가 보여야 한다.

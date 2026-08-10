@@ -10,6 +10,7 @@ import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Fid from '@/components/ui/Fid.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
+import { inputBase } from '@/utils/form'
 
 /** SCR-09 내 사용량 / 프로필 (U-AC-01·02·03). 전부 본인 것만 조회된다. */
 const clusters = useClusterStore()
@@ -75,8 +76,6 @@ const hovered = ref<number | null>(null)
 const limit = (v: number | null, unit = '') => (v === null ? '무제한' : `${v}${unit}`)
 const fixed = (v: number | null, digits = 3) => (v === null ? '—' : v.toFixed(digits))
 
-const inputClass =
-  'w-full px-3 py-2 border border-line rounded-lg text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>
@@ -86,7 +85,7 @@ const inputClass =
     :sub="`기간별 CPU/GPU 시간과 계정 정보 · ${clusters.selectedName}`"
   >
     <template #actions>
-      <select v-model.number="days" :class="[inputClass, 'w-auto']" @change="load">
+      <select v-model.number="days" :class="[inputBase, 'w-[140px]']" @change="load">
         <option :value="7">최근 7일</option>
         <option :value="30">최근 30일</option>
         <option :value="90">최근 90일</option>

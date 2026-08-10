@@ -4,7 +4,7 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 기능 SoT는 [정의서.md](../정의서.md)(U-/A- ID·우선순위), 계층 설계는 [backend-design.md](backend-design.md)·[Architecture.md](Architecture.md).
 
 > **상태(2026-08-07 기준): 구현된 코드와 대조해 갱신함.** 라우터가 실제로 노출하는
-> **83개** 엔드포인트가 정본이며, 이 문서는 그것을 반영한다
+> **99개** 엔드포인트가 정본이며, 이 문서는 그것을 반영한다
 > (`grep -rhoE '@router\.(get|post|put|patch|delete)\(' app/routers/*.py | wc -l`).
 >
 > - 취소선 + **미구현** 표기는 **설계에는 있으나 아직 구현되지 않은** 항목이다.
@@ -197,7 +197,7 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 | POST | `/clusters/{cid}/sessions` | 세션 실행(`app`=desktop/paraview + 자원 스펙 → slurmrestd 제출). 이미지는 **포털 설정 `app_image_dir` + 앱 카탈로그의 `image_file`**(없으면 코드 기본값)로 서버가 정한다 — 클라이언트가 지정할 수 없다. 제출 직후는 `PENDING` — 준비되면 `is_running` | U-IA-01·02 | 인증 | 필수 |
 | GET | `/sessions/{sid}` | 세션 상태(Slurm Job 상태가 권위 있는 출처) | U-IA-04 | 인증 | 필수 |
 | GET | `/sessions/{sid}/connection` | RFB 핸드셰이크용 **비밀번호·해상도만**. **host/port는 응답에 필드 자체가 없다** — 열린 프록시가 되지 않게 | U-IA-02 | 인증(소유자) | 필수 |
-| WS | `/sessions/{sid}/connect` | 브라우저 noVNC ↔ 워커 Xvnc RFB 바이트 중계. 토큰은 subprotocol `portal.token.<jwt>`로 전달 | U-IA-02 | 인증(소유자) | 필수 |
+| WS | `/sessions/{sid}/connect` | 브라우저 noVNC ↔ 워커 Xvnc RFB 바이트 중계. **인증은 쿠키**(같은 오리진 handshake에 실린다) — 기계 클라이언트는 `Authorization` 헤더나 subprotocol `portal.token.<jwt>` | U-IA-02 | 인증(소유자) | 필수 |
 | DELETE | `/sessions/{sid}` | 세션 종료(scancel + 대장 상태 변경) | U-IA-04 | 인증(소유자) | 필수 |
 | ~~WS~~ | ~~`/clusters/{cid}/terminal/node/{name}`~~ | **미구현** | U-SH-02 | 인증 | 선택 |
 | ~~POST~~ | ~~`/sessions/{id}/share`~~ | **미구현** — view-only 공유 | U-IA-05 | 인증 | 선택 |
@@ -288,7 +288,9 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 - A-US-06(자원 신청 승인): 선택 기능 — 수요 확인 후 설계. QOS 화면에 두었던 **빈 자리표시자
   카드는 제거**했다(2026-08-07) — 만들 것이 정해지지 않은 자리를 화면에 두면 "곧 된다"는
   잘못된 기대를 준다. 요구사항은 정의서 A-US-06에 남아 있다.
-- **결정됨**: 업로드 한도는 `file_upload_max_mb`(기본 2048), WS 인증은 **subprotocol** `portal.token.<jwt>`(헤더를 못 붙이는 브라우저 WebSocket 제약 때문). **이어받기는 미구현** — 대용량은 scp/rsync를 권한다.
+- **결정됨**: 업로드 한도는 `file_upload_max_mb`(기본 2048). **WS 인증은 2026-08-08부터 쿠키다** — 자격증명을 HttpOnly 쿠키로 옮기면서 JS가 토큰을 읽을 수 없게 됐고, 같은 오리진 handshake에는 쿠키가 실린다. subprotocol `portal.token.<jwt>`는 **기계 클라이언트용으로만** 남겼다. **이어받기는 미구현** — 대용량은 scp/rsync를 권한다.
+| * | `/session-apps/{job_id}/{path}` | **HTTP 리버스 프록시** (U-IA-01 JupyterLab). 컨테이너의 `base_url`과 경로가 글자까지 같아야 해 **본문을 고쳐 쓰지 않는다**. 앱 토큰은 서버가 헤더로 붙여 **주소창에 나오지 않는다**. CSRF 검사는 하지 않는다 — `SameSite=Strict`가 1차 방어이고 Jupyter가 자체 XSRF를 갖는다 | U-IA-01 | 인증(소유자) | 필수 |
+| WS | `/session-apps/{job_id}/{path}` | Jupyter **커널 채널** 중계. HTTP만 프록시하면 노트북이 열리지만 실행되지 않는다 | U-IA-01 | 인증(소유자) | 필수 |
 - **U-JB-12(예상 시작시간)**: `sbatch --test-only` 상당 기능이 slurmrestd v0.0.41 REST에 있는지 **미확인**. 있으면 `JobService.validate()`에 포함, 없으면 REST 미지원 폴백 원칙대로 CLI(SSH) 래핑. 확인 전까지 `/jobs/validate` 응답에 미포함.
 - **클러스터 간 비교 추천**(job-submit.html의 "다른 클러스터가 더 빠릅니다" 제안): "운영 화면은 선택된 클러스터로 스코프" 원칙과 배치되어 **포함 여부 보류** — 재검토 후 별도 API 설계.
 - ~~`/internal/gateway/dynamic-config` 보호 방식·Traefik 폴링 주기~~ — **해당 없음**(게이트웨이 미채택). 대신 미결로 남은 것은 **로그인 노드 → 워커 구간이 평문**이라는 점이다(세션 RFB). 현재는 두 노드가 같은 기계라 loopback이며, 분리 전에 재검토한다 → [session-transport-security.md](session-transport-security.md).

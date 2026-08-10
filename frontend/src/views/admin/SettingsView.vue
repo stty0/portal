@@ -13,6 +13,7 @@ import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Fid from '@/components/ui/Fid.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
+import { inputClass } from '@/utils/form'
 
 /** SCR-15 포털 운영 설정 (A-OP-01·04). 전부 Portal DB 소유 — 클러스터 호출이 없다.
  *  앱 관리(SCR-22)·감사 로그(SCR-23)는 별도 화면으로 나갔다. */
@@ -79,8 +80,6 @@ async function removeNotice(id: number) {
 
 onMounted(load)
 
-const inputClass =
-  'w-full px-3 py-2 border border-line rounded-lg text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>

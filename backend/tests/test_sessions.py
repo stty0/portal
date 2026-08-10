@@ -422,3 +422,42 @@ def test_starting_session_is_a_wait_not_an_error(client, db, desktop_cluster, us
     info = client.get(f"/api/v1/sessions/{sid}/connection", headers=auth_headers(user_token))
     assert info.status_code == 422
     assert info.json()["detail"]["reason"] == "starting"
+
+
+def _ws_close_code(client, path, **kw) -> int:
+    """웹소켓이 **어떤 코드로** 닫혔는지. 그냥 예외만 보면 아무 이유로 실패해도 통과한다."""
+    from starlette.websockets import WebSocketDisconnect
+
+    try:
+        with client.websocket_connect(path, **kw) as ws:
+            ws.receive()
+    except WebSocketDisconnect as exc:
+        return exc.code
+    raise AssertionError("닫히지 않았다")
+
+
+def test_proxy_websocket_rejects_anonymous(client):
+    """커널 채널도 포털 인증을 지난다 — HTTP만 막으면 우회로가 남는다."""
+    assert _ws_close_code(client, "/api/v1/session-apps/12345/api/kernels") == 4401
+
+
+def test_proxy_websocket_hides_other_peoples_sessions(client, user_token):
+    """남의 Job ID로 커널 채널을 열 수 없다(HTTP 프록시와 같은 규칙).
+
+    **이 테스트가 없어서 `proxy_ws`가 검증 밖에 있었다.** 설정을 주입받지 않아 테스트의
+    JWT 비밀키가 안 먹었고, 인증이 통째로 실패해 경로를 덮을 수 없었다. 4401(인증 없음)이
+    아니라 **4400**이 나와야 "인증은 지났고 대상이 없다"는 뜻이다.
+    """
+    code = _ws_close_code(
+        client, "/api/v1/session-apps/999999/api/kernels", headers=auth_headers(user_token)
+    )
+    assert code == 4400
+
+
+def test_proxy_websocket_uses_injected_settings(client):
+    """설정 주입이 풀리면 이 경로만 조용히 검증에서 빠진다 — 서명으로 못 박는다."""
+    import inspect
+
+    from app.routers.session_apps import proxy_ws
+
+    assert "settings" in inspect.signature(proxy_ws).parameters

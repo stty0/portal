@@ -9,6 +9,7 @@ import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Field from '@/components/ui/Field.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
+import { inputClass } from '@/utils/form'
 
 /**
  * SCR-20 API 토큰 — 기계 클라이언트용 자격증명.
@@ -78,8 +79,6 @@ function phase(t: ApiToken): { label: string; tone: 'idle' | 'down' | 'mixed' } 
   return { label: '사용 중', tone: 'idle' }
 }
 
-const inputClass =
-  'w-full px-3 py-2 rounded-lg border border-line-dark text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>

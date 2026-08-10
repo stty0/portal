@@ -28,7 +28,7 @@ import httpx
 from fastapi import APIRouter, Request, Response, WebSocket, WebSocketDisconnect
 from starlette.responses import HTMLResponse, StreamingResponse
 
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
 from app.core.deps import AppSettings
 from app.core.cookies import ACCESS_COOKIE
 from app.core.errors import PortalError, Unauthenticated
@@ -194,10 +194,16 @@ async def proxy_http(
 
 
 @router.websocket("/session-apps/{job_id}/{path:path}")
-async def proxy_ws(websocket: WebSocket, job_id: str, path: str) -> None:
+async def proxy_ws(
+    websocket: WebSocket, job_id: str, path: str, settings: AppSettings
+) -> None:
     """Jupyter 커널 채널 중계.
 
     커널은 웹소켓으로 오간다 — HTTP만 프록시하면 노트북이 **열리지만 실행되지 않는다**.
+
+    설정은 HTTP 쪽과 **같이 주입받는다**. 여기서 `get_settings()`를 직접 부르면 import
+    시점에 이름이 묶여 테스트가 갈아끼운 설정이 안 먹고, 그러면 이 경로만 검증에서
+    빠진다(실제로 그랬다 — 커널 채널이 죽어도 아무도 몰랐을 것이다).
     """
     token = _bearer_or_cookie(websocket.headers, websocket.cookies)
     if not token:
@@ -205,7 +211,7 @@ async def proxy_ws(websocket: WebSocket, job_id: str, path: str) -> None:
         return
 
     try:
-        target = await _resolve(websocket.app.state, get_settings(), token, job_id)
+        target = await _resolve(websocket.app.state, settings, token, job_id)
     except PortalError:
         await websocket.close(code=4400)
         return

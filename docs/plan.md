@@ -72,7 +72,8 @@ WebSocket으로 RFB를 직접 말하므로 그대로 붙는다.
 
 ### 3.4 인증 / 격리
 
-- WS 인증은 웹 터미널과 동일한 subprotocol 방식(`portal.token.<jwt>`)
+- WS 인증은 웹 터미널과 동일한 방식 — **2026-08-08부터 쿠키**이며 subprotocol
+  (`portal.token.<jwt>`)은 기계 클라이언트용으로 남았다
 - URL에 host:port를 노출하지 않는다. 불투명한 세션 ID로 조회하며 **소유자를 확인**한다
   (OnDemand의 `/node/<host>/<port>/`는 인증 사용자면 임의 호스트로 프록시되는 통로다)
 - 워커가 분리되면 Xvnc를 localhost에 묶을 수 없다(로그인 노드가 닿아야 함).

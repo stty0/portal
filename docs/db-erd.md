@@ -350,6 +350,8 @@ end note
 | 테이블 | 목적 | 근거 |
 |---|---|---|
 | `notice` | 공지(대상 클러스터 nullable=전체, 배너). | U-CL-03 / A-OP-01 |
+| `permission` | 권한 코드(초기 `admin:access` 하나). 라우터가 `require_permission`으로 요구한다. | C-02 |
+| `role_permission` | 역할↔권한 N:M. **AD 그룹이 아니라 포털이 소유한다** — AD 스키마를 건드리지 않는다. | C-02 |
 | `api_token` | 기계 클라이언트용 장수명 자격증명. **원문 미저장**(sha256), 폐기·만료 가능. | C-01 |
 | `interactive_session` | 인터랙티브 앱 세션 **대장(臺帳)** — "누가 어떤 클러스터에 무엇을 띄웠나"만 기록한다. **접속 정보(호스트·포트·비밀번호)는 저장하지 않는다**: 유일한 출처는 세션 Job이 워커에 남기는 `connection.json`(공유 홈)이고, 살아 있는지는 **Slurm Job 상태**가 권위 있는 출처다(노드가 죽으면 정리 훅이 안 돌아 파일이 남는다 — 실측). `node_host`/`node_port`/`connect_url`은 채택하지 않은 초기 설계(Traefik 폴링 라우트)의 **잔재로 사용하지 않는다** — 채우면 출처가 둘이 되어 어긋난다. 종료는 REST `scancel` + 상태 변경. | U-IA-04, Architecture.md §1 |
 | `app_access` | 앱을 쓸 수 있는 Slurm 계정 배정. **허용 목록이고 행이 없으면 전원 허용**이다 — 기본이 잠김이면 표를 만든 순간 모든 앱이 멈춘다. `app_id`는 코드 카탈로그(`session_apps.py`·`batch_apps.py`)의 id, `account`는 slurmdbd 계정명의 **문자열 참조**다(계정은 포털 표가 아니다). 배정된 앱은 목록에서 잠기고, 제출된 Job도 그 계정으로 실행된다. | U-IA-01 · U-JB-13 / A-US-02 |

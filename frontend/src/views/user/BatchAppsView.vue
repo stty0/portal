@@ -13,6 +13,7 @@ import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Field from '@/components/ui/Field.vue'
 import Fid from '@/components/ui/Fid.vue'
 import PageHead from '@/components/ui/PageHead.vue'
+import { inputClass } from '@/utils/form'
 
 /**
  * SCR-21 Batch 앱 — 해석 solver를 배치 Job으로 제출한다 (U-JB-13).
@@ -192,8 +193,6 @@ async function submit() {
   }
 }
 
-const inputClass =
-  'w-full px-3 py-2 rounded-lg border border-line-dark text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>

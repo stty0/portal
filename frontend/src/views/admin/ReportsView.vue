@@ -16,6 +16,7 @@ import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Fid from '@/components/ui/Fid.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
+import { inputClass } from '@/utils/form'
 
 /** SCR-14 — 세 리포트 모두 slurmdbd의 완료 Job에서 파생된다 (A-RP-01·02·03). */
 const clusters = useClusterStore()
@@ -128,8 +129,6 @@ function duration(seconds: number | null): string {
   return `${(seconds / 3600).toFixed(1)}시간`
 }
 
-const inputClass =
-  'px-3 py-2 border border-line rounded-lg text-[14.5px] outline-none focus:border-brand-500'
 </script>
 
 <template>
