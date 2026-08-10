@@ -3850,3 +3850,78 @@ pydantic이 모르는 키를 무시해서 조용히 통과하고 있었고, 그 
 검증: 테스트 **435개 통과**(3개 추가). MySQL에서 마이그레이션 **up → down → up 왕복**을
 확인했다(DDL이 트랜잭션이 아니라 이 검증이 중요하다). 배포 후 `SHOW COLUMNS`에
 `image_ref varchar(255) NULL`, 라이브 `list_apps()`가 위 두 참조를 그대로 답한다.
+
+---
+
+### T-08 변환을 Slurm 잡으로 — 빌드 → 배치
+
+관리자가 앱 관리에서 [변환]을 누르면 두 걸음이 돈다.
+
+1. **빌드** — `POST .../build`. OCI 참조를 `apptainer build`로 SIF를 만드는 **Slurm 잡**을
+   제출한다. 결과는 **요청자 홈** `~/.portal/build/`에 떨어진다.
+2. **배치** — `POST .../install`. 포털이 로그인 노드 SSH로 `sudo mv`한다.
+
+파드에서 돌리지 않는 이유는 셋이다 — apptainer가 없고, 메모리 제한(1Gi)이 있고, 무엇보다
+**캐시가 쌓여 파드가 스스로 evict된 전례**가 있다. 클러스터에서 돌리면 스크래치도 네트워크도
+거기 것이고 진행 상황은 기존 Job 화면이 답한다.
+
+**두 걸음으로 나눈 이유는 백그라운드 워커가 없어서다**(`scheduler_enabled: False`).
+잡이 끝났는지는 Job 화면이 말해 주고 관리자가 그때 [배치]를 누른다. 폴링을 흉내 내느니
+두 걸음이 정직하다.
+
+#### 왜 잡이 직접 못 쓰나 — 그리고 그게 왜 옳은가
+
+Slurm 잡은 **요청한 관리자 계정**으로 돈다. 그런데 클러스터에 관리자 그룹이 없다 —
+포털 사용자 전원이 `domain users` 하나뿐이다(실측). 디렉터리를 그 그룹에 열면
+**아무나 남이 실행할 이미지를 바꿔 놓을 수 있다.** 컨테이너 이미지는 모든 사용자가
+실행하는 코드이고 `allow setuid = yes`인 환경이다. 그래서 목적지는 root 소유로 두고,
+포털이 **딱 한 지점에서만** 권한을 올린다(사용자 결정).
+
+#### 선행 확인 (실측)
+
+| 항목 | slurm-cluster-1 | slurm-cluster-2 |
+|---|---|---|
+| DNS·HTTPS (docker.io / nvcr.io) | 401 = 도달 | 401 = 도달 |
+| apptainer | 1.5.3 | 1.5.3 |
+| user namespaces | 15524 | 15524 |
+| 서비스 계정 → root | 가능(NOPASSWD) | — |
+
+레지스트리 도달은 **포털 구성의 전제조건**으로 한다(사용자 결정). 지금 확인한 곳은
+로그인 노드다 — 워커를 분리하면 그쪽에도 같은 경로가 필요하다.
+
+#### 실 클러스터가 잡아낸 결함 셋
+
+테스트 26개가 통과하는데도 세 번 깨졌다. 전부 **실제로 돌려 보고서야** 나왔다.
+
+1. **`current_working_directory` 누락** — Slurm이 제출 자체를 거부한다("Job cannot be
+   submitted without the current working directory specified"). 홈을 함께 돌려주도록 고쳤고,
+   해석은 파일 브라우저·세션과 **같은 함수**(`home_dir_for`)를 쓴다.
+2. **`$HOME` unbound** — Slurm 배치 환경에 그 변수가 없다. `set -u`와 만나 첫 줄에서 죽었다.
+   이미 홈을 알아냈으므로 **절대경로를 박았다**. 테스트가 `"$HOME" not in script`를 고정한다.
+3. **`mv`가 소유권을 가져온다** — 배치된 파일이 `jungryul0515.park domain users` 소유로
+   남았다. 디렉터리가 root 소유라 삭제는 못 해도 **내용은 덮어쓸 수 있다** — 목적지를
+   root 소유로 둔 이유가 통째로 무너진다. `chown root:root`를 더했고, 그 줄을 지우면
+   테스트가 실패한다.
+
+#### 전 구간 실측
+
+`docker://alpine:3.20`으로 자기검사를 돌렸다(실제 앱을 건드리지 않으려고 작은 이미지).
+
+```
+빌드 Job 100 → COMPLETED, ~/.portal/build/portal-selftest.sif (3.5MB)
+install     → /home/.portal/images/portal-selftest.sif
+             -rw-r--r-- 1 root root 3559424
+목록         → 캐시 무효화로 **즉시** 반영, installed_map True
+```
+
+검사 후 SIF·빌드 디렉터리·임시 등록 행·잡 로그를 모두 지웠다.
+
+#### 남은 것
+
+- **큰 이미지로는 아직 안 돌려 봤다.** alpine은 3.5MB, OpenFOAM은 443MB, Isaac Sim은 수 GB다.
+  시간·디스크가 실제로 어떻게 되는지는 그때 봐야 한다.
+- `nvcr.io`는 익명 pull이 안 된다(NGC 계정 + API 키). 사설 레지스트리 자격증명은 이 계획의
+  **제외 항목**이다 — 필요해지면 기존 Secret 저장소에 붙인다.
+
+검증: 테스트 **442개 통과**(7개 추가). `chown`을 지우면 배치 테스트가 실패한다.
+`api.md` 100 → **102**, CLAUDE.md 435 → **442**.

@@ -205,6 +205,10 @@ class AppImageCache:
     def put(self, cluster_id: int, images: list[str]) -> None:
         self._redis.setex(self._key(cluster_id), self._ttl, ",".join(images))
 
+    def invalidate(self, cluster_id: int) -> None:
+        """포털이 **직접 파일을 넣은** 뒤에만 부른다. 그때는 TTL을 기다릴 이유가 없다."""
+        self._redis.delete(self._key(cluster_id))
+
 
 class PermissionCache:
     """role → permission 매핑 캐시. 거의 불변이라 TTL + 명시적 무효화(§4.1)."""

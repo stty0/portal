@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shlex
 
 from sqlalchemy.orm import Session
 
@@ -35,7 +36,7 @@ from app.repositories.cluster import ClusterCredentialRepository
 from app.repositories.content import AppCatalogRepository
 from app.services import batch_apps, session_apps
 from app.services.cluster import ClusterService
-from app.services.files import ssh_target_for
+from app.services.files import home_dir_for, ssh_target_for
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,16 @@ KIND_BATCH = "batch"
 #: 파일명만 받는다 — 경로 요소가 되면 공용 디렉터리 밖을 가리킬 수 있다.
 IMAGE_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
+#: OCI 참조. **스킴을 요구한다** — apptainer가 출처 종류를 그것으로 판정하고
+#: (`docker://`·`oras://`·`docker-daemon://`), 요구하지 않으면 로컬 경로를 붙여 넣어도
+#: 통과해 버린다. 이 값이 `apptainer build`에 넘어가므로 문자 집합을 좁게 잡는다.
+IMAGE_REF = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://[A-Za-z0-9][A-Za-z0-9._:/@-]{0,240}$")
+
 #: 공유 홈 아래 이미지가 놓이는 자리. 점이 붙은 이유는 모듈 머리말 참조.
 IMAGE_SUBDIR = ".portal/images"
+
+#: 변환 산출물이 **관리자 홈 아래** 머무는 자리. 목적지는 root 소유라 잡이 직접 못 쓴다.
+BUILD_SUBDIR = ".portal/build"
 
 
 def image_dir(cluster: Cluster, settings: Settings) -> str:
@@ -67,6 +76,12 @@ def _code_image(kind: str, app_id: str) -> tuple[str, str, bool]:
     else:
         app = batch_apps.get(app_id)
     return app.name, app.image, app.ready
+
+
+def _catalog_ref(kind: str, app_id: str) -> str:
+    """코드 카탈로그가 아는 출처. 등록이 없을 때 쓴다 — `image`와 같은 모양이다."""
+    app = session_apps.get(app_id) if kind == KIND_INTERACTIVE else batch_apps.get(app_id)
+    return getattr(app, "image_ref", "") or ""
 
 
 def _catalog_apps(kind: str) -> tuple:
@@ -223,6 +238,98 @@ class AppImageService:
             "images": count,
             "message": f"이미지 디렉터리 확인 — {directory} (파일 {count}개)",
         }
+
+    # --- 변환 (T-08) ------------------------------------------------------
+    def _plan(self, session: Session, kind: str, app_id: str) -> tuple[str, str, str]:
+        """(앱 이름, 이미지 파일명, OCI 참조). 셋 다 **서버가 정한다.**"""
+        name, default_image, _ = _code_image(kind, app_id)
+        row = AppCatalogRepository(session).get_by_app(kind, app_id)
+        image = (row.image_file if row and row.image_file else default_image) or ""
+        ref = (row.image_ref if row and row.image_ref else "") or _catalog_ref(kind, app_id)
+        if not IMAGE_FILE.match(image):
+            raise ValidationFailed(
+                f"'{name}'에 쓸 이미지 파일명이 없거나 올바르지 않습니다. 앱 관리에서 등록하세요.",
+                detail={"app": app_id, "image_file": image},
+            )
+        if not IMAGE_REF.match(ref):
+            raise ValidationFailed(
+                f"'{name}'에 이미지 출처(OCI 참조)가 없습니다. 앱 관리에서 등록하세요.",
+                detail={"app": app_id, "field": "image_ref"},
+            )
+        return name, image, ref
+
+    def build_script(
+        self, cluster: Cluster, kind: str, app_id: str, *, username: str
+    ) -> tuple[str, str, str]:
+        """(잡 이름, 스크립트, 작업 디렉터리). SIF를 **관리자 홈에** 만든다 — 목적지는 root 소유다.
+
+        캐시·tmp를 둘 다 홈 아래로 돌리는 것은 타협이 아니라 **전례**다: `/root/.apptainer`에
+        blob이 11GB 쌓여 dev01이 DiskPressure에 걸리고 포털 파드가 evict된 적이 있다.
+
+        `.tmp`로 만들고 `mv`하는 이유는 **중간에 죽은 빌드가 완성된 파일처럼 보이면 안
+        되기 때문**이다 — `installed` 판정이 파일 존재를 보므로 잘린 SIF가 앱을 열어 버린다.
+
+        작업 디렉터리를 함께 돌려준다. **Slurm이 없으면 제출을 거부한다**(실측:
+        "Job cannot be submitted without the current working directory specified").
+        홈 해석은 파일 브라우저·세션과 **같은 함수**를 쓴다 — 갈리면 산출물이 브라우저에
+        안 보이는 곳에 쌓인다.
+
+        경로를 **절대경로로 박는다.** `$HOME`을 쓰면 안 된다 — Slurm 배치 환경에 그 변수가
+        없어서 `set -u`와 만나 첫 줄에서 죽는다(실측: `HOME: unbound variable`). 이미
+        홈을 알아냈으므로 환경에 기댈 이유가 없다.
+        """
+        name, image, ref = self._plan(self.session, kind, app_id)
+        with self._connect(cluster) as client:
+            home = home_dir_for(cluster, client, username)
+
+        q = shlex.quote
+        base = q(f"{home.rstrip('/')}/{BUILD_SUBDIR}")
+        script = "\n".join(
+            [
+                "#!/bin/bash",
+                "set -euo pipefail",
+                f"base={base}",
+                'export APPTAINER_CACHEDIR="$base/cache"',
+                'export APPTAINER_TMPDIR="$base/tmp"',
+                'mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"',
+                f'out="$base/{image}"',
+                'rm -f "$out" "$out.tmp"',
+                f'apptainer build "$out.tmp" {q(ref)}',
+                'mv "$out.tmp" "$out"',
+                'echo "빌드 완료: $out"',
+            ]
+        )
+        return f"portal-build-{app_id}", script, home
+
+    def install(self, cluster: Cluster, kind: str, app_id: str, *, username: str) -> str:
+        """빌드된 SIF를 이미지 디렉터리로 옮긴다. **포털이 유일하게 권한을 올리는 지점.**
+
+        경로는 셋 다 서버가 만든다 — 호출자는 `kind`·`app_id`만 준다. 목적지 파일명은
+        `IMAGE_FILE`을 통과한 값이고, 출처는 요청자 본인의 홈 아래다.
+
+        `mv`라서 **돌고 있는 세션은 안 끊긴다** — 디렉터리 엔트리만 바뀌고 실행 중인
+        프로세스가 mmap한 inode는 그대로다(`/home/portal` → `.portal` 이동과 같은 이유).
+
+        옮긴 뒤 **소유권을 root로 뺏는다.** 그러지 않으면 디렉터리를 root 소유로 둔 의미가
+        없다 — `mv`가 소유자를 가져오므로 빌드한 사용자가 그 파일을 계속 쓸 수 있다.
+        """
+        _, image, _ = self._plan(self.session, kind, app_id)
+        directory = image_dir(cluster, self.settings)
+        with self._connect(cluster) as client:
+            home = client.home_dir(username)
+            source = f"{home.rstrip('/')}/{BUILD_SUBDIR}/{image}"
+            # 빌드가 아직 안 끝났거나 실패한 것을 "설치"로 착각하지 않게 먼저 본다.
+            client._run_as(username, ["test", "-f", source])
+            target = f"{directory}/{image}"
+            client._run_as("root", ["mv", source, target])
+            # **소유권을 반드시 뺏는다.** `mv`는 소유자를 그대로 가져오므로, 이것을
+            # 빠뜨리면 빌드한 사용자가 *모두가 실행하는 이미지*의 내용을 계속 덮어쓸 수
+            # 있다 — 디렉터리를 root 소유로 둔 이유 자체가 무너진다(실측으로 발견).
+            client._run_as("root", ["chown", "root:root", target])
+            client._run_as("root", ["chmod", "0644", target])
+        # 방금 넣은 파일이 목록에 바로 보여야 한다 — 여기서만은 TTL을 기다리지 않는다.
+        self.cache.invalidate(cluster.id)
+        return f"{directory}/{image}"
 
     def installed_map(self, cluster: Cluster, kind: str, *, username: str) -> dict[str, bool]:
         """앱 id → 이 클러스터에 이미지가 있나. 목록 화면이 SSH를 한 번만 쓰게 한다."""

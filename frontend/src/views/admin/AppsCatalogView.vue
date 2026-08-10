@@ -29,7 +29,13 @@ const apps = ref<AppCatalog[]>([])
 const iconFiles = ref<string[]>([])
 const imageFiles = ref<string[]>([])
 const error = ref<unknown>(null)
+const notice = ref('')
 const loading = ref(false)
+/** 변환 대상 앱. `null`이면 모달이 닫혀 있다. */
+const converting = ref<AppCatalog | null>(null)
+const convertCluster = ref<number | null>(null)
+const convertBusy = ref(false)
+const clusters = ref<{ id: number; name: string | null; alias: string | null }[]>([])
 const uploadingIcon = ref(false)
 const saving = ref(false)
 
@@ -53,11 +59,60 @@ const form = ref<Partial<AppCatalog>>(emptyApp())
  * 실패는 빈 목록으로 흡수한다(서버도 같은 규칙이다).
  */
 async function loadImageFiles(): Promise<string[]> {
-  const clusters = await clusterApi.list()
+  clusters.value = await clusterApi.list()
   const lists = await Promise.all(
-    clusters.map((c) => clusterApi.appImages(c.id).catch(() => [] as string[])),
+    clusters.value.map((c) => clusterApi.appImages(c.id).catch(() => [] as string[])),
   )
   return [...new Set(lists.flat())].sort()
+}
+
+const clusterLabel = (c: { name: string | null; alias: string | null }) =>
+  c.alias || c.name || '이름 미확인 클러스터'
+
+function openConvert(a: AppCatalog) {
+  converting.value = a
+  convertCluster.value = clusters.value[0]?.id ?? null
+  notice.value = ''
+  error.value = null
+}
+
+/**
+ * 빌드와 배치를 **두 걸음으로 나눈 이유**: 포털에 백그라운드 워커가 없다. 잡이 끝났는지는
+ * Job 화면이 말해 주고, 관리자가 그때 [배치]를 누른다. 폴링을 흉내 내느니 정직하다.
+ */
+async function runBuild() {
+  const app = converting.value
+  const cid = convertCluster.value
+  if (!app || cid === null) return
+  convertBusy.value = true
+  error.value = null
+  try {
+    const res = await clusterApi.buildAppImage(cid, app.kind, app.app_id)
+    notice.value =
+      `변환 Job을 제출했습니다 (Job ${res.job_id}). 끝나면 [배치]를 누르세요 — ` +
+      'SIF는 내 홈의 .portal/build 아래에 만들어집니다.'
+  } catch (e) {
+    error.value = e
+  } finally {
+    convertBusy.value = false
+  }
+}
+
+async function runInstall() {
+  const app = converting.value
+  const cid = convertCluster.value
+  if (!app || cid === null) return
+  convertBusy.value = true
+  error.value = null
+  try {
+    const res = await clusterApi.installAppImage(cid, app.kind, app.app_id)
+    notice.value = res.message || '이미지를 배치했습니다.'
+    await load()
+  } catch (e) {
+    error.value = e
+  } finally {
+    convertBusy.value = false
+  }
 }
 
 async function load() {
@@ -182,6 +237,7 @@ async function remove(a: AppCatalog) {
   </PageHead>
 
   <ErrorNote :error="error" />
+  <div v-if="notice" class="px-3.5 py-2.5 rounded-lg bg-ok-bg text-ok text-[14px] mb-4">{{ notice }}</div>
 
   <Card title="등록된 앱" flush>
     <template #title-extra><Fid id="A-OP-02" /></template>
@@ -202,7 +258,7 @@ async function remove(a: AppCatalog) {
         { key: 'vendor', label: '벤더' },
         { key: 'ver', label: '버전', width: '90px' },
         { key: 'img', label: '이미지 파일' },
-        { key: 'act', label: '', width: '150px' },
+        { key: 'act', label: '', width: '210px' },
       ]"
     >
       <!-- 미등록 앱은 id가 없다 — 업무 키인 종류+앱 ID를 키로 쓴다 -->
@@ -229,6 +285,8 @@ async function remove(a: AppCatalog) {
         </td>
         <td class="px-3.5 py-2.5 flex gap-2">
           <Btn size="sm" @click="openEdit(a)">{{ a.id === null ? '정보 입력' : '수정' }}</Btn>
+          <!-- 출처를 아는 앱만 변환할 수 있다 — 없으면 무엇을 받아올지 모른다 -->
+          <Btn v-if="a.image_ref" size="sm" @click="openConvert(a)">변환</Btn>
           <Btn v-if="a.id !== null" size="sm" variant="danger" @click="remove(a)">삭제</Btn>
         </td>
       </tr>
@@ -339,6 +397,45 @@ async function remove(a: AppCatalog) {
       <Btn @click="close">취소</Btn>
       <Btn variant="primary" :disabled="!canSave || saving" @click="save">
         {{ saving ? '저장 중…' : editing ? (editing.id === null ? '정보 등록' : '수정 저장') : '등록' }}
+      </Btn>
+    </template>
+  </Modal>
+
+  <!--
+    변환 모달. **두 걸음**이다 — 빌드(Slurm 잡)와 배치(포털이 sudo로 하는 mv).
+    목적지가 root 소유인 이유는 컨테이너 이미지가 **모든 사용자가 실행하는 코드**여서다:
+    디렉터리를 사용자 그룹에 열면 아무나 남이 실행할 이미지를 바꿔 놓을 수 있다.
+  -->
+  <Modal
+    v-if="converting"
+    :title="`이미지 변환 — ${converting.name}`"
+    @close="converting = null"
+  >
+    <div class="space-y-4">
+      <p class="text-[13.5px] text-ink-2 leading-relaxed">
+        <b class="mono break-all">{{ converting.image_ref }}</b> 를 받아
+        <b class="mono">{{ converting.image_file || '(파일명 미지정)' }}</b> 로 만듭니다.
+      </p>
+      <Field label="대상 클러스터" full hint="이미지는 클러스터마다 따로 있어야 합니다.">
+        <select v-model.number="convertCluster" :class="inputClass">
+          <option v-for="c in clusters" :key="c.id" :value="c.id">{{ clusterLabel(c) }}</option>
+        </select>
+      </Field>
+      <div class="px-3.5 py-2.5 rounded-lg bg-info-bg text-[13px] text-ink-2 leading-relaxed">
+        <b>① 빌드</b>는 Slurm 잡으로 돌고 결과가 <b>내 홈</b>에 떨어집니다 — 진행 상황은
+        Job 화면에서 봅니다. 큰 이미지는 몇 분에서 수십 분 걸립니다.<br />
+        <b>② 배치</b>는 잡이 <b>끝난 뒤에</b> 누르세요. 그때 포털이 이미지 디렉터리로 옮깁니다.
+      </div>
+    </div>
+    <template #foot>
+      <Btn @click="converting = null">닫기</Btn>
+      <Btn :disabled="convertBusy || convertCluster === null" @click="runBuild">① 빌드</Btn>
+      <Btn
+        variant="primary"
+        :disabled="convertBusy || convertCluster === null"
+        @click="runInstall"
+      >
+        ② 배치
       </Btn>
     </template>
   </Modal>

@@ -4,7 +4,7 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 기능 SoT는 [정의서.md](../정의서.md)(U-/A- ID·우선순위), 계층 설계는 [backend-design.md](backend-design.md)·[Architecture.md](Architecture.md).
 
 > **상태(2026-08-07 기준): 구현된 코드와 대조해 갱신함.** 라우터가 실제로 노출하는
-> **100개** 엔드포인트가 정본이며, 이 문서는 그것을 반영한다
+> **102개** 엔드포인트가 정본이며, 이 문서는 그것을 반영한다
 > (`grep -rhoE '@router\.(get|post|put|patch|delete)\(' app/routers/*.py | wc -l`).
 >
 > - 취소선 + **미구현** 표기는 **설계에는 있으나 아직 구현되지 않은** 항목이다.
@@ -141,6 +141,8 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 | PUT | `/clusters/{cid}/accounts/{name}/users/{username}/qos` | 사용자별 QOS 지정(association 단위) | A-US-03 | admin:access | 필수 |
 | GET | `/clusters/{cid}/app-images` | **이 클러스터의** 이미지 디렉터리에 있는 파일명 — 등록 폼의 선택지. 경로는 `cluster.home_base` 아래 `.portal/images`로 파생한다(비면 `app_image_dir`). 로그인 노드 SSH `ls`이고 **실패는 빈 목록**이다(앱이 잠기는 것과 화면이 안 뜨는 것은 다른 일이다). Redis 60초 캐시 | A-OP-02 | admin:access | 필수 |
 | GET | `/clusters/{cid}/image-dir` | 이미지 디렉터리 진단 — `{path, ok, images, message}`. **없어도 200**이다(등록 순서를 강요하면 클러스터를 먼저 등록할 수 없다). 포털은 디렉터리를 **만들지 않는다** — `{home_base}`가 root 소유라 권한 상승이 필요하고 SIF는 어차피 손으로 넣는다. 캐시를 쓰지 않는다(진단은 지금을 봐야 한다) | A-CL-02 | admin:access | 필수 |
+| POST | `/clusters/{cid}/app-images/{kind}/{app_id}/build` | OCI 참조 → SIF를 **Slurm 잡으로** 만든다. 결과는 **요청자 홈** `~/.portal/build/`에 떨어진다(목적지는 root 소유라 잡이 직접 못 쓴다). 스크립트가 `APPTAINER_CACHEDIR`·`TMPDIR`을 홈 아래로 고정하고 경로를 **절대경로로 박는다** — Slurm 배치 환경에 `$HOME`이 없어 `set -u`와 만나면 첫 줄에서 죽는다(실측) | A-OP-02 | admin:access | 필수 |
+| POST | `/clusters/{cid}/app-images/{kind}/{app_id}/install` | 빌드된 SIF를 이미지 디렉터리로 옮긴다 — **포털이 유일하게 권한을 올리는 지점**(서비스 계정 sudo). `mv` 뒤 **`chown root:root`가 필수**다: `mv`는 소유자를 가져오므로 빠뜨리면 빌드한 사용자가 *모두가 실행하는 이미지*를 계속 덮어쓸 수 있다. 옮긴 뒤 목록 캐시를 무효화한다 | A-OP-02 | admin:access | 필수 |
 | GET | `/clusters/{cid}/app-access` | 앱별 허용 계정. **카탈로그 전체**가 오고 배정이 없는 앱은 `accounts=[]`(=전원 허용) | A-US-02 | admin:access | 권장 |
 | PUT | `/clusters/{cid}/app-access/{kind}/{app_id}` | 앱에 계정 배정. QOS와 같은 **덮어쓰기** — 빈 배열이면 그 앱이 다시 전원에게 열린다. `kind`는 `interactive`·`batch` | A-US-02 | admin:access | 권장 |
 | ~~PUT~~ | ~~`/clusters/{cid}/accounts/{name}/users`~~ | 계정↔사용자 N:M 매핑(association 추가/제거) — **미구현**| A-US-02 | admin:access | 필수 |

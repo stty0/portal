@@ -74,12 +74,6 @@ class AuditLogOut(BaseModel):
 # --- A-OP-02 앱 카탈로그 ----------------------------------------------------
 APP_KIND = "^(interactive|batch)$"
 
-#: OCI 참조. **스킴을 요구한다** — apptainer가 출처 종류를 그것으로 판정하고
-#: (`docker://`·`oras://`·`docker-daemon://`), 요구하지 않으면 로컬 경로를 붙여 넣어도
-#: 통과해 버린다. 값은 T-08에서 `apptainer build`에 넘어가므로 문자 집합을 좁게 잡는다.
-IMAGE_REF = r"^[A-Za-z][A-Za-z0-9+.-]*://[A-Za-z0-9][A-Za-z0-9._:/@-]{0,240}$"
-
-
 class AppCatalogOut(BaseModel):
     """코드 카탈로그의 앱과 등록된 메타데이터를 겹친 한 줄."""
 
@@ -112,7 +106,9 @@ class AppCatalogCreate(BaseModel):
     vendor: str | None = Field(default=None, max_length=128)
     version: str | None = Field(default=None, max_length=32)
     image_file: str | None = Field(default=None, max_length=128)
-    image_ref: str | None = Field(default=None, max_length=255, pattern=IMAGE_REF)
+    #: 모양 검사는 **서비스**가 한다(`app_images.IMAGE_REF`) — 정규식 정본이 거기 있고,
+    #: 스키마가 서비스를 import하는 전례를 만들지 않는다.
+    image_ref: str | None = Field(default=None, max_length=255)
     icon_file: str | None = Field(default=None, max_length=64)
     description: str | None = None
 
@@ -122,6 +118,8 @@ class AppCatalogUpdate(BaseModel):
     vendor: str | None = Field(default=None, max_length=128)
     version: str | None = Field(default=None, max_length=32)
     image_file: str | None = Field(default=None, max_length=128)
-    image_ref: str | None = Field(default=None, max_length=255, pattern=IMAGE_REF)
+    #: 모양 검사는 **서비스**가 한다(`app_images.IMAGE_REF`) — 정규식 정본이 거기 있고,
+    #: 스키마가 서비스를 import하는 전례를 만들지 않는다.
+    image_ref: str | None = Field(default=None, max_length=255)
     icon_file: str | None = Field(default=None, max_length=64)
     description: str | None = None
