@@ -69,6 +69,23 @@ def _code_image(kind: str, app_id: str) -> tuple[str, str, bool]:
     return app.name, app.image, app.ready
 
 
+def _catalog_apps(kind: str) -> tuple:
+    return session_apps.APPS if kind == KIND_INTERACTIVE else batch_apps.APPS
+
+
+def image_files(session: Session, kind: str) -> dict[str, str]:
+    """앱 id → **실제로 쓸 파일명**. 등록이 이기고, 없으면 코드 기본값이다.
+
+    목록 화면이 앱마다 따로 묻지 않도록 한 번에 만든다.
+    """
+    registered = {
+        row.app_id: row.image_file
+        for row in AppCatalogRepository(session).list_all()
+        if row.kind == kind and row.image_file
+    }
+    return {a.id: (registered.get(a.id) or a.image or "") for a in _catalog_apps(kind)}
+
+
 def resolve(
     session: Session, settings: Settings, cluster: Cluster, kind: str, app_id: str
 ) -> str:
@@ -146,16 +163,17 @@ class AppImageService:
         try:
             with self._connect(cluster) as client:
                 _, entries = client.list_dir(username, directory)
-            names = sorted(
-                e.name for e in entries if not e.is_dir and IMAGE_FILE.match(e.name)
-            )
         except Exception:
             logger.warning(
                 "이미지 목록 조회 실패 — cluster=%s dir=%s user=%s",
                 cluster.id, directory, username, exc_info=True,
             )
-            names = []
+            # **실패는 캐시하지 않는다.** 캐시 키가 클러스터라 여러 사용자가 나눠 쓰는데,
+            # 로그인 노드에 프로비저닝되지 않은 사용자 하나가 60초 동안 모두의 앱을
+            # 잠글 수 있다. 빈 디렉터리는 사실이지만 실패는 사실이 아니다.
+            return []
 
+        names = sorted(e.name for e in entries if not e.is_dir and IMAGE_FILE.match(e.name))
         self.cache.put(cluster.id, names)
         return names
 
@@ -206,6 +224,29 @@ class AppImageService:
             "message": f"이미지 디렉터리 확인 — {directory} (파일 {count}개)",
         }
 
-    def installed(self, cluster: Cluster, *, username: str, image: str) -> bool:
-        """이 클러스터에 그 파일이 있나. 앱 목록의 `installed` 판정(T-06)이 이걸 쓴다."""
-        return bool(image) and image in self.available(cluster, username=username)
+    def installed_map(self, cluster: Cluster, kind: str, *, username: str) -> dict[str, bool]:
+        """앱 id → 이 클러스터에 이미지가 있나. 목록 화면이 SSH를 한 번만 쓰게 한다."""
+        available = set(self.available(cluster, username=username))
+        return {
+            app_id: bool(name) and name in available
+            for app_id, name in image_files(self.session, kind).items()
+        }
+
+    def resolve_installed(
+        self, cluster: Cluster, kind: str, app_id: str, *, username: str
+    ) -> str:
+        """제출용 경로 — `resolve()`에 **"이 클러스터에 실제로 있는가"**를 더한다.
+
+        목록에서 잠그는 것만으로는 제한이 되지 않는다(화면을 거치지 않는 호출이 있다).
+        그리고 여기서 막지 않으면 Job이 워커까지 가서 죽고 사용자 화면에는 "FAILED"만
+        남아 원인이 안 보인다 — 이 모듈이 처음부터 지키던 규칙이다.
+        """
+        path = resolve(self.session, self.settings, cluster, kind, app_id)
+        name = path.rpartition("/")[2]
+        if name not in self.available(cluster, username=username):
+            app_name = _code_image(kind, app_id)[0]
+            raise ValidationFailed(
+                f"'{app_name}'의 이미지가 이 클러스터에 없습니다: {name}",
+                detail={"app": app_id, "image_file": name, "dir": image_dir(cluster, self.settings)},
+            )
+        return path

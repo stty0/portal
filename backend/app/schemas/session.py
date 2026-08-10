@@ -64,6 +64,9 @@ class InteractiveAppOut(BaseModel):
     description: str
     fid: str
     ready: bool
+    #: 이 **클러스터에** 이미지 파일이 있는가. `ready`는 실행 방식이 확정됐는지(코드),
+    #: `installed`는 파일이 거기 있는지(클러스터)다.
+    installed: bool = True
     #: 접속 방식. 화면이 **어디로 보낼지**를 이 값으로 정한다 — `vnc`는 원격 데스크톱
     #: 화면, `http`는 프록시 주소다. 화면이 앱 id로 분기하면 앱을 늘릴 때마다 화면을 고쳐야 한다.
     transport: str = "vnc"

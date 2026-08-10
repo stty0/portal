@@ -15,6 +15,8 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from app.core.config import get_settings
 from app.core.cookies import ACCESS_COOKIE
 from app.core.deps import (
+    AppImageCacheDep,
+    AppSettings,
     ClientFactoryDep,
     CurrentUser,
     DbSession,
@@ -30,6 +32,7 @@ from app.schemas.session import (
     SessionOut,
 )
 from app.services.app_access import KIND_INTERACTIVE, AppAccessService
+from app.services.app_images import AppImageService
 from app.services.cluster import ClusterService
 from app.services.session import SessionService
 from app.services.session_apps import APPS
@@ -62,13 +65,27 @@ def _access(
 AppAccessServiceDep = Annotated[AppAccessService, Depends(_access)]
 
 
+def _images(
+    db: DbSession,
+    secrets: SecretStoreDep,
+    clients: ClientFactoryDep,
+    settings: AppSettings,
+    cache: AppImageCacheDep,
+) -> AppImageService:
+    clusters = ClusterService(db, secrets=secrets, client_factory=clients)
+    return AppImageService(db, clusters, settings=settings, secrets=secrets, cache=cache)
+
+
+AppImageServiceDep = Annotated[AppImageService, Depends(_images)]
+
+
 @router.get(
     "/clusters/{cid}/interactive-apps",
     response_model=list[InteractiveAppOut],
     summary="인터랙티브 앱 목록 (U-IA-01)",
 )
 def list_interactive_apps(
-    cid: int, user: CurrentUser, access: AppAccessServiceDep
+    cid: int, user: CurrentUser, access: AppAccessServiceDep, images: AppImageServiceDep
 ) -> list[InteractiveAppOut]:
     """앱 목록의 단일 출처. 프론트엔드가 같은 배열을 또 갖지 않게 한다.
 
@@ -79,10 +96,12 @@ def list_interactive_apps(
     """
     cluster = access.clusters.get(cid)
     verdict = access.allowances(cluster, KIND_INTERACTIVE, user=user)
+    present = images.installed_map(cluster, KIND_INTERACTIVE, username=user.username)
     return [
         InteractiveAppOut(
             id=a.id, name=a.name, description=a.description, fid=a.fid,
             ready=a.ready, transport=a.transport, note=a.note,
+            installed=present.get(a.id, False),
             allowed=verdict[a.id].allowed, accounts=verdict[a.id].accounts,
         )
         for a in APPS
@@ -101,6 +120,7 @@ def create_session(
     user: CurrentUser,
     service: SessionServiceDep,
     access: AppAccessServiceDep,
+    images: AppImageServiceDep,
 ) -> SessionOut:
     cluster = service.clusters.get(cid)
     catalog = session_app(payload.app)
@@ -110,7 +130,9 @@ def create_session(
         cluster, KIND_INTERACTIVE, payload.app, user=user, account=payload.account
     )
     spec = SessionSpec(
-        image_ref=service.image_ref(cluster, payload.app),
+        image_ref=images.resolve_installed(
+            cluster, KIND_INTERACTIVE, payload.app, username=user.username
+        ),
         app=payload.app,
         entry=catalog.entry,
         partition=payload.partition,

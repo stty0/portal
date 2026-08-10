@@ -50,11 +50,14 @@ def fake_images(monkeypatch):
     return fake
 
 
-def test_lists_only_files_sorted(client, cluster, admin_token, fake_images):
-    body = client.get(
-        f"{API}/clusters/{cluster.id}/app-images", headers=auth_headers(admin_token)
+def _list(client, cluster, token):
+    return client.get(
+        f"{API}/clusters/{cluster.id}/app-images", headers=auth_headers(token)
     ).json()
-    assert body == ["a.sif", "b.sif"]  # 디렉터리는 빠지고 정렬된다
+
+
+def test_lists_only_files_sorted(client, cluster, admin_token, fake_images):
+    assert _list(client, cluster, admin_token) == ["a.sif", "b.sif"]  # 디렉터리는 빠지고 정렬
 
 
 def test_reads_the_directory_derived_from_the_cluster_home(
@@ -155,6 +158,102 @@ def test_check_does_not_use_the_cache(client, cluster, admin_token, fake_images)
     for _ in range(2):
         _check(client, cluster, admin_token)
     assert fake_images.opened == 2
+
+
+# --- 잠금 셋: ready · installed · allowed (T-06) ------------------------------
+# `ready`는 **실행 방식이 확정됐나**(코드), `installed`는 **파일이 거기 있나**(클러스터),
+# `allowed`는 **이 사람이 쓸 수 있나**(계정 배정). 셋은 서로 다른 질문이다.
+
+
+def test_apps_report_installed_per_cluster(client, cluster, user_token, fake_images):
+    """desktop의 이미지만 놓아 두면 그것만 `installed`가 된다."""
+    from app.services import session_apps
+
+    fake_images.entries = [_entry(session_apps.get("desktop").image)]
+    body = client.get(
+        f"{API}/clusters/{cluster.id}/interactive-apps", headers=auth_headers(user_token)
+    ).json()
+    installed = {a["id"]: a["installed"] for a in body}
+    assert installed["desktop"] is True
+    assert installed["jupyter"] is False
+
+
+def test_missing_image_locks_the_app_but_keeps_it_listed(
+    client, cluster, user_token, fake_images
+):
+    """숨기면 '왜 없지'에 답할 방법이 사라진다 — 남겨 두고 잠근다."""
+    fake_images.entries = []
+    body = client.get(
+        f"{API}/clusters/{cluster.id}/batch-apps", headers=auth_headers(user_token)
+    ).json()
+    assert {a["id"] for a in body}  # 목록은 그대로다
+    assert all(a["installed"] is False for a in body)
+
+
+def test_submitting_an_app_without_its_image_is_blocked(
+    client, cluster, user_token, fake_images
+):
+    """목록에서 잠그는 것만으로는 제한이 아니다 — 화면을 거치지 않는 호출이 있다."""
+    fake_images.entries = []
+    resp = client.post(
+        f"{API}/clusters/{cluster.id}/batch-apps/openfoam/jobs",
+        json={"name": "run", "params": {"case": "/home/jrpark/pitz"}},
+        headers=auth_headers(user_token),
+    )
+    assert resp.status_code == 422
+    body = resp.json()
+    assert "이 클러스터에 없습니다" in body["message"]
+    assert "openfoam-2512.sif" in body["message"]  # 무엇을 넣어야 하는지 말한다
+
+
+def test_dropping_a_sif_in_opens_the_app_without_a_code_deploy(
+    client, cluster, user_token, fake_images, redis
+):
+    """이 에픽의 핵심. `ready` 상수를 고쳐 재배포하던 것을 파일 존재로 바꿨다.
+
+    **캐시 TTL만큼(60초) 늦게 열린다.** 아래에서 키를 지우는 것이 그 시간 경과다 —
+    안 지우면 이 테스트는 통과하지 않는다. 목록 캐시를 둔 대가이고, 관리자가 파일을
+    넣은 뒤 1분 안에 보이는 것은 감수할 만하다고 판단했다.
+    """
+    from app.services import batch_apps
+
+    image = batch_apps.get("openfoam").image
+    fake_images.entries = []
+    before = client.get(
+        f"{API}/clusters/{cluster.id}/batch-apps", headers=auth_headers(user_token)
+    ).json()
+    assert next(a for a in before if a["id"] == "openfoam")["installed"] is False
+
+    fake_images.entries = [_entry(image)]  # SIF를 디렉터리에 넣었다
+    redis.delete(f"appImages:{cluster.id}")  # TTL 경과
+    after = client.get(
+        f"{API}/clusters/{cluster.id}/batch-apps", headers=auth_headers(user_token)
+    ).json()
+    assert next(a for a in after if a["id"] == "openfoam")["installed"] is True
+
+
+def test_ready_and_installed_are_different_questions(client, cluster, user_token, fake_images):
+    """Isaac Sim은 이미지가 생겨도 `ready=False`다 — 커맨드가 아직 실측이 아니다."""
+    from app.services import batch_apps
+
+    fake_images.entries = [_entry(batch_apps.get("isaac-sim").image)]
+    body = client.get(
+        f"{API}/clusters/{cluster.id}/batch-apps", headers=auth_headers(user_token)
+    ).json()
+    isaac = next(a for a in body if a["id"] == "isaac-sim")
+    assert isaac["installed"] is True and isaac["ready"] is False
+
+
+def test_failure_is_not_cached_so_one_broken_user_cannot_lock_everyone(
+    client, cluster, admin_token, fake_images
+):
+    """캐시 키가 클러스터라 여러 사용자가 나눠 쓴다. 실패를 캐시하면 프로비저닝되지
+    않은 사용자 하나가 60초 동안 모두의 앱을 잠근다."""
+    fake_images.error = paramiko.SSHException("EOF")
+    assert _list(client, cluster, admin_token) == []
+
+    fake_images.error = None
+    assert _list(client, cluster, admin_token) == ["a.sif", "b.sif"]
 
 
 def test_requires_admin(client, cluster, user_token, fake_images):

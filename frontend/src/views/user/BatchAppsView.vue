@@ -86,10 +86,22 @@ watch(
 )
 
 /**
- * 고를 수 있는가. **잠금이 두 가지**다 — `ready`는 이미지가 아직 없는 앱,
- * `allowed`는 관리자가 정한 계정 배정에서 빠진 앱이다.
+ * 고를 수 있는가. **잠금이 셋**이고 서로 다른 질문이다 —
+ * 사용자가 할 수 있는 일이 달라서 카드가 사유를 따로 말한다.
+ *
+ *   ready      실행 방식이 확정됐나        (코드)     → 기다리는 수밖에 없다
+ *   installed  이 클러스터에 이미지가 있나 (클러스터) → 관리자에게 설치를 요청한다
+ *   allowed    내가 쓸 수 있나             (계정 배정) → 관리자에게 계정 연결을 요청한다
  */
-const usable = (a: BatchApp) => a.ready && a.allowed
+const usable = (a: BatchApp) => a.ready && a.installed && a.allowed
+
+/** 잠긴 사유. 순서가 곧 우선순위다 — 실행 방식이 없으면 이미지가 있어도 소용없다. */
+function lockLabel(a: BatchApp): string {
+  if (!a.ready) return '준비 중'
+  if (!a.installed) return '이 클러스터에 없음'
+  if (!a.allowed) return '계정 제한'
+  return '사용 가능'
+}
 
 /** 계정 선택지. **배정된 앱이면 그 계정만** 남긴다(고를 수 없는 값을 보이면 안 된다). */
 const accounts = computed(() => {
@@ -240,22 +252,25 @@ async function submit() {
                 <b class="text-[15.5px] text-ink">{{ a.name }}</b>
                 <p v-if="appMetaLine(a.id)" class="text-[12.5px] text-ink-3">{{ appMetaLine(a.id) }}</p>
               </div>
-              <Badge :state="usable(a) ? 'idle' : 'down'">
-                {{ a.ready ? (a.allowed ? '사용 가능' : '계정 제한') : '준비 중' }}
-              </Badge>
+              <Badge :state="usable(a) ? 'idle' : 'down'">{{ lockLabel(a) }}</Badge>
             </div>
             <p class="text-[13.5px] text-ink-2">{{ a.description }}</p>
             <p v-if="a.needs_gpu" class="mt-1.5 text-[12.5px] text-ink-3">GPU 필요</p>
             <!-- 숨기지 않는다 — 숨기면 "그 앱이 왜 안 보이나"를 물을 데가 없다. -->
-            <p v-if="a.ready && !a.allowed" class="mt-1.5 text-[12.5px] text-ink-2 leading-relaxed">
+            <p v-if="a.ready && !a.installed" class="mt-1.5 text-[12.5px] text-ink-2 leading-relaxed">
+              이 클러스터에 컨테이너 이미지가 없습니다. 관리자에게 설치를 요청하세요 —
+              <b>다른 클러스터에서는 쓸 수 있을 수 있습니다.</b>
+            </p>
+            <p v-else-if="a.ready && !a.allowed" class="mt-1.5 text-[12.5px] text-ink-2 leading-relaxed">
               <b class="mono">{{ a.accounts.join(', ') }}</b> 계정에 소속된 사용자만 사용할 수
               있습니다. 관리자에게 계정 연결을 요청하세요.
             </p>
           </button>
         </div>
         <template #foot>
-          이미지는 클러스터의 <b>이미지 저장소</b>에서 가져옵니다. 준비 중인 앱은
-          이미지가 아직 등록되지 않은 것입니다.
+          이미지는 <b>클러스터마다 다른 공유 디렉터리</b>에서 가져옵니다 — 같은 앱이
+          클러스터에 따라 다르게 잠길 수 있습니다. 관리자가 SIF를 넣으면 <b>1분 안에</b>
+          열립니다.
         </template>
       </Card>
 

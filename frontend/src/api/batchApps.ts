@@ -18,10 +18,15 @@ export interface BatchApp {
   description: string
   fid: string
   needs_gpu: boolean
-  /** 준비 전 앱도 목록에 온다 — 고를 수만 없다. */
+  /** **실행 방식**(기동 커맨드·파라미터)이 확정됐는가. 코드가 답한다. */
   ready: boolean
+  /**
+   * 이 **클러스터에** 이미지 파일이 있는가. 클러스터가 답하고, SIF를 디렉터리에 넣으면
+   * 코드 배포 없이 참이 된다.
+   */
+  installed: boolean
   params: AppParam[]
-  /** 이 사용자가 쓸 수 있는가. `ready`와 다른 잠금 — 계정 배정에서 빠진 경우다. */
+  /** 이 사용자가 쓸 수 있는가. 세 번째 잠금 — 계정 배정에서 빠진 경우다. */
   allowed: boolean
   /** 이 앱에 배정된 계정. 비어 있으면 전원 허용이다. */
   accounts: string[]

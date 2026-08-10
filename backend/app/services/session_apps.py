@@ -27,7 +27,9 @@ class InteractiveApp:
     image: str
     #: 기능 정의서 ID (화면의 `<Fid>` 매핑).
     fid: str
-    #: 지금 실행할 수 있는가. 런처는 예정된 앱도 보여주되 고를 수 없게 한다.
+    #: **실행 방식**(기동 커맨드·파라미터)이 확정됐는가. 이미지가 거기 있는지는 별개
+    #: 질문이고(`installed`, 클러스터가 답한다) 이 값은 코드가 답한다. 목록에는 예정
+    #: 앱도 보여주되 고를 수 없게 한다.
     ready: bool = True
     #: 컨테이너 안의 기동 스크립트. VNC 앱과 HTTP 앱이 서로 다른 경로를 쓴다.
     entry: str = "/opt/portal/start-desktop.sh"

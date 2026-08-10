@@ -45,7 +45,6 @@ from app.services.ws_auth import authenticate_ws_token
 # Job 응답 파싱은 JobService에서 이미 slurmrestd 버전별 형태를 흡수해 두었다.
 # 같은 응답을 다루므로 재사용한다 — 복제하면 한쪽만 고쳐지는 버그가 난다.
 from app.services.job import _as_job_list, _extract_job_id, _state_of, walltime_minutes
-from app.services import app_images
 from app.services.session_script import (
     LOG_SUBDIR,
     SessionSpec,
@@ -90,12 +89,6 @@ class SessionService:
         )
 
     # --- 제출 (U-IA-01) --------------------------------------------------
-    def image_ref(self, cluster: Cluster, app: str) -> str:
-        """앱이 쓸 이미지. 있는 곳은 클러스터가, 어떤 파일인지는 앱 카탈로그가 안다."""
-        return app_images.resolve(
-            self.session, self.settings, cluster, app_images.KIND_INTERACTIVE, app
-        )
-
     def create(self, cluster: Cluster, spec: SessionSpec, *, user: User) -> InteractiveSession:
         script = build_session_script(spec)
 

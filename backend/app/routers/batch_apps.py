@@ -8,10 +8,19 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
 
-from app.core.deps import AppSettings, ClientFactoryDep, CurrentUser, DbSession, SecretStoreDep
+from app.core.deps import (
+    AppImageCacheDep,
+    AppSettings,
+    ClientFactoryDep,
+    CurrentUser,
+    DbSession,
+    SecretStoreDep,
+)
 from app.schemas.batch_app import AppParamOut, BatchAppOut, BatchAppSubmitRequest
 from app.schemas.job import JobSubmitResponse
-from app.services import app_images, batch_apps
+from app.services import batch_apps
+from app.services.app_images import KIND_BATCH as IMAGE_KIND_BATCH
+from app.services.app_images import AppImageService
 from app.services.app_access import KIND_BATCH, Allowance, AppAccessService
 from app.services.cluster import ClusterService
 from app.services.job import JobService, JobSpec
@@ -29,7 +38,21 @@ def _access(
 AppAccessServiceDep = Annotated[AppAccessService, Depends(_access)]
 
 
-def _out(app: batch_apps.BatchApp, verdict: Allowance) -> BatchAppOut:
+def _images(
+    db: DbSession,
+    secrets: SecretStoreDep,
+    clients: ClientFactoryDep,
+    settings: AppSettings,
+    cache: AppImageCacheDep,
+) -> AppImageService:
+    clusters = ClusterService(db, secrets=secrets, client_factory=clients)
+    return AppImageService(db, clusters, settings=settings, secrets=secrets, cache=cache)
+
+
+AppImageServiceDep = Annotated[AppImageService, Depends(_images)]
+
+
+def _out(app: batch_apps.BatchApp, verdict: Allowance, installed: bool) -> BatchAppOut:
     return BatchAppOut(
         id=app.id,
         name=app.name,
@@ -37,6 +60,7 @@ def _out(app: batch_apps.BatchApp, verdict: Allowance) -> BatchAppOut:
         fid=app.fid,
         needs_gpu=app.needs_gpu,
         ready=app.ready,
+        installed=installed,
         allowed=verdict.allowed,
         accounts=verdict.accounts,
         params=[
@@ -60,7 +84,7 @@ def _out(app: batch_apps.BatchApp, verdict: Allowance) -> BatchAppOut:
     summary="Batch 앱 목록 (U-JB-13)",
 )
 def list_apps(
-    cid: int, user: CurrentUser, access: AppAccessServiceDep
+    cid: int, user: CurrentUser, access: AppAccessServiceDep, images: AppImageServiceDep
 ) -> list[BatchAppOut]:
     """**예정 앱까지 내려보낸다.** 화면이 목록을 따로 갖고 있으면 앞뒤가 갈린다.
 
@@ -69,7 +93,8 @@ def list_apps(
     """
     cluster = access.clusters.get(cid)
     verdict = access.allowances(cluster, KIND_BATCH, user=user)
-    return [_out(a, verdict[a.id]) for a in batch_apps.APPS]
+    present = images.installed_map(cluster, IMAGE_KIND_BATCH, username=user.username)
+    return [_out(a, verdict[a.id], present.get(a.id, False)) for a in batch_apps.APPS]
 
 
 @router.post(
@@ -84,7 +109,7 @@ def submit(
     user: CurrentUser,
     service: JobServiceDep,
     access: AppAccessServiceDep,
-    settings: AppSettings,
+    images: AppImageServiceDep,
 ) -> JobSubmitResponse:
     """앱 + 파라미터 → 배치 스크립트 → sbatch.
 
@@ -93,8 +118,8 @@ def submit(
     """
     app = batch_apps.get(app_id)
     cluster = service.clusters.get(cid)
-    image = app_images.resolve(
-        service.session, settings, cluster, app_images.KIND_BATCH, app_id
+    image = images.resolve_installed(
+        cluster, IMAGE_KIND_BATCH, app_id, username=user.username
     )
     # 배정된 앱이면 소속을 확인하고, 안 골랐으면 쓸 계정을 채운다(세션과 같은 규칙).
     account = access.resolve_account(

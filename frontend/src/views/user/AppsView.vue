@@ -55,11 +55,14 @@ const selected = computed(
 )
 
 /**
- * 고를 수 있는가. **잠금이 두 가지**라 한 자리에서 묶는다 —
- * `ready`는 포털이 아직 제공하지 않는 앱, `allowed`는 관리자가 정한 계정 배정에서
- * 빠진 앱이다. 사용자가 할 수 있는 일이 다르므로 문구는 카드가 따로 말한다.
+ * 고를 수 있는가. **잠금이 셋**이라 한 자리에서 묶는다 — 셋은 서로 다른 질문이고
+ * **사용자가 할 수 있는 일이 다르다.** 그래서 문구는 카드가 따로 말한다.
+ *
+ *   ready      실행 방식이 확정됐나        (코드)     → 기다리는 수밖에 없다
+ *   installed  이 클러스터에 이미지가 있나 (클러스터) → 관리자에게 설치를 요청한다
+ *   allowed    내가 쓸 수 있나             (계정 배정) → 관리자에게 계정 연결을 요청한다
  */
-const usable = (a: InteractiveApp) => a.ready && a.allowed
+const usable = (a: InteractiveApp) => a.ready && a.installed && a.allowed
 
 /**
  * 계정 선택지. **배정된 앱이면 그 계정만** 남긴다 — 고를 수 없는 값을 보여주면
@@ -229,13 +232,18 @@ watch(() => clusters.selectedId, load)
             **계정 때문에 잠긴 앱은 숨기지 않는다.** 숨기면 사용자는 그 앱의 존재를
             모른 채 "안 보인다"고 묻게 된다 — 누구에게 무엇을 요청해야 하는지 적어 준다.
           -->
-          <p v-if="a.ready && !a.allowed" class="mt-2 text-[12.5px] text-ink-2 leading-relaxed">
+          <p v-if="a.ready && !a.installed" class="mt-2 text-[12.5px] text-ink-2 leading-relaxed">
+            이 클러스터에 컨테이너 이미지가 없습니다. 관리자에게 설치를 요청하세요 —
+            <b>다른 클러스터에서는 쓸 수 있을 수 있습니다.</b>
+          </p>
+          <p v-else-if="a.ready && !a.allowed" class="mt-2 text-[12.5px] text-ink-2 leading-relaxed">
             <b class="mono">{{ a.accounts.join(', ') }}</b> 계정에 소속된 사용자만 사용할 수
             있습니다. 관리자에게 계정 연결을 요청하세요.
           </p>
           <Chip v-if="!a.ready" tone="gray" class="mt-2">
             {{ a.note ? '포털 밖에서 사용' : '준비 중' }}
           </Chip>
+          <Chip v-else-if="!a.installed" tone="gray" class="mt-2">이 클러스터에 없음</Chip>
           <Chip v-else-if="!a.allowed" tone="gray" class="mt-2">계정 제한</Chip>
           <Chip v-else-if="selectedApp === a.id" tone="brand" class="mt-2">선택됨</Chip>
         </button>

@@ -215,3 +215,42 @@ def cluster(db, secret_store) -> Cluster:
     db.add(ClusterCredential(cluster_id=c.id, kind="SLURM_JWT", secret_ref=secret_ref))
     db.commit()
     return c
+
+
+class _AllImagesPresent:
+    """이미지 디렉터리에 **카탈로그가 가리키는 SIF가 다 있다**고 보는 가짜 SSH.
+
+    제출 경로가 이제 "이 클러스터에 이미지가 있는가"를 본다(T-06). 그게 주제가 아닌
+    테스트까지 전부 SSH를 흉내 내게 만들면 배보다 배꼽이 커진다. 목록은 **부를 때**
+    계산한다 — `monkeypatch.setattr(B, "APPS", ...)`로 카탈로그를 갈아 끼우는
+    테스트가 많아서, 미리 굳혀 두면 그쪽이 조용히 깨진다.
+
+    이미지가 **없는** 상태는 `test_app_images.py`가 따로 고정한다.
+    """
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return None
+
+    def list_dir(self, user, path, **kw):
+        from app.clients.ssh.client import FileEntry
+        from app.services import batch_apps, session_apps
+
+        names = {a.image for a in session_apps.APPS if a.image}
+        names |= {a.image for a in batch_apps.APPS if a.image}
+        entries = [
+            FileEntry(name=n, is_dir=False, size=1, mtime=None, mode="-rw-r--r--", uid=0, gid=0)
+            for n in sorted(names)
+        ]
+        return path, entries
+
+
+@pytest.fixture(autouse=True)
+def images_present(monkeypatch):
+    """기본값: 카탈로그의 이미지가 클러스터에 다 있다. 자세한 근거는 `_AllImagesPresent`."""
+    monkeypatch.setattr(
+        "app.services.app_images.AppImageService._connect",
+        lambda self, cluster: _AllImagesPresent(),
+    )

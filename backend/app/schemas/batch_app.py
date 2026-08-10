@@ -25,7 +25,11 @@ class BatchAppOut(BaseModel):
     needs_gpu: bool
     ready: bool
     params: list[AppParamOut]
-    #: 이 사용자가 쓸 수 있는가. `ready`와 다른 잠금이다 — 이미지는 있지만
+    #: 이 **클러스터에** 이미지 파일이 있는가. `ready`와 다르다 — `ready`는 실행 방식이
+    #: 확정됐는지(코드), `installed`는 파일이 거기 있는지(클러스터)다. SIF를 디렉터리에
+    #: 넣으면 코드 배포 없이 이 값이 참이 된다.
+    installed: bool = True
+    #: 이 사용자가 쓸 수 있는가. 세 번째 잠금이다 — 이미지도 있고 실행 방식도 있지만
     #: **계정 배정에서 빠진** 경우다(services/app_access.py).
     allowed: bool = True
     #: 이 앱에 배정된 계정. 비어 있으면 전원 허용이다.

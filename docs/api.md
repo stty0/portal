@@ -108,8 +108,8 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 | ~~GET~~ | ~~`/clusters/{cid}/jobs/{job_id}/logs`~~ | stdout/stderr 실시간 tail (SSE) — **미구현**| U-JB-06 | 인증 | 필수 |
 | GET | `/clusters/{cid}/jobs/history` | 완료 Job 이력(sacct — 기간·자원 사용량·종료 코드) | U-JB-09, A-JB-04 | 인증 | 필수 |
 | GET | `/clusters/{cid}/job-options` | 제출 폼 선택지(파티션·계정·QOS·`gpu_partitions`) — 폼이 자유 입력 대신 실제 값을 고르게 한다. `gpu_partitions`는 **`null`이면 '모름'**(노드 조회 실패), 빈 배열이면 'GPU 없음' | U-JB-01 | 인증 | 필수 |
-| GET | `/clusters/{cid}/batch-apps` | Batch 앱(해석 solver) 카탈로그 — 파라미터 스키마 포함. **예정 앱도 내려보낸다**(`ready=false`). **클러스터에 매인다** — 앱을 쓸 수 있는 계정이 클러스터별로 정해지고, 배정에서 빠진 앱은 `allowed=false`로 온다 | U-JB-13 | 인증 | 권장 |
-| POST | `/clusters/{cid}/batch-apps/{app_id}/jobs` | 앱 + 파라미터 → **여러 단계** 배치 스크립트 → sbatch. **스크립트는 서버가 만든다** — 요청의 `script`·`mode`는 무시한다. 자원 필드는 Job 제출과 동일 | U-JB-13 | 인증 | 권장 |
+| GET | `/clusters/{cid}/batch-apps` | Batch 앱(해석 solver) 카탈로그 — 파라미터 스키마 포함. **잠긴 앱도 숨기지 않고 내려보낸다** — 숨기면 "왜 안 보이나"를 물을 데가 없다. 잠금 셋: `ready`(실행 방식이 확정됐나, 코드) · `installed`(이 클러스터에 SIF가 있나 — **넣으면 코드 배포 없이 열린다**, 캐시 60초) · `allowed`(계정 배정) | U-JB-13 | 인증 | 권장 |
+| POST | `/clusters/{cid}/batch-apps/{app_id}/jobs` | 앱 + 파라미터 → **여러 단계** 배치 스크립트 → sbatch. **스크립트는 서버가 만든다** — 요청의 `script`·`mode`는 무시한다. 이미지가 이 클러스터에 없으면 **제출 전에 422**다(목록에서 잠그는 것만으로는 제한이 아니다). 자원 필드는 Job 제출과 동일 | U-JB-13 | 인증 | 권장 |
 | POST | `/clusters/{cid}/jobs/preview-script` | 폼 값으로 생성될 스크립트 미리보기(제출 없음) | U-JB-02 | 인증 | 필수 |
 
 ## 6. Nodes / Partitions / Reservations (A-ND) `NodeRouter`
@@ -194,7 +194,7 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 | Method | Path | 설명 | 기능 ID | 권한 | 우선순위 |
 |---|---|---|---|---|---|
 | WS | `/clusters/{cid}/terminal` | 로그인 노드 셸 (WS·PTY, `sudo -n -u <user> -i`) | U-SH-01 | 인증 | 권장 |
-| GET | `/clusters/{cid}/interactive-apps` | 앱 카탈로그(id·이름·설명·`fid`·`ready`·`allowed`·`accounts`). **목록의 단일 출처** — 화면이 같은 배열을 따로 갖지 않는다. 어떤 이미지를 쓰는지는 담지 않는다(운영 정보). **클러스터에 매인다** — 계정 배정이 클러스터별 slurmdbd 소속으로 판정되기 때문이다 | U-IA-01 | 인증 | 필수 |
+| GET | `/clusters/{cid}/interactive-apps` | 앱 카탈로그(id·이름·설명·`fid`·`ready`·`installed`·`allowed`·`accounts`). **목록의 단일 출처** — 화면이 같은 배열을 따로 갖지 않는다. 어떤 이미지 **파일**을 쓰는지는 담지 않는다(운영 정보). **클러스터에 매인다** — 잠금이 셋이고 둘이 클러스터에 달렸다: `ready`(실행 방식, 코드) · `installed`(이미지가 이 클러스터에 있나) · `allowed`(계정 배정) | U-IA-01 | 인증 | 필수 |
 | GET | `/clusters/{cid}/sessions` | 내 인터랙티브 세션 목록(클러스터 스코프) | U-IA-04 | 인증 | 필수 |
 | POST | `/clusters/{cid}/sessions` | 세션 실행(`app`=desktop/paraview + 자원 스펙 → slurmrestd 제출). 이미지는 **포털 설정 `app_image_dir` + 앱 카탈로그의 `image_file`**(없으면 코드 기본값)로 서버가 정한다 — 클라이언트가 지정할 수 없다. 제출 직후는 `PENDING` — 준비되면 `is_running` | U-IA-01·02 | 인증 | 필수 |
 | GET | `/sessions/{sid}` | 세션 상태(Slurm Job 상태가 권위 있는 출처) | U-IA-04 | 인증 | 필수 |
