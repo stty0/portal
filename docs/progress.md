@@ -4150,9 +4150,14 @@ SSH가 99%였고, 그 안을 다시 쪼개면 **연결 115~154ms + 첫 `list_dir
 - **아이콘 마운트가 차트에 없었다**(차트 생성 시점부터). `backend.appIconHostPath`로 넣었다.
   **비면 마운트하지 않는다** — emptyDir로 폴백하면 재시작마다 아이콘이 조용히 사라진다.
   마운트가 없으면 업로드가 422로 끊기고, 그 편이 낫다. NOTES가 만드는 명령을 알려준다.
-- **TLS 없이 열면 로그인만 실패했다.** `cookie_secure` 기본이 true라 브라우저가 http에서
-  쿠키를 버린다 — 화면은 뜨는데 원인이 안 보인다. `PORTAL_COOKIE_SECURE`를 values에
-  노출하고, TLS 미지정 + 쿠키 on 조합에 NOTES 경고를 붙였다.
+- **평문 http로 열면 로그인만 실패한다.** `cookie_secure` 기본이 true라 브라우저가 쿠키를
+  버린다 — 화면은 뜨는데 원인이 안 보인다. `PORTAL_COOKIE_SECURE`를 values에 노출했다.
+
+  처음엔 **"TLS Secret이 없으면 HTTPS가 열리지 않는다"고 경고를 썼는데 사실이 아니었다.**
+  확인해 보니 Traefik이 자기 기본 인증서로 응답한다(`CN=TRAEFIK DEFAULT CERT`, 자체서명) —
+  접속은 되고 브라우저 경고만 난다. 그러면 쿠키도 정상 동작하므로 `cookie_secure=true`여도
+  된다. 경고를 사실에 맞게 고쳤고, 쿠키 경고는 **Ingress를 끄고 http로 직접 노출할 때**만
+  뜨게 조건을 좁혔다.
 
 #### Helm의 `default`가 `false`를 삼킨다
 

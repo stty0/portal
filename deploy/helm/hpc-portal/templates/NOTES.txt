@@ -30,18 +30,23 @@
 {{- end }}
 {{- if not .Values.ingress.tlsSecretName }}
 
-⚠ TLS Secret이 지정되지 않아 **HTTPS가 열리지 않습니다.**
+⚠ TLS Secret을 지정하지 않았습니다. **접속은 됩니다** — Traefik이 자기 기본 인증서
+  (`CN=TRAEFIK DEFAULT CERT`, 자체서명)로 응답하므로 브라우저 경고를 넘기면 쓸 수 있습니다.
+  경고를 없애려면 인증서를 Secret으로 넣고 이름을 넘기세요:
+
+    kubectl -n {{ .Release.Namespace }} create secret tls <이름> --cert=fullchain.pem --key=privkey.pem
+    helm upgrade {{ .Release.Name }} . -n {{ .Release.Namespace }} --set ingress.tlsSecretName=<이름>
+{{- end }}
 {{- /* `default`를 쓰면 안 된다 — Helm의 default는 **false를 빈 값으로 보고** 기본값으로
        바꿔치기한다. 끄려고 false를 넣은 사람에게 경고가 그대로 뜬다. */}}
 {{- $cookieSecure := "true" }}
 {{- if hasKey (.Values.backend.env | default dict) "PORTAL_COOKIE_SECURE" }}
 {{-   $cookieSecure = toString (get .Values.backend.env "PORTAL_COOKIE_SECURE") }}
 {{- end }}
-{{- if ne $cookieSecure "false" }}
-  그리고 `PORTAL_COOKIE_SECURE`가 켜져 있어 **브라우저가 http에서 쿠키를 버립니다** —
-  화면은 뜨는데 로그인만 조용히 실패합니다. 둘 중 하나를 하세요:
+{{- if and (ne $cookieSecure "false") (not .Values.ingress.enabled) }}
 
-    (권장) 인증서 Secret을 만들고  --set ingress.tlsSecretName=<이름>
-    (검증용) http로 쓰려면        --set backend.env.PORTAL_COOKIE_SECURE=false
-{{- end }}
+⚠ Ingress를 끄고 **http로 직접 노출**하려는 것 같습니다. 그러면 `PORTAL_COOKIE_SECURE`가
+  켜져 있어 **브라우저가 쿠키를 버리고 로그인만 조용히 실패합니다.**
+
+    --set backend.env.PORTAL_COOKIE_SECURE=false
 {{- end }}
