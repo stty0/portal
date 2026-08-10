@@ -3925,3 +3925,64 @@ install     → /home/.portal/images/portal-selftest.sif
 
 검증: 테스트 **442개 통과**(7개 추가). `chown`을 지우면 배치 테스트가 실패한다.
 `api.md` 100 → **102**, CLAUDE.md 435 → **442**.
+
+---
+
+### 데스크톱 이미지를 레지스트리로 — 큰 이미지 변환 실측
+
+`rocky9-mate:1.5`를 Docker Hub(`stty0/rocky9-mate:1.5`)에 올렸다. 그래서 데스크톱 계열도
+`image_ref`를 갖게 됐고, **손으로 SIF를 복사하던 앱들이 변환 경로에 들어왔다.**
+
+```
+desktop      rocky9-mate-1.5.sif    docker://stty0/rocky9-mate:1.5
+paraview     rocky9-mate-1.5.sif    docker://stty0/rocky9-mate:1.5
+jupyter      rocky9-mate-1.6.sif    (없음)  ← 1.6은 아직 안 올라갔다
+code-server  (없음)                  (없음)  ← 포털이 호스팅하지 않는다
+```
+
+**비어 있는 것도 정보다.** 비면 화면에 [변환]이 뜨지 않는다 — 무엇을 받아올지 모르는 채로
+잡을 던지지 않는다. 테스트가 그 집합(`{jupyter, code-server}`)을 고정한다.
+
+#### 워커 노드에 Docker가 없어도 된다 (실측)
+
+```
+cluster 13·14   docker 없음 · podman 없음 · containerd 없음 · apptainer /usr/bin/apptainer
+```
+
+`docker://`는 **프로토콜 이름일 뿐** Docker 데몬이 아니다 — apptainer가 OCI Distribution
+API로 레이어를 직접 받아 SIF로 조립한다. 데몬이 필요한 것은 `docker-daemon://`(로컬
+데몬에서 읽기)뿐이다.
+
+#### 큰 이미지 변환 — T-08의 미확인 항목이 채워졌다
+
+alpine 3.5MB로만 확인했던 것을 실물로 돌렸다(Job 101).
+
+| 항목 | 값 |
+|---|---|
+| 원본 (Docker Hub) | 2.62GB |
+| **소요 시간** | **9분 3초** |
+| 산출 SIF | **1.3GB** (기존 손빌드 SIF와 같은 크기) |
+| 스크래치 피크 | cache 1.4G + tmp 987M ≈ **2.4G** |
+| 빌드 후 잔여 | cache 1.4G (tmp는 스스로 비운다) |
+
+`/home`이 100T라 여유는 문제가 아니었다. 검사물(SIF·캐시·잡 로그·임시 등록 행)은 모두 지웠다.
+
+⚠️ **남은 문제: apptainer 캐시가 관리자 홈에 쌓이고 아무도 지우지 않는다.** 이번엔 1.4G였고
+Isaac Sim은 수 GB다. 노드 디스크가 아니라 100T NFS라 당장 위험하지는 않지만, 이 프로젝트에는
+**캐시 11GB로 dev01이 DiskPressure에 걸려 포털 파드가 evict된 전례**가 있다. 빌드 뒤
+`apptainer cache clean`을 넣을지는 별도 판단이 필요하다(넣으면 재빌드가 매번 느려진다).
+
+#### 이미지 파일명 칸을 드롭다운에서 입력으로
+
+**드롭다운이면 새 버전의 첫 빌드가 불가능했다.** `openfoam:2606`으로 올리려 해도
+`openfoam-2606.sif`는 아직 없는 파일이라 목록에 안 뜨고, 고르기만 가능하니 그 이름을 넣을
+방법이 없었다. T-08을 DB에 값을 직접 넣어 검사해서 화면 경로로는 안 걸렸다.
+
+`<input list>` + `<datalist>`로 바꿨다 — 기존 파일은 **제안**으로 남고 새 이름도 쓸 수 있다.
+출처를 입력하고 포커스를 벗어나면 **파일명이 비어 있을 때만** 채워 준다
+(`docker://stty0/rocky9-mate:1.5` → `rocky9-mate-1.5.sif`). 손으로 넣은 값은 덮지 않는다.
+
+이유는 두 칸이 어긋날 수 있어서다 — 출처만 `:2606`으로 바꾸고 파일명을 두면 새 이미지가
+`…-2512.sif`라는 이름으로 저장돼 **이름이 거짓말을 한다.**
+
+검증: 테스트 **444개 통과**(2개 추가 — 카탈로그 참조의 모양, 출처 없는 앱 집합).

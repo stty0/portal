@@ -55,6 +55,7 @@ APPS: tuple[InteractiveApp, ...] = (
         name="원격 데스크톱",
         description="MATE 데스크톱 (Rocky 9)",
         image="rocky9-mate-1.5.sif",
+        image_ref="docker://stty0/rocky9-mate:1.5",
         fid="U-IA-02",
     ),
     InteractiveApp(
@@ -62,6 +63,7 @@ APPS: tuple[InteractiveApp, ...] = (
         name="ParaView",
         description="과학 시각화 5.11 (소프트웨어 렌더링)",
         image="rocky9-mate-1.5.sif",
+        image_ref="docker://stty0/rocky9-mate:1.5",
         fid="U-IA-02",
     ),
     # JupyterLab은 **VNC를 쓰지 않는 첫 앱이다**. X 서버 없이 HTTP로 뜨고, 포털이
@@ -72,6 +74,8 @@ APPS: tuple[InteractiveApp, ...] = (
         name="JupyterLab",
         description="노트북 세션 (Python 3.11)",
         image="rocky9-mate-1.6.sif",
+        # 1.6은 아직 레지스트리에 없다(1.5만 올라가 있다). 비워 두는 것이 사실이고,
+        # 비어 있으면 화면에 [변환]이 안 뜬다 — 무엇을 받아올지 모르는 채로 잡을 던지지 않는다.
         fid="U-IA-01",
         entry="/opt/portal/start-jupyter.sh",
         transport="http",

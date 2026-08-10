@@ -313,9 +313,9 @@ def test_build_is_refused_when_the_app_has_no_source(
     """출처가 없으면 만들 수가 없다 — 잡을 던져 놓고 워커에서 죽게 두지 않는다."""
     from app.services import session_apps
 
-    # 데스크톱 계열은 레지스트리가 아니라 저장소에서 직접 만든다 — image_ref가 비어 있다.
-    assert session_apps.get("desktop").image_ref == ""
-    resp = _build(client, cluster, admin_token, app_id="desktop", kind="interactive")
+    # jupyter가 쓰는 1.6은 아직 레지스트리에 없다(1.5만 올라가 있다).
+    assert session_apps.get("jupyter").image_ref == ""
+    resp = _build(client, cluster, admin_token, app_id="jupyter", kind="interactive")
     assert resp.status_code == 422
     assert "출처" in resp.json()["message"]
 
@@ -364,6 +364,31 @@ def test_install_requires_admin(client, cluster, user_token, fake_images):
     )
     assert resp.status_code == 403
     assert fake_images.ran == []  # 권한을 보기 전에 아무것도 실행하지 않는다
+
+
+def test_catalog_refs_are_shaped_so_the_build_job_can_use_them():
+    """카탈로그에 적힌 출처는 **그대로 `apptainer build`로 넘어간다.**
+
+    오타나 스킴 누락은 잡을 던져 놓고 워커에서 죽는 것으로만 드러난다 — 여기서 막는다.
+    """
+    from app.services import batch_apps, session_apps
+    from app.services.app_images import IMAGE_REF
+
+    for app in list(session_apps.APPS) + list(batch_apps.APPS):
+        if app.image_ref:
+            assert IMAGE_REF.match(app.image_ref), f"{app.id}: {app.image_ref}"
+
+
+def test_apps_without_a_registry_source_say_so_by_being_empty():
+    """비어 있는 것이 정보다 — 레지스트리에서 오지 않는 이미지가 있다는 사실.
+
+    jupyter가 쓰는 1.6은 아직 안 올라갔고, code-server는 포털이 호스팅하지 않는다.
+    비어 있으면 화면에 [변환]이 뜨지 않는다.
+    """
+    from app.services import session_apps
+
+    empty = {a.id for a in session_apps.APPS if not a.image_ref}
+    assert empty == {"jupyter", "code-server"}
 
 
 def test_requires_admin(client, cluster, user_token, fake_images):

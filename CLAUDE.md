@@ -83,7 +83,7 @@ Claude가 계획·구현·검증을 모두 담당한다. 전체 흐름과 상세
 
 ## 검증 방법
 ```bash
-cd backend  && .venv/bin/python -m pytest -q   # 442개. 외부 환경 불필요(SQLite+fake)
+cd backend  && .venv/bin/python -m pytest -q   # 444개. 외부 환경 불필요(SQLite+fake)
 cd frontend && npm run build                    # vue-tsc 타입체크 + 빌드
 ```
 - 배포 확인: `curl -sk -H 'Host: www.dt-hpc.net' https://127.0.0.1:9443/` → 200,

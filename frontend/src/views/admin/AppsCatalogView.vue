@@ -66,6 +66,28 @@ async function loadImageFiles(): Promise<string[]> {
   return [...new Set(lists.flat())].sort()
 }
 
+/**
+ * OCI 참조에서 SIF 파일명을 만든다 — `docker://stty0/rocky9-mate:1.5` → `rocky9-mate-1.5.sif`.
+ *
+ * **제안일 뿐 강제가 아니다.** 이미 디렉터리에 있는 파일들은 손으로 붙인 이름을 갖고 있고,
+ * 레지스트리에서 오지 않는 이미지도 있다. 다만 출처를 바꿔 놓고 파일명을 그대로 두면
+ * **이름이 거짓말을 하므로**(`:2606`을 받아 `…-2512.sif`로 저장) 비어 있을 때 채워 준다.
+ */
+function suggestFileName(ref: string): string {
+  const path = ref.replace(/^[A-Za-z][A-Za-z0-9+.-]*:\/\//, '').split('@')[0]
+  const last = path.split('/').pop() ?? ''
+  const [name, tag] = last.split(':')
+  if (!name) return ''
+  return `${tag ? `${name}-${tag}` : name}.sif`
+}
+
+/** 출처를 입력하면 파일명을 채워 준다 — **비어 있을 때만**. 손으로 넣은 값을 덮지 않는다. */
+function onRefInput() {
+  if (!form.value.image_file && form.value.image_ref) {
+    form.value.image_file = suggestFileName(form.value.image_ref)
+  }
+}
+
 const clusterLabel = (c: { name: string | null; alias: string | null }) =>
   c.alias || c.name || '이름 미확인 클러스터'
 
@@ -344,19 +366,33 @@ async function remove(a: AppCatalog) {
 
       <Field
         label="컨테이너 이미지 파일" full
-        hint="클러스터의 이미지 디렉터리에 있는 SIF 파일(전 클러스터 합집합). 비우면 코드 카탈로그의 기본 이미지를 씁니다."
+        hint="변환 결과가 저장될 이름. 목록은 클러스터에 이미 있는 SIF(전 클러스터 합집합)이고, 새 이름을 직접 써도 됩니다. 비우면 코드 카탈로그의 기본 이미지를 씁니다."
       >
-        <select v-model="form.image_file" :class="[inputClass, 'mono']">
-          <option value="">(코드 기본값 사용)</option>
-          <option v-for="f in imageFiles" :key="f" :value="f">{{ f }}</option>
-        </select>
+        <!--
+          **드롭다운이면 안 된다.** 새 버전의 첫 빌드는 아직 없는 파일명을 적어야 하는데,
+          고르기만 가능하면 그 이름을 넣을 방법이 없어 변환 경로가 막힌다.
+        -->
+        <input
+          v-model="form.image_file"
+          list="app-image-files"
+          :class="[inputClass, 'mono']"
+          placeholder="예: rocky9-mate-1.5.sif"
+        />
+        <datalist id="app-image-files">
+          <option v-for="f in imageFiles" :key="f" :value="f" />
+        </datalist>
       </Field>
 
       <Field
         label="이미지 출처 (OCI 참조)" full
         hint="예: docker://opencfd/openfoam-default:2512 — 이 SIF를 무엇으로 만들었는지. 스킴(docker:// 등)이 필요합니다."
       >
-        <input v-model="form.image_ref" :class="[inputClass, 'mono']" placeholder="docker://…" />
+        <input
+          v-model="form.image_ref"
+          :class="[inputClass, 'mono']"
+          placeholder="docker://…"
+          @blur="onRefInput"
+        />
       </Field>
 
       <Field
