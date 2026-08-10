@@ -146,3 +146,37 @@ def test_internal_error_does_not_leak_details(app, db, cluster, user_token, monk
     assert resp.status_code == 500
     assert "hunter2" not in resp.text
     assert resp.json()["code"] == "INTERNAL_ERROR"
+
+
+# --- 비밀이 repr로 새지 않는다 -----------------------------------------------
+# dataclass·pydantic 기본 `repr`은 **모든 필드를 찍는다.** 객체가 로그나 디버그 출력에
+# 한 번만 실려도 평문이 남는다. 2026-08-10에 진단 코드가 `SshTarget`을 출력하면서 실제로
+# 클러스터 개인키가 로그에 남은 적이 있다 — 그래서 필드 단위로 막고 여기서 고정한다.
+
+
+def test_ssh_target_repr_does_not_leak_the_private_key():
+    from app.clients.ssh.client import SshTarget
+
+    key = "-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----"
+    target = SshTarget(host="h", port=22, account="svc", private_key=key)
+    for text in (repr(target), str(target), f"{target}"):
+        assert "MIIEow" not in text
+        assert "PRIVATE KEY" not in text
+    assert target.private_key == key  # 값 자체는 살아 있어야 한다
+
+
+def test_settings_repr_does_not_leak_secrets():
+    from app.core.config import Settings
+
+    settings = Settings(
+        _env_file=None,
+        jwt_secret="jwt-hunter2",
+        setup_token="setup-hunter2",
+        database_url="mysql+pymysql://portal:db-hunter2@h/portal",
+        redis_url="redis://:redis-hunter2@h:6379/0",
+    )
+    text = repr(settings)
+    for secret in ("jwt-hunter2", "setup-hunter2", "db-hunter2", "redis-hunter2"):
+        assert secret not in text, secret
+    # 값은 그대로 쓰인다 — 가리는 것은 표시뿐이다.
+    assert settings.jwt_secret == "jwt-hunter2"

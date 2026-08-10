@@ -148,7 +148,10 @@ def test_missing_directory_is_a_warning_not_an_error(
     assert body["ok"] is False
     # 경로와 **할 일**이 함께 있어야 관리자가 움직일 수 있다.
     assert "/home/.portal/images" in body["message"]
-    assert "쓰기 권한" in body["message"]
+    assert "SIF를 넣어" in body["message"]
+    # **쓰기 권한을 주라고 하면 안 된다** — 이 클러스터에 관리자 그룹이 없어서 그 말은
+    # `domain users`에 여는 것이고, 그러면 아무나 남이 실행할 이미지를 바꿀 수 있다.
+    assert "쓰기 권한은 필요하지 않습니다" in body["message"]
 
 
 def test_unreachable_login_node_says_something_different(
@@ -159,7 +162,7 @@ def test_unreachable_login_node_says_something_different(
     body = _check(client, cluster, admin_token)
     assert body["ok"] is False
     assert "확인할 수 없습니다" in body["message"]
-    assert "쓰기 권한" not in body["message"]
+    assert "SIF를 넣어" not in body["message"]
 
 
 def test_check_does_not_use_the_cache(client, cluster, admin_token, fake_images):

@@ -13,7 +13,7 @@ from __future__ import annotations
 import io
 import shlex
 import stat as stat_module
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, BinaryIO, Iterator, Sequence
 
 import paramiko
@@ -38,7 +38,10 @@ class SshTarget:
     host: str
     port: int
     account: str
-    private_key: str
+    #: **`repr`에서 뺀다.** dataclass 기본 `repr`은 모든 필드를 찍으므로, 이 객체가 로그나
+    #: 디버그 출력에 한 번만 실려도 클러스터 개인키가 평문으로 남는다. 실제로 그렇게
+    #: 새어 나간 적이 있다(2026-08-10). 값을 쓰는 곳은 paramiko 하나뿐이다.
+    private_key: str = field(repr=False)
     sftp_server: str = SFTP_SERVER_CANDIDATES[0]
 
 

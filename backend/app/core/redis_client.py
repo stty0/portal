@@ -180,9 +180,9 @@ class AppImageCache:
     """클러스터에 있는 이미지 파일 목록 캐시 (A-OP-02).
 
     이 목록은 **로그인 노드 SSH `ls`**로 만든다. 앱 목록을 그릴 때마다 물으면 화면 한 번에
-    SSH가 여러 번 열린다. 짧은 TTL만 두고 무효화는 하지 않는다 — 관리자가 SIF를 올린 뒤
-    최대 1분 늦게 보이는 것은 감수할 만하고, 무효화 지점을 만들면 포털을 거치지 않은
-    파일 복사(대부분이 그렇다)는 어차피 못 잡는다.
+    SSH가 여러 번 열린다. 짧은 TTL만 두고 **무효화 지점은 두지 않는다** — 파일은 포털을
+    거치지 않고 놓이므로(관리자가 직접 올린다) 무효화를 걸 자리가 애초에 없다. 관리자가
+    SIF를 올린 뒤 최대 1분 늦게 보이는 것은 감수할 만하다.
     """
 
     def __init__(self, redis: RedisLike, ttl_seconds: int):
@@ -204,10 +204,6 @@ class AppImageCache:
 
     def put(self, cluster_id: int, images: list[str]) -> None:
         self._redis.setex(self._key(cluster_id), self._ttl, ",".join(images))
-
-    def invalidate(self, cluster_id: int) -> None:
-        """포털이 **직접 파일을 넣은** 뒤에만 부른다. 그때는 TTL을 기다릴 이유가 없다."""
-        self._redis.delete(self._key(cluster_id))
 
 
 class PermissionCache:

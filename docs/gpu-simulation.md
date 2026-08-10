@@ -82,9 +82,10 @@ L40 1장 = **Isaac Sim 세션/Job 1개**(Slurm이 `gres=gpu:1`을 통째로 준�
 
 ## 4. 이미지 반입
 
-`nvcr.io`는 익명 pull이 안 된다(NGC 계정 + API 키). 그런데 클러스터 설정에 **레지스트리
-자격증명 자리가 없다.** 개발 단계에는 자격증명이 있는 기계에서 받아 SIF로 넣는다 —
-`app_image_dir`가 경로 접두사라 **포털 변경이 필요 없다** — 이미지 파일을 넣고 앱 관리에서 고르면 된다.
+`nvcr.io`는 익명 pull이 안 된다(NGC 계정 + API 키). 그런데 **포털은 레지스트리에 접근하지
+않는다** — 관리자가 자격증명이 있는 기계에서 받아 SIF로 바꾼 뒤 클러스터에 올려놓는 것이
+정해진 방식이다(2026-08-10 결정). 아래 절차가 곧 그 방식이고, 포털은 파일이 놓였는지만
+본다 — 이미지 파일을 넣고 앱 관리에서 파일명을 고르면 된다.
 
 ```bash
 docker login nvcr.io                      # Username: $oauthtoken / Password: NGC API key
@@ -92,8 +93,15 @@ docker pull nvcr.io/nvidia/isaac-sim:5.1.0
 
 export APPTAINER_TMPDIR=/home/apptainer/tmp      # 둘 다 /home 아래로!
 export APPTAINER_CACHEDIR=/home/apptainer/cache
-apptainer build /home/images/isaac-sim-5.1.0.sif docker-daemon://nvcr.io/nvidia/isaac-sim:5.1.0
+# 실측(2026-08-10): 2.62GB 이미지 → 9분 3초, SIF 1.3GB, 스크래치 피크 2.4GB
+# 목적지는 **클러스터마다** {home_base}/.portal/images 다 (마이그레이션 0017·T-01)
+apptainer build /home/.portal/images/isaac-sim-5.1.0.sif \
+    docker-daemon://nvcr.io/nvidia/isaac-sim:5.1.0
 ```
+
+`docker-daemon://` 대신 **`docker://`로 레지스트리에서 바로 받아도 된다** — 계산 노드에
+docker·podman·containerd가 하나도 없어도 apptainer만으로 변환된다(2026-08-10 실측).
+그 경우 Docker 데몬도 `docker pull`도 필요 없다.
 
 **변환 중 순간 사용량이 최종 SIF보다 훨씬 크다(이미지의 3~4배).** tmpdir이 `/home` 밖이면
 용량과 무관하게 터진다 — 전에 dev01이 DiskPressure에 걸려 포털 pod이 evict된 사고가 바로

@@ -4,6 +4,10 @@
 - 담당: 구현·검증 Claude
 - 이전 에픽 exec-plan은 git 이력 참조
 
+> **상태: T-01~T-06 완료(배포·실측까지) · T-07·T-08 철회.**
+> 아래 수용 기준은 T-06까지 충족 확인된 것이다. T-07·T-08은 만들었다가 걷어냈고
+> (마이그레이션 `0019`), 경위와 실측은 [progress.md](progress.md)에 있다.
+
 순차 진행한다. 각 Task는 **단독으로 배포 가능한 상태**로 끝난다 — 중간에 멈춰도
 반쪽이 남지 않게.
 
@@ -21,10 +25,10 @@
   - `settings.app_image_dir` 기본값을 `/home/.portal/images`로
 - 의존성: 없음
 - 수용 기준:
-  - [ ] `home_base='/nfs/home'` → `/nfs/home/.portal/images/<파일>`
-  - [ ] `home_base=None` → `settings.app_image_dir` 폴백
-  - [ ] `home_base='/home/'`(꼬리 슬래시) → 슬래시가 겹치지 않는다
-  - [ ] 기존 테스트 전부 통과
+  - [x] `home_base='/nfs/home'` → `/nfs/home/.portal/images/<파일>`
+  - [x] `home_base=None` → `settings.app_image_dir` 폴백
+  - [x] `home_base='/home/'`(꼬리 슬래시) → 슬래시가 겹치지 않는다
+  - [x] 기존 테스트 전부 통과
 
 ### T-02 `/home/portal` → `/home/.portal` 이동
 - 대상 파일: `deploy/k8s/30-backend.yaml`, `docs/progress.md`
@@ -36,9 +40,9 @@
   - `type: Directory`라 경로가 틀리면 파드가 안 뜬다 — **이동과 롤아웃을 한 번에**
 - 의존성: T-01 (기본값이 먼저 바뀌어야 한다)
 - 수용 기준:
-  - [ ] 파드 안에서 `ls /home/portal/images`에 SIF가 그대로 보인다
-  - [ ] 아이콘 업로드가 여전히 된다
-  - [ ] 돌고 있는 세션이 죽지 않는다 (SIF를 mmap 중 — `mv`는 inode 유지라 안전)
+  - [x] 파드 안에서 `ls /home/portal/images`에 SIF가 그대로 보인다
+  - [x] 아이콘 업로드가 여전히 된다
+  - [x] 돌고 있는 세션이 죽지 않는다 (SIF를 mmap 중 — `mv`는 inode 유지라 안전)
 
 ### T-03 클러스터별 이미지 목록 (SSH)
 - 대상 파일: `backend/app/services/app_images.py`(또는 신규 `AppImageService`),
@@ -51,10 +55,10 @@
   - **실패는 빈 목록으로 흡수한다** — 로그인 노드가 죽어도 화면은 떠야 한다
 - 의존성: T-01
 - 수용 기준:
-  - [ ] 목록이 그 클러스터의 파생 경로를 읽는다
-  - [ ] SSH 실패 시 500이 아니라 빈 목록
-  - [ ] 두 번째 호출이 SSH를 다시 열지 않는다(캐시)
-  - [ ] `test_layering.py` 통과
+  - [x] 목록이 그 클러스터의 파생 경로를 읽는다
+  - [x] SSH 실패 시 500이 아니라 빈 목록
+  - [x] 두 번째 호출이 SSH를 다시 열지 않는다(캐시)
+  - [x] `test_layering.py` 통과
 
 ### T-04 관리 화면 전환 + 파드 마운트 제거
 - 대상 파일: `frontend/src/views/admin/AppsCatalogView.vue`,
@@ -68,9 +72,9 @@
   - Deployment의 `app-images` hostPath 마운트 **제거** — 파드가 더는 안 읽는다
 - 의존성: T-03
 - 수용 기준:
-  - [ ] 선택기에 SIF 목록이 뜬다
-  - [ ] 파드에 이미지 디렉터리가 마운트되지 않아도 목록이 나온다
-  - [ ] `/ops/app-images` 참조가 코드·문서에 남아 있지 않다
+  - [x] 선택기에 SIF 목록이 뜬다
+  - [x] 파드에 이미지 디렉터리가 마운트되지 않아도 목록이 나온다
+  - [x] `/ops/app-images` 참조가 코드·문서에 남아 있지 않다
 
 ### T-05 클러스터 등록 시 디렉터리 확인
 - 대상 파일: `backend/app/services/cluster.py`, `backend/app/schemas/cluster.py`,
@@ -79,8 +83,10 @@
   응답에 실어 화면에 띄우되 **등록은 성공시킨다**
 - 의존성: T-03
 - 수용 기준:
-  - [ ] 없는 경로로 등록하면 경고가 뜨고 클러스터는 등록된다
-  - [ ] 경고 문구에 **경로와 할 일**(`mkdir` + 그룹 쓰기)이 들어 있다
+  - [x] 없는 경로로 등록하면 경고가 뜨고 클러스터는 등록된다
+  - [x] 경고 문구에 **경로와 할 일**(경로 생성 + SIF 배치)이 들어 있다.
+        **쓰기 권한을 주라고 하지 않는다** — 포털은 여기 쓰지 않고, 이 클러스터엔 관리자
+        그룹이 없어 그 말은 곧 `domain users`에 여는 것이다(2026-08-10 감사에서 정정)
 
 ### T-06 `installed` 판정 → 잠금 셋
 - 대상 파일: `backend/app/services/app_images.py`,
@@ -95,11 +101,11 @@
     커맨드가 아직 실측이 아니다(카탈로그 주석에 근거가 적혀 있다)
 - 의존성: T-03
 - 수용 기준:
-  - [ ] SIF를 디렉터리에 넣으면 **코드 배포 없이** 앱이 열린다
-  - [ ] 이미지 없는 앱이 목록에 남고 사유가 보인다
-  - [ ] 잠긴 앱을 API로 직접 제출하면 422로 끊긴다(화면 잠금만으로는 제한이 아니다)
+  - [x] SIF를 디렉터리에 넣으면 **코드 배포 없이** 앱이 열린다
+  - [x] 이미지 없는 앱이 목록에 남고 사유가 보인다
+  - [x] 잠긴 앱을 API로 직접 제출하면 422로 끊긴다(화면 잠금만으로는 제한이 아니다)
 
-### T-07 `app_catalog.image_ref` — 이미지의 출처
+### ~~T-07 `app_catalog.image_ref` — 이미지의 출처~~ — **철회**
 - 대상 파일: `backend/alembic/versions/0018_app_image_ref.py`,
   `backend/app/models/content.py`, `backend/app/schemas/ops.py`,
   `frontend/src/views/admin/AppsCatalogView.vue`
@@ -108,10 +114,10 @@
   올리려면 문서를 뒤져야 한다
 - 의존성: T-04
 - 수용 기준:
-  - [ ] 앱 관리에서 입력·수정된다
-  - [ ] 마이그레이션 up/down 확인 (MySQL DDL은 트랜잭션이 아니다 — down은 최소로)
+  - ~~앱 관리에서 입력·수정된다~~ (철회 전 충족)
+  - ~~마이그레이션 up/down 확인 (MySQL DDL은 트랜잭션이 아니다 — down은 최소로)~~ (철회 전 충족)
 
-### T-08 변환을 Slurm 잡으로
+### ~~T-08 변환을 Slurm 잡으로~~ — **철회**
 - 대상 파일: `backend/app/services/app_images.py`, `backend/app/routers/clusters.py`,
   `frontend/src/views/admin/AppsCatalogView.vue`, `docs/progress.md`
 - 내용:
@@ -122,9 +128,9 @@
   - 디렉터리 그룹 쓰기 권한 절차를 문서에 남긴다
 - 의존성: T-06, T-07
 - 수용 기준:
-  - [ ] 실제 클러스터에서 한 이미지를 변환해 앱이 열리는 것까지 확인
-  - [ ] 빌드 실패 시 `.sif`가 남지 않는다
-  - [ ] 변환 뒤 캐시가 `/home` 아래에만 있다 (root 홈에 blob 없음)
+  - ~~실제 클러스터에서 한 이미지를 변환해 앱이 열리는 것까지 확인~~ (철회 전 충족)
+  - ~~빌드 실패 시 `.sif`가 남지 않는다~~ (철회 전 충족)
+  - ~~변환 뒤 캐시가 `/home` 아래에만 있다 (root 홈에 blob 없음)~~ (철회 전 충족)
 
 ## 검증 (매 Task)
 

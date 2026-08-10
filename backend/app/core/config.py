@@ -5,6 +5,7 @@
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,14 +18,17 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # --- DB (backend-design §5.3: 소규모 단일 RDS/MySQL) ---
-    database_url: str = "mysql+pymysql://portal:portal@localhost:3306/portal"
+    # URL 안에 비밀번호가 들어 있다 — `repr`에서 뺀다(SshTarget과 같은 이유).
+    database_url: str = Field(
+        default="mysql+pymysql://portal:portal@localhost:3306/portal", repr=False
+    )
 
     # --- Redis (§4: 세션·권한 캐시·분산락) ---
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = Field(default="redis://localhost:6379/0", repr=False)
     permission_cache_ttl_seconds: int = 300
 
     # --- 포털 세션 JWT (Slurm JWT와 별개) ---
-    jwt_secret: str = "change-me-in-production"
+    jwt_secret: str = Field(default="change-me-in-production", repr=False)
     jwt_algorithm: str = "HS256"
     #: 액세스 토큰 수명. **짧게 잡는다** — 유출돼도 창이 좁다. 갱신은 refresh가 맡는다.
     access_token_ttl_seconds: int = 30 * 60
@@ -51,7 +55,7 @@ class Settings(BaseSettings):
     cookie_domain: str | None = None
 
     # --- 부트스트랩 (C-02: 1회용 setup 토큰) ---
-    setup_token: str = ""
+    setup_token: str = Field(default="", repr=False)
 
     # --- 외부 연동 ---
     slurm_api_version: str = "v0.0.43"  # 정의서 §4.1 각주: 버전 고정
