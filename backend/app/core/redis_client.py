@@ -176,6 +176,36 @@ class RefreshTokenStore:
         self._redis.delete(self._key(token))
 
 
+class AppImageCache:
+    """클러스터에 있는 이미지 파일 목록 캐시 (A-OP-02).
+
+    이 목록은 **로그인 노드 SSH `ls`**로 만든다. 앱 목록을 그릴 때마다 물으면 화면 한 번에
+    SSH가 여러 번 열린다. 짧은 TTL만 두고 무효화는 하지 않는다 — 관리자가 SIF를 올린 뒤
+    최대 1분 늦게 보이는 것은 감수할 만하고, 무효화 지점을 만들면 포털을 거치지 않은
+    파일 복사(대부분이 그렇다)는 어차피 못 잡는다.
+    """
+
+    def __init__(self, redis: RedisLike, ttl_seconds: int):
+        self._redis = redis
+        self._ttl = ttl_seconds
+
+    @staticmethod
+    def _key(cluster_id: int) -> str:
+        return f"appImages:{cluster_id}"
+
+    def get(self, cluster_id: int) -> list[str] | None:
+        raw = self._redis.get(self._key(cluster_id))
+        if raw is None:
+            return None
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        # 빈 목록도 캐시한다 — 디렉터리가 없는 클러스터에 매번 SSH를 열지 않는다.
+        return [name for name in str(raw).split(",") if name]
+
+    def put(self, cluster_id: int, images: list[str]) -> None:
+        self._redis.setex(self._key(cluster_id), self._ttl, ",".join(images))
+
+
 class PermissionCache:
     """role → permission 매핑 캐시. 거의 불변이라 TTL + 명시적 무효화(§4.1)."""
 

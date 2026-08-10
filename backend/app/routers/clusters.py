@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends
 
 from app.core.deps import (
     AdminUser,
+    AppImageCacheDep,
+    AppSettings,
     ClientFactoryDep,
     CurrentUser,
     DbSession,
@@ -38,6 +40,7 @@ from app.schemas.cluster import (
 )
 from app.schemas.common import OkResponse
 from app.services.app_access import AppAccessService
+from app.services.app_images import AppImageService
 from app.services.cluster import ClusterService
 
 router = APIRouter(tags=["clusters"])
@@ -57,6 +60,19 @@ def _app_access(db: DbSession, service: ClusterServiceDep) -> AppAccessService:
 
 
 AppAccessServiceDep = Annotated[AppAccessService, Depends(_app_access)]
+
+
+def _app_images(
+    db: DbSession,
+    service: ClusterServiceDep,
+    secrets: SecretStoreDep,
+    settings: AppSettings,
+    cache: AppImageCacheDep,
+) -> AppImageService:
+    return AppImageService(db, service, settings=settings, secrets=secrets, cache=cache)
+
+
+AppImageServiceDep = Annotated[AppImageService, Depends(_app_images)]
 
 
 @router.get(
@@ -222,6 +238,23 @@ def set_user_qos(
     return service.set_association_qos(
         cid, actor=actor, account=name, username=username, qos=payload.qos
     )
+
+
+@router.get(
+    "/clusters/{cid}/app-images",
+    response_model=list[str],
+    summary="클러스터의 앱 이미지 파일 (A-OP-02)",
+)
+def list_app_images(
+    cid: int, actor: AdminUser, service: AppImageServiceDep
+) -> list[str]:
+    """이 클러스터의 이미지 디렉터리에 있는 파일명 — 앱 등록 폼의 선택지.
+
+    **클러스터에 물어본다.** 경로가 클러스터마다 갈리므로 포털 파드의 파일시스템으로는
+    답할 수 없다. 디렉터리가 없거나 로그인 노드가 죽으면 **빈 목록**이 된다 — 그래도
+    관리자는 아는 파일명을 저장할 수 있어야 하므로 오류로 만들지 않는다.
+    """
+    return service.available(service.clusters.get(cid), username=actor.username)
 
 
 @router.get(

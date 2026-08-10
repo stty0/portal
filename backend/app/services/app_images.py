@@ -20,15 +20,24 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from sqlalchemy.orm import Session
 
+from app.clients.ssh.client import LoginNodeClient
 from app.core.config import Settings
 from app.core.errors import ValidationFailed
+from app.core.redis_client import AppImageCache
+from app.core.secrets import SecretStore
 from app.models import Cluster
+from app.repositories.cluster import ClusterCredentialRepository
 from app.repositories.content import AppCatalogRepository
 from app.services import batch_apps, session_apps
+from app.services.cluster import ClusterService
+from app.services.files import ssh_target_for
+
+logger = logging.getLogger(__name__)
 
 KIND_INTERACTIVE = "interactive"
 KIND_BATCH = "batch"
@@ -83,3 +92,73 @@ def resolve(
             "이미지 파일명이 올바르지 않습니다.", detail={"image_file": image}
         )
     return f"{image_dir(cluster, settings)}/{image}"
+
+
+class AppImageService:
+    """클러스터에 **실제로 있는** 이미지 파일 목록 (A-OP-02).
+
+    전에는 백엔드 파드의 파일시스템을 읽었다. 그게 맞아떨어진 이유는 dev01이 클러스터와
+    같은 NFS를 마운트하고 있어서고, 클러스터마다 경로가 갈리면 성립하지 않는다 — **파드
+    마운트는 Deployment에 정적으로 박혀 있어 클러스터를 등록해도 생기지 않는다.**
+
+    그래서 클러스터에 직접 묻는다. 파일 관리자가 이미 쓰는 SSH라 새 인프라가 아니다.
+    """
+
+    def __init__(
+        self,
+        session: Session,
+        clusters: ClusterService,
+        *,
+        settings: Settings,
+        secrets: SecretStore,
+        cache: AppImageCache,
+    ):
+        self.session = session
+        self.clusters = clusters
+        self.settings = settings
+        self.secrets = secrets
+        self.cache = cache
+        self.credentials = ClusterCredentialRepository(session)
+
+    def _connect(self, cluster: Cluster) -> LoginNodeClient:
+        return LoginNodeClient(
+            ssh_target_for(cluster, secrets=self.secrets, credentials=self.credentials),
+            known_hosts=self.settings.ssh_known_hosts,
+            timeout=self.settings.ssh_timeout_seconds,
+        )
+
+    def available(self, cluster: Cluster, *, username: str) -> list[str]:
+        """이미지 디렉터리에 있는 파일명.
+
+        **실패를 빈 목록으로 흡수한다.** 디렉터리가 아직 없거나 로그인 노드가 죽어도
+        화면은 떠야 한다 — 앱이 잠기는 것과 화면이 안 나오는 것은 다른 일이다.
+
+        예외를 좁혀 잡으면 안 된다. 처음에 `(PortalError, OSError)`로 뒀다가 실 클러스터에서
+        새어 나갔다 — paramiko는 `SSHException`을 그대로 던지고 그건 둘 다 아니다. 이
+        메서드의 계약이 "무슨 일이 있어도 목록을 돌려준다"이므로 **경계가 예외 종류가
+        아니라 이 호출 자체**다. 대신 원인을 삼키지 않도록 로그로 남긴다.
+        """
+        cached = self.cache.get(cluster.id)
+        if cached is not None:
+            return cached
+
+        directory = image_dir(cluster, self.settings)
+        try:
+            with self._connect(cluster) as client:
+                _, entries = client.list_dir(username, directory)
+            names = sorted(
+                e.name for e in entries if not e.is_dir and IMAGE_FILE.match(e.name)
+            )
+        except Exception:
+            logger.warning(
+                "이미지 목록 조회 실패 — cluster=%s dir=%s user=%s",
+                cluster.id, directory, username, exc_info=True,
+            )
+            names = []
+
+        self.cache.put(cluster.id, names)
+        return names
+
+    def installed(self, cluster: Cluster, *, username: str, image: str) -> bool:
+        """이 클러스터에 그 파일이 있나. 앱 목록의 `installed` 판정(T-06)이 이걸 쓴다."""
+        return bool(image) and image in self.available(cluster, username=username)

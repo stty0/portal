@@ -139,6 +139,7 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 | POST | `/clusters/{cid}/accounts/{name}/users` | 계정에 사용자 추가(association 생성) | A-US-02 | admin:access | 필수 |
 | DELETE | `/clusters/{cid}/accounts/{name}/users/{username}` | 계정에서 사용자 제거 | A-US-02 | admin:access | 필수 |
 | PUT | `/clusters/{cid}/accounts/{name}/users/{username}/qos` | 사용자별 QOS 지정(association 단위) | A-US-03 | admin:access | 필수 |
+| GET | `/clusters/{cid}/app-images` | **이 클러스터의** 이미지 디렉터리에 있는 파일명 — 등록 폼의 선택지. 경로는 `cluster.home_base` 아래 `.portal/images`로 파생한다(비면 `app_image_dir`). 로그인 노드 SSH `ls`이고 **실패는 빈 목록**이다(앱이 잠기는 것과 화면이 안 뜨는 것은 다른 일이다). Redis 60초 캐시 | A-OP-02 | admin:access | 필수 |
 | GET | `/clusters/{cid}/app-access` | 앱별 허용 계정. **카탈로그 전체**가 오고 배정이 없는 앱은 `accounts=[]`(=전원 허용) | A-US-02 | admin:access | 권장 |
 | PUT | `/clusters/{cid}/app-access/{kind}/{app_id}` | 앱에 계정 배정. QOS와 같은 **덮어쓰기** — 빈 배열이면 그 앱이 다시 전원에게 열린다. `kind`는 `interactive`·`batch` | A-US-02 | admin:access | 권장 |
 | ~~PUT~~ | ~~`/clusters/{cid}/accounts/{name}/users`~~ | 계정↔사용자 N:M 매핑(association 추가/제거) — **미구현**| A-US-02 | admin:access | 필수 |
@@ -230,7 +231,6 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 | GET | `/apps` | 앱 목록 — **코드 카탈로그의 앱 + 등록된 메타데이터를 합친다**(아이콘·벤더·버전·이미지 위치·설명). `id=null`은 아직 정보가 등록되지 않은 코드 앱, `in_code=false`는 코드에 없는 등록(도입 예정). 실행 방식은 포함하지 않는다 | A-OP-02 | 인증 | 필수 |
 | GET | `/app-icons` | 아이콘 디렉터리(`app_icon_dir`)의 파일명 목록 — 등록 폼의 선택지 | A-OP-02 | admin:access | 필수 |
 | POST | `/app-icons` | 아이콘 업로드(multipart, 512KB 이하). **형식은 내용으로 판정**하고 파일명은 서버가 정한다(중복이면 번호를 붙임). 응답은 갱신된 목록 | A-OP-02 | admin:access | 필수 |
-| GET | `/app-images` | 공용 이미지 디렉터리(`app_image_dir`)의 컨테이너 이미지 파일명 목록 | A-OP-02 | admin:access | 필수 |
 | GET | `/app-icons/{name}` | 아이콘 파일. 이름 화이트리스트 + **정규화 뒤** 디렉터리 경계 확인(심볼릭 링크 거부), SVG는 `CSP: default-src 'none'`로 잠근다 | A-OP-02 | 인증 | 필수 |
 | POST | `/apps` | 앱 등록. `(kind, app_id)`가 코드 카탈로그로 가는 연결 키이며 중복이면 409 | A-OP-02 | admin:access | 필수 |
 | PATCH | `/apps/{id}` | 앱 수정. `kind`·`app_id`는 바꿀 수 없다(연결 키) | A-OP-02 | admin:access | 필수 |

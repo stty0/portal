@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { clusterApi } from '@/api/clusters'
 import { opsApi, type AppCatalog } from '@/api/ops'
 import Btn from '@/components/ui/Btn.vue'
 import Card from '@/components/ui/Card.vue'
@@ -43,11 +44,27 @@ const emptyApp = (): Partial<AppCatalog> => ({
 })
 const form = ref<Partial<AppCatalog>>(emptyApp())
 
+/**
+ * 이미지 파일 목록. **클러스터마다 경로가 다르므로** 전 클러스터에 물어 합집합을 만든다.
+ *
+ * 이 화면은 포탈 스코프라 클러스터 선택기가 없다. 선택기의 목적은 *유효한 파일명을
+ * 고르게 돕는 것*이고, 저장되는 값은 파일명 하나다 — 어느 클러스터에 실제로 있는지는
+ * 사용자 앱 목록이 `installed`로 답한다. 한 클러스터가 죽어도 나머지는 나와야 하므로
+ * 실패는 빈 목록으로 흡수한다(서버도 같은 규칙이다).
+ */
+async function loadImageFiles(): Promise<string[]> {
+  const clusters = await clusterApi.list()
+  const lists = await Promise.all(
+    clusters.map((c) => clusterApi.appImages(c.id).catch(() => [] as string[])),
+  )
+  return [...new Set(lists.flat())].sort()
+}
+
 async function load() {
   loading.value = true
   try {
     const [list, icons, images] = await Promise.all([
-      opsApi.apps(), opsApi.appIcons(), opsApi.appImages(),
+      opsApi.apps(), opsApi.appIcons(), loadImageFiles(),
     ])
     apps.value = list
     iconFiles.value = icons
@@ -264,7 +281,7 @@ async function remove(a: AppCatalog) {
 
       <Field
         label="컨테이너 이미지 파일" full
-        hint="서버의 공용 이미지 디렉터리에 있는 SIF 파일. 비우면 코드 카탈로그의 기본 이미지를 씁니다."
+        hint="클러스터의 이미지 디렉터리에 있는 SIF 파일(전 클러스터 합집합). 비우면 코드 카탈로그의 기본 이미지를 씁니다."
       >
         <select v-model="form.image_file" :class="[inputClass, 'mono']">
           <option value="">(코드 기본값 사용)</option>

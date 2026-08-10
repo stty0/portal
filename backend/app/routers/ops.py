@@ -29,7 +29,6 @@ from app.schemas.ops import (
     SettingsOut,
     SettingsUpdate,
 )
-from app.services.app_images import IMAGE_FILE
 from app.services.ops import OpsService
 
 router = APIRouter(tags=["ops"])
@@ -255,23 +254,9 @@ def _sniff_icon_suffix(raw: bytes) -> str | None:
     return None
 
 
-# --- A-OP-02 앱 이미지 파일 --------------------------------------------------
-@router.get("/app-images", response_model=list[str], summary="앱 이미지 파일 목록 (A-OP-02)")
-def list_app_images(_: AdminUser, settings: AppSettings) -> list[str]:
-    """`app_image_dir`에 놓인 컨테이너 이미지 파일명 — 등록 폼의 선택지.
-
-    **경로는 워커 노드 기준**이다. 포털 파드에서 이 디렉터리가 안 보이면 빈 목록이 되고,
-    그래도 관리자는 파일명을 아는 값으로 저장할 수 있어야 하므로 오류로 만들지 않는다.
-    """
-    directory = Path(settings.app_image_dir)
-    if not directory.is_dir():
-        return []
-    resolved = directory.resolve()
-    return sorted(
-        p.name
-        for p in directory.iterdir()
-        if p.is_file() and IMAGE_FILE.match(p.name) and p.resolve().parent == resolved
-    )
+# 앱 이미지 파일 목록은 **클러스터 라우터**에 있다(`GET /clusters/{cid}/app-images`).
+# 여기 있었을 때는 파드의 파일시스템을 읽었는데, 그게 맞아떨어진 이유는 dev01이 클러스터와
+# 같은 NFS를 마운트하고 있어서였다. 경로가 클러스터마다 갈리면 파드는 답할 수 없다.
 
 
 # --- A-OP-03 감사 로그 -------------------------------------------------------

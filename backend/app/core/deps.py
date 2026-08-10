@@ -21,6 +21,7 @@ from app.core.config import Settings, get_settings
 from app.core.cookies import ACCESS_COOKIE, CSRF_COOKIE, CSRF_HEADER
 from app.core.errors import Forbidden, Unauthenticated
 from app.core.redis_client import (
+    AppImageCache,
     PermissionCache,
     RefreshTokenStore,
     SessionData,
@@ -70,9 +71,18 @@ def get_client_factory(request: Request) -> ClusterClientFactory:
     return request.app.state.client_factory
 
 
+#: 이미지 목록 캐시 TTL. 관리자가 SIF를 올린 뒤 최대 이만큼 늦게 보인다.
+_APP_IMAGE_CACHE_SECONDS = 60
+
+
+def get_app_image_cache(request: Request) -> AppImageCache:
+    return AppImageCache(request.app.state.redis, _APP_IMAGE_CACHE_SECONDS)
+
+
 SecretStoreDep = Annotated[SecretStore, Depends(get_secret_store)]
 ClientFactoryDep = Annotated[ClusterClientFactory, Depends(get_client_factory)]
 PermissionCacheDep = Annotated[PermissionCache, Depends(get_permission_cache)]
+AppImageCacheDep = Annotated[AppImageCache, Depends(get_app_image_cache)]
 
 
 #: 본문을 바꾸지 않는 메서드는 CSRF 검사에서 제외한다.

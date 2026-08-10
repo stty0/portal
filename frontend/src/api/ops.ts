@@ -80,7 +80,6 @@ export const opsApi = {
   /** 아이콘 디렉터리에 놓인 파일명 목록 — 등록 폼의 선택지. */
   appIcons: () => api.get<string[]>('/app-icons'),
   /** 컨테이너 이미지 디렉터리의 파일명 목록. */
-  appImages: () => api.get<string[]>('/app-images'),
 
   /** 아이콘 업로드. 응답은 갱신된 파일명 목록이며, **이름은 서버가 정한다**. */
   async uploadAppIcon(file: File): Promise<string[]> {

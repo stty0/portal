@@ -132,6 +132,8 @@ export const clusterApi = {
     api.post<{ ok: boolean }>(`/clusters/${cid}/accounts/${encodeURIComponent(name)}/users`, {
       username,
     }),
+  /** 이 클러스터에 실제로 있는 이미지 파일. 경로가 클러스터마다 갈려 포털이 답할 수 없다. */
+  appImages: (cid: number) => api.get<string[]>(`/clusters/${cid}/app-images`),
   appAccess: (cid: number) => api.get<AppAccess[]>(`/clusters/${cid}/app-access`),
   /** 계정 배정도 QOS와 같은 **덮어쓰기**다. 빈 배열을 보내면 그 앱이 다시 전원에게 열린다. */
   setAppAccess: (cid: number, kind: string, appId: string, accounts: string[]) =>

@@ -59,10 +59,6 @@ spec:
             # 호스트 디렉터리는 컨테이너 UID(10001) 소유여야 한다.
             - name: app-icons
               mountPath: /home/.portal/app-icons
-            # 앱 컨테이너 이미지. 파드는 **파일명 목록을 읽을 뿐**이고 실행은 워커가 한다.
-            - name: app-images
-              mountPath: /home/.portal/images
-              readOnly: true
           livenessProbe:
             httpGet: { path: /healthz, port: 8000 }
             initialDelaySeconds: 10
@@ -85,8 +81,4 @@ spec:
         - name: app-icons
           hostPath:
             path: /home/.portal/app-icons
-            type: Directory
-        - name: app-images
-          hostPath:
-            path: /home/.portal/images
             type: Directory
