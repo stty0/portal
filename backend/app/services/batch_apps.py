@@ -84,6 +84,9 @@ class BatchApp:
     params: tuple[AppParam, ...] = ()
     #: GPU를 쓰는 앱이면 `apptainer exec --nv`가 붙는다.
     needs_gpu: bool = False
+    #: 이미지의 **출처**(OCI 참조). 등록(`app_catalog.image_ref`)이 이기고 없으면 이 값이다 —
+    #: `image`와 같은 모양이다. 이 SIF를 어떻게 만들었는지 아는 유일한 자리다.
+    image_ref: str = ""
     #: 컨테이너에 넣을 환경변수(`--env K=V`). **라이선스 동의처럼 앱이 정하는 값**이지
     #: 사용자 입력이 아니다 — Isaac Sim은 `ACCEPT_EULA` 없이는 시작하지 않는다.
     env: tuple[tuple[str, str], ...] = ()
@@ -126,6 +129,7 @@ APPS: tuple[BatchApp, ...] = (
         name="OpenFOAM",
         description="전산유체역학 v2512 — 케이스를 풀고 결과를 ParaView로 본다",
         image="openfoam-2512.sif",
+        image_ref="docker://opencfd/openfoam-default:2512",
         fid="U-JB-13",
         ready=True,
         params=(
@@ -307,6 +311,8 @@ APPS: tuple[BatchApp, ...] = (
         name="Isaac Sim (합성 데이터)",
         description="Omniverse Replicator로 학습용 합성 데이터셋을 생성한다 — 배열 잡으로 샤딩",
         image="isaac-sim-5.1.0.sif",
+        # nvcr.io는 익명 pull이 안 된다(NGC 계정 + API 키) — gpu-simulation.md §5.
+        image_ref="docker://nvcr.io/nvidia/isaac-sim:5.1.0",
         fid="U-JB-13",
         needs_gpu=True,
         ready=False,

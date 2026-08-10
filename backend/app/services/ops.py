@@ -257,6 +257,9 @@ def _app_row(kind: str, app_id: str, row: AppCatalog | None, *, code: Any) -> di
         "vendor": row.vendor if row else None,
         "version": row.version if row else None,
         "image_file": (row.image_file if row else None) or (code.image if code else None),
+        "image_ref": (row.image_ref if row else None) or (
+            getattr(code, "image_ref", "") if code else None
+        ) or None,
         "icon_file": row.icon_file if row else None,
         "icon_url": _icon_url(row.icon_file) if row and row.icon_file else None,
         "description": (row.description if row else None) or (code.description if code else None),

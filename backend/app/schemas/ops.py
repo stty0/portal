@@ -74,6 +74,11 @@ class AuditLogOut(BaseModel):
 # --- A-OP-02 앱 카탈로그 ----------------------------------------------------
 APP_KIND = "^(interactive|batch)$"
 
+#: OCI 참조. **스킴을 요구한다** — apptainer가 출처 종류를 그것으로 판정하고
+#: (`docker://`·`oras://`·`docker-daemon://`), 요구하지 않으면 로컬 경로를 붙여 넣어도
+#: 통과해 버린다. 값은 T-08에서 `apptainer build`에 넘어가므로 문자 집합을 좁게 잡는다.
+IMAGE_REF = r"^[A-Za-z][A-Za-z0-9+.-]*://[A-Za-z0-9][A-Za-z0-9._:/@-]{0,240}$"
+
 
 class AppCatalogOut(BaseModel):
     """코드 카탈로그의 앱과 등록된 메타데이터를 겹친 한 줄."""
@@ -90,6 +95,8 @@ class AppCatalogOut(BaseModel):
     vendor: str | None
     version: str | None
     image_file: str | None
+    #: 이미지의 출처(OCI 참조). **어디서 왔는지**를 아는 유일한 자리다.
+    image_ref: str | None = None
     #: 아이콘 파일명(등록 폼이 고르는 값). 파일이 없으면 None.
     icon_file: str | None = None
     #: 화면이 그대로 <img src>에 넣는 주소. 서버가 파일명으로 만든다.
@@ -105,6 +112,7 @@ class AppCatalogCreate(BaseModel):
     vendor: str | None = Field(default=None, max_length=128)
     version: str | None = Field(default=None, max_length=32)
     image_file: str | None = Field(default=None, max_length=128)
+    image_ref: str | None = Field(default=None, max_length=255, pattern=IMAGE_REF)
     icon_file: str | None = Field(default=None, max_length=64)
     description: str | None = None
 
@@ -114,5 +122,6 @@ class AppCatalogUpdate(BaseModel):
     vendor: str | None = Field(default=None, max_length=128)
     version: str | None = Field(default=None, max_length=32)
     image_file: str | None = Field(default=None, max_length=128)
+    image_ref: str | None = Field(default=None, max_length=255, pattern=IMAGE_REF)
     icon_file: str | None = Field(default=None, max_length=64)
     description: str | None = None

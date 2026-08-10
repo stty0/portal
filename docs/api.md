@@ -229,7 +229,7 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 | POST | `/notices` | 공지 등록(배너·기간). 대상 클러스터는 **받지 않는다** | A-OP-01 | admin:access | 필수 |
 | PATCH | `/notices/{id}` | 공지 수정 | A-OP-01 | admin:access | 필수 |
 | DELETE | `/notices/{id}` | 공지 삭제 | A-OP-01 | admin:access | 필수 |
-| GET | `/apps` | 앱 목록 — **코드 카탈로그의 앱 + 등록된 메타데이터를 합친다**(아이콘·벤더·버전·이미지 위치·설명). `id=null`은 아직 정보가 등록되지 않은 코드 앱, `in_code=false`는 코드에 없는 등록(도입 예정). 실행 방식은 포함하지 않는다 | A-OP-02 | 인증 | 필수 |
+| GET | `/apps` | 앱 목록 — **코드 카탈로그의 앱 + 등록된 메타데이터를 합친다**(아이콘·벤더·버전·`image_file`·`image_ref`·설명). `image_ref`는 이미지의 **출처**(OCI 참조)이고 스킴이 필수다. `id=null`은 아직 정보가 등록되지 않은 코드 앱, `in_code=false`는 코드에 없는 등록(도입 예정). 실행 방식은 포함하지 않는다 | A-OP-02 | 인증 | 필수 |
 | GET | `/app-icons` | 아이콘 디렉터리(`app_icon_dir`)의 파일명 목록 — 등록 폼의 선택지 | A-OP-02 | admin:access | 필수 |
 | POST | `/app-icons` | 아이콘 업로드(multipart, 512KB 이하). **형식은 내용으로 판정**하고 파일명은 서버가 정한다(중복이면 번호를 붙임). 응답은 갱신된 목록 | A-OP-02 | admin:access | 필수 |
 | GET | `/app-icons/{name}` | 아이콘 파일. 이름 화이트리스트 + **정규화 뒤** 디렉터리 경계 확인(심볼릭 링크 거부), SVG는 `CSP: default-src 'none'`로 잠근다 | A-OP-02 | 인증 | 필수 |

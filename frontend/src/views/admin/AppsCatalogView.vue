@@ -40,7 +40,7 @@ const open = computed(() => creating.value || editing.value !== null)
 
 const emptyApp = (): Partial<AppCatalog> => ({
   kind: 'interactive', app_id: '', name: '', vendor: '', version: '',
-  image_file: '', icon_file: '', description: '',
+  image_file: '', image_ref: '', icon_file: '', description: '',
 })
 const form = ref<Partial<AppCatalog>>(emptyApp())
 
@@ -95,6 +95,7 @@ function openEdit(a: AppCatalog) {
     vendor: a.vendor ?? '',
     version: a.version ?? '',
     image_file: a.image_file ?? '',
+    image_ref: a.image_ref ?? '',
     icon_file: a.icon_file ?? '',
     description: a.description ?? '',
   }
@@ -221,7 +222,11 @@ async function remove(a: AppCatalog) {
         </td>
         <td class="px-3.5 py-2.5">{{ a.vendor || '—' }}</td>
         <td class="px-3.5 py-2.5 mono text-[13.5px]">{{ a.version || '—' }}</td>
-        <td class="px-3.5 py-2.5 mono text-[13px] break-all">{{ a.image_file || '—' }}</td>
+        <td class="px-3.5 py-2.5 mono text-[13px] break-all">
+          {{ a.image_file || '—' }}
+          <!-- 출처는 파일명보다 길다 — 아래 줄에 흐리게 붙인다 -->
+          <p v-if="a.image_ref" class="text-[12px] text-ink-3">{{ a.image_ref }}</p>
+        </td>
         <td class="px-3.5 py-2.5 flex gap-2">
           <Btn size="sm" @click="openEdit(a)">{{ a.id === null ? '정보 입력' : '수정' }}</Btn>
           <Btn v-if="a.id !== null" size="sm" variant="danger" @click="remove(a)">삭제</Btn>
@@ -287,6 +292,13 @@ async function remove(a: AppCatalog) {
           <option value="">(코드 기본값 사용)</option>
           <option v-for="f in imageFiles" :key="f" :value="f">{{ f }}</option>
         </select>
+      </Field>
+
+      <Field
+        label="이미지 출처 (OCI 참조)" full
+        hint="예: docker://opencfd/openfoam-default:2512 — 이 SIF를 무엇으로 만들었는지. 스킴(docker:// 등)이 필요합니다."
+      >
+        <input v-model="form.image_ref" :class="[inputClass, 'mono']" placeholder="docker://…" />
       </Field>
 
       <Field

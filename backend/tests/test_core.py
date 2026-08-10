@@ -271,7 +271,7 @@ def _app_body(**overrides):
         "name": "JupyterLab",
         "vendor": "Project Jupyter",
         "version": "4.2",
-        "image_location": "docker://reg.dt-hpc.net/hpc/jupyter:4.2",
+        "image_ref": "docker://reg.dt-hpc.net/hpc/jupyter:4.2",
         "icon_file": "jupyter.svg",
         "description": "노트북 세션",
         **overrides,
@@ -303,6 +303,32 @@ def test_app_catalog_crud_is_admin_only(client, admin_token, user_token):
     after = _find_app(client, admin_token, "interactive", "jupyter")
     assert after["id"] is None
     assert after["vendor"] is None
+
+
+def test_image_ref_records_where_the_sif_came_from(client, admin_token):
+    """`image_file`은 무엇을 실행하는지만 말한다 — 출처는 여기에만 남는다."""
+    from tests.conftest import auth_headers
+
+    created = client.post("/api/v1/apps", json=_app_body(), headers=auth_headers(admin_token))
+    assert created.json()["image_ref"] == "docker://reg.dt-hpc.net/hpc/jupyter:4.2"
+
+
+def test_image_ref_requires_a_scheme(client, admin_token):
+    """스킴이 없으면 apptainer가 출처 종류를 모른다. 로컬 경로가 통과하면 더 나쁘다."""
+    from tests.conftest import auth_headers
+
+    for bad in ("opencfd/openfoam:2512", "/home/u/x.sif", "docker:/typo"):
+        resp = client.post(
+            "/api/v1/apps", json=_app_body(image_ref=bad), headers=auth_headers(admin_token)
+        )
+        assert resp.status_code == 422, bad
+
+
+def test_code_catalog_supplies_the_ref_when_nothing_is_registered(client, admin_token):
+    """OpenFOAM SIF를 어떻게 만들었는지가 progress.md 본문에만 있었다 — 이제 API가 답한다."""
+    row = _find_app(client, admin_token, "batch", "openfoam")
+    assert row["id"] is None  # 등록 없음
+    assert row["image_ref"] == "docker://opencfd/openfoam-default:2512"
 
 
 def test_app_catalog_rejects_duplicate_and_unknown_kind(client, admin_token):

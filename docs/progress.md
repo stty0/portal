@@ -3814,3 +3814,39 @@ batch        openfoam          openfoam-2512.sif     True
 
 **대가**: 앱 목록마다 SSH가 붙는다(클러스터당 60초 캐시). 그리고 SIF를 넣은 뒤 최대
 1분 늦게 열린다 — 테스트가 그 사실을 캐시 키를 지워서 명시한다.
+
+---
+
+### T-07 `app_catalog.image_ref` — 이미지의 출처를 DB에
+
+`image_file`은 **무엇을 실행하는지**(`openfoam-2512.sif`)만 말하고 **어디서 왔는지는 말하지
+않는다.** 그 출처는 `progress.md` 본문에만 있었다 — 버전을 올리거나 다른 클러스터에 같은
+이미지를 만들려면 문서를 뒤져야 했다.
+
+마이그레이션 `0018`, nullable `VARCHAR(255)`. 값은 `docker://opencfd/openfoam-default:2512`.
+
+**스킴을 요구한다.** apptainer가 출처 종류를 그것으로 판정하고(`docker://`·`oras://`·
+`docker-daemon://`), 요구하지 않으면 **로컬 경로를 붙여 넣어도 통과한다.** 문자 집합도
+좁게 잡았다 — 이 값이 T-08에서 `apptainer build`에 넘어간다.
+
+**레지스트리 호스트를 따로 두지 않는다.** 지금도 OpenFOAM은 Docker Hub, Isaac Sim은
+`nvcr.io`다. `{호스트} + {경로}`로 쪼개면 앱마다 호스트를 고르는 칸이 하나 더 생기고
+`//`·스킴 혼동만 남는다.
+
+코드 카탈로그에도 `image_ref`를 뒀다 — `image`와 **같은 모양**이다(등록이 이기고 없으면
+코드 값). 그래서 등록 없이도 아는 것을 답한다:
+
+```
+batch  openfoam   docker://opencfd/openfoam-default:2512
+batch  isaac-sim  docker://nvcr.io/nvidia/isaac-sim:5.1.0
+```
+
+데스크톱 계열은 레지스트리가 아니라 `deploy/images/rocky9-mate`에서 직접 만들어 비어 있다 —
+그 사실 자체가 정보다.
+
+**테스트 픽스처에 `image_location`이 남아 있었다** — 마이그레이션 `0017`에서 사라진 필드다.
+pydantic이 모르는 키를 무시해서 조용히 통과하고 있었고, 그 자리를 `image_ref`로 바꿨다.
+
+검증: 테스트 **435개 통과**(3개 추가). MySQL에서 마이그레이션 **up → down → up 왕복**을
+확인했다(DDL이 트랜잭션이 아니라 이 검증이 중요하다). 배포 후 `SHOW COLUMNS`에
+`image_ref varchar(255) NULL`, 라이브 `list_apps()`가 위 두 참조를 그대로 답한다.
