@@ -91,9 +91,9 @@ class SessionService:
 
     # --- 제출 (U-IA-01) --------------------------------------------------
     def image_ref(self, cluster: Cluster, app: str) -> str:
-        """앱이 쓸 이미지. 있는 곳은 포털 설정, 어떤 파일인지는 앱 카탈로그가 안다."""
+        """앱이 쓸 이미지. 있는 곳은 클러스터가, 어떤 파일인지는 앱 카탈로그가 안다."""
         return app_images.resolve(
-            self.session, self.settings, app_images.KIND_INTERACTIVE, app
+            self.session, self.settings, cluster, app_images.KIND_INTERACTIVE, app
         )
 
     def create(self, cluster: Cluster, spec: SessionSpec, *, user: User) -> InteractiveSession:

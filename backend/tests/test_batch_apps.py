@@ -65,18 +65,23 @@ def test_not_ready_app_is_blocked_before_submitting(
     assert "제공되지 않습니다" in resp.json()["message"]
 
 
-def _resolve_batch(db, settings, app_id, image_dir="/home/portal/images"):
+def _resolve_batch(db, settings, app_id, image_dir="/home/.portal/images", home_base=None):
+    from app.models import Cluster
     from app.services import app_images
 
     object.__setattr__(settings, "app_image_dir", image_dir)
-    return app_images.resolve(db, settings, app_images.KIND_BATCH, app_id)
+    return app_images.resolve(
+        db, settings, Cluster(home_base=home_base), app_images.KIND_BATCH, app_id
+    )
 
 
-def test_ready_app_resolves_its_image_from_the_portal_dir(db, settings):
-    """준비된 앱은 포털 공용 디렉터리 아래에서 이미지를 찾는다."""
+def test_ready_app_resolves_its_image_under_the_cluster_home(db, settings):
+    """준비된 앱은 그 클러스터의 공유 홈 아래에서 이미지를 찾는다."""
     foam = B.get("openfoam")
     assert foam.ready and foam.image
-    assert _resolve_batch(db, settings, "openfoam") == "/home/portal/images/openfoam-2512.sif"
+    assert _resolve_batch(db, settings, "openfoam", home_base="/nfs/home") == (
+        "/nfs/home/.portal/images/openfoam-2512.sif"
+    )
 
 
 def test_isaac_sim_is_listed_as_a_gpu_app_that_is_not_ready_yet(client, cluster, user_token):
@@ -180,7 +185,7 @@ def test_registered_image_file_wins_over_the_code_default(db, settings):
 
     db.add(AppCatalog(kind="batch", app_id="openfoam", name="f", image_file="foam-next.sif"))
     db.commit()
-    assert _resolve_batch(db, settings, "openfoam") == "/home/portal/images/foam-next.sif"
+    assert _resolve_batch(db, settings, "openfoam") == "/home/.portal/images/foam-next.sif"
 
 
 # --- 다단계 실행 -----------------------------------------------------------
@@ -339,7 +344,7 @@ def test_submitted_script_comes_from_the_catalog_not_the_request(
 
     spec = [kw["spec"] for n, kw in slurm_client.calls if n == "submit_job"][0]
     assert "rm -rf /" not in spec["script"]
-    assert "/home/portal/images/demo.sif" in spec["script"]
+    assert "/home/.portal/images/demo.sif" in spec["script"]
     # 자원 입력은 Job 제출과 같은 경로를 탄다.
     assert spec["job"]["tasks"] == 16
     assert spec["job"]["array"] == "1-4"

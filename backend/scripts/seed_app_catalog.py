@@ -1,6 +1,6 @@
 """코드 카탈로그의 앱에 대한 기본 등록 정보 seed (A-OP-02).
 
-아이콘 파일은 `settings.app_icon_dir`(기본 `/home/portal/app-icons`)에 이미 있어야 한다.
+아이콘 파일은 `settings.app_icon_dir`(기본 `/home/.portal/app-icons`)에 이미 있어야 한다.
 **없는 파일은 건너뛴다** — 파일이 없는데 파일명만 넣으면 화면에 깨진 아이콘이 남는다.
 
 벤더는 사실 관계이고, 버전은 **코드 카탈로그가 이미 말하고 있는 값만** 옮긴다

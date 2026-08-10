@@ -93,7 +93,9 @@ def submit(
     """
     app = batch_apps.get(app_id)
     cluster = service.clusters.get(cid)
-    image = app_images.resolve(service.session, settings, app_images.KIND_BATCH, app_id)
+    image = app_images.resolve(
+        service.session, settings, cluster, app_images.KIND_BATCH, app_id
+    )
     # 배정된 앱이면 소속을 확인하고, 안 골랐으면 쓸 계정을 채운다(세션과 같은 규칙).
     account = access.resolve_account(
         cluster, KIND_BATCH, app_id, user=user, account=payload.account

@@ -3635,3 +3635,52 @@ SCR-15가 성격이 다른 넷을 담고 있었다 — 세션·알림 정책, �
 
 검증: 테스트 **411개 통과**(3개 추가). 비어 있지 않음 확인 — 설정 주입을 되돌리자
 WS 테스트가 실패했다. 프론트 빌드 통과, `inputClass` 중복 정의 **0**, `w-auto` 덧붙이기 **0**.
+
+---
+
+### T-01·T-02 이미지 위치를 클러스터의 `home_base`에서 파생 (`.portal` 이동)
+
+계획: [plan.md](plan.md) · [exec-plan.md](exec-plan.md)
+
+이미지가 있는 곳이 포털 설정 하나(`settings.app_image_dir`)였다. 그게 성립한 이유는
+dev01·slurm01·slurm02가 **같은 NFS export**(`198.19.64.8:/scp_users_tl8g1s`)를 마운트하고
+있어서다 — 구조가 아니라 그때의 사실이었다. **향후 클러스터마다 다른 NFS를 쓴다**(사용자
+확인)라서 가정이 깨진다.
+
+**새 컬럼을 만들지 않았다.** 클러스터별 공유 경로가 이미 있다 — `cluster.home_base`
+(SCR-18 "홈 상위 경로"). 여기서 파생하면 설정이 늘지 않고, 무엇보다 **공유되지 않는
+경로가 들어갈 여지가 없다**: `home_base`는 파일 관리자가 매일 쓰는 값이라 "모든 노드가
+보는 경로"임이 계속 검증된다. 따로 칸을 만들면 로컬 경로를 적어 넣을 수 있다.
+
+```
+home_base 있음   →  {home_base}/.portal/images
+home_base 비었음 →  settings.app_image_dir      (폴백, /home/.portal/images)
+```
+
+폴백이 필요한 이유는 `home_base`가 선택 입력이라서다 — 비우면 `getent passwd`로
+**사용자별** 홈을 찾는 모드라 공용 자리가 정해지지 않는다.
+
+`resolve()`에 클러스터를 넘기는 변경은 호출부가 둘뿐이었고 **둘 다 이미 클러스터를 들고
+있었다.** `session.py`의 `image_ref(self, cluster, app)`는 받아 놓고 안 쓰고 있었다 —
+이음매가 미리 나 있던 셈이다.
+
+**`/home/portal` → `/home/.portal`로 옮겼다.** `{home_base}` 아래는 사용자명이 오는
+자리라 `portal`은 유효한 사용자명이다. AD에 그 계정이 생기면 홈 프로비저닝이 이미지
+저장소 위로 떨어진다. 앞에 점이 붙으면 POSIX/AD 사용자명이 될 수 없어 충돌이 구조적으로
+불가능해진다. 같은 파일시스템 안 `mv`라 8.9GB는 움직이지 않았고 inode가 유지되어 돌고
+있는 세션의 mmap도 끊기지 않는다. 사용자 홈에 이미 `.portal/logs`를 쓰고 있어 이름도
+일관된다.
+
+아이콘도 같은 자리에 있어 함께 옮겼다 — 같은 이유로 같은 위험을 지고 있었다.
+hostPath·mountPath·`app_icon_dir`을 모두 `.portal`로 맞췄다. `type: Directory`라 경로가
+어긋나면 파드가 안 뜨므로 **이동과 롤아웃을 한 번에** 했다.
+
+마이그레이션 없음(기존 컬럼에서 파생).
+
+검증: 테스트 **413개 통과**(2개 순증). 비어 있지 않음 확인 — 파생 분기를 빼자 3개가
+실패했다. 배포 후 파드에서 `IMAGE_SUBDIR=.portal/images`, 폴백 `/home/.portal/images`,
+`home_base=/nfs/home` → `/nfs/home/.portal/images` 확인. 마운트가 NFS의 `.portal` 아래로
+바뀌었고 SIF 8개가 그대로 보인다. `front: 200`, `/api/v1/app-images: 401`.
+
+**남은 것**: 관리자 화면의 이미지 목록(`GET /app-images`)은 아직 **파드의 파일시스템**을
+읽는다. 클러스터별 경로가 되면 성립하지 않는다 — T-03에서 로그인 노드 SSH로 옮긴다.

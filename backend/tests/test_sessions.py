@@ -101,25 +101,44 @@ def test_create_submits_and_returns_state(
 
 
 # --- 앱 → 이미지 (U-IA-01) --------------------------------------------------
-# 있는 곳은 **포털 설정** 하나, 어떤 파일인지는 앱 카탈로그가 정한다(마이그레이션 0017).
+# 있는 곳은 **클러스터**(`home_base`에서 파생), 어떤 파일인지는 앱 카탈로그가 정한다.
 
 
-def _resolve(db, settings, app_id, image_dir="/home/portal/images"):
+def _resolve(db, settings, app_id, image_dir="/home/.portal/images", home_base=None):
+    from app.models import Cluster
     from app.services import app_images
 
     object.__setattr__(settings, "app_image_dir", image_dir)
-    return app_images.resolve(db, settings, app_images.KIND_INTERACTIVE, app_id)
+    return app_images.resolve(
+        db, settings, Cluster(home_base=home_base), app_images.KIND_INTERACTIVE, app_id
+    )
 
 
-def test_image_is_resolved_from_the_portal_dir_and_the_app(db, settings):
+def test_image_is_resolved_from_the_cluster_home_and_the_app(db, settings):
+    """클러스터가 홈 상위를 갖고 있으면 그 아래 `.portal/images`에서 찾는다."""
+    assert _resolve(db, settings, "desktop", home_base="/nfs/home") == (
+        f"/nfs/home/.portal/images/{session_apps.get('desktop').image}"
+    )
+
+
+def test_image_dir_differs_per_cluster(db, settings):
+    """같은 앱이라도 클러스터가 다르면 다른 NFS를 본다 — 이 에픽의 이유다."""
+    a = _resolve(db, settings, "desktop", home_base="/nfs/a")
+    b = _resolve(db, settings, "desktop", home_base="/nfs/b")
+    assert a.startswith("/nfs/a/.portal/") and b.startswith("/nfs/b/.portal/")
+
+
+def test_image_dir_falls_back_to_the_portal_setting_when_home_base_is_empty(db, settings):
+    """`home_base`가 비면 사용자별 자동 인식 모드라 공용 자리가 없다 — 폴백이 필요하다."""
     assert _resolve(db, settings, "desktop") == (
-        f"/home/portal/images/{session_apps.get('desktop').image}"
+        f"/home/.portal/images/{session_apps.get('desktop').image}"
     )
 
 
 def test_image_dir_trailing_slash_does_not_double_up(db, settings):
     """`/images/` + 파일명이 `/images//파일`이 되면 apptainer가 못 연다."""
-    assert "//" not in _resolve(db, settings, "desktop", "/home/portal/images/")
+    assert "//" not in _resolve(db, settings, "desktop", "/home/.portal/images/")
+    assert "//" not in _resolve(db, settings, "desktop", home_base="/nfs/home/")
 
 
 def test_registered_image_file_wins_over_the_code_default(db, settings):
@@ -128,7 +147,7 @@ def test_registered_image_file_wins_over_the_code_default(db, settings):
 
     db.add(AppCatalog(kind="interactive", app_id="desktop", name="d", image_file="custom.sif"))
     db.commit()
-    assert _resolve(db, settings, "desktop") == "/home/portal/images/custom.sif"
+    assert _resolve(db, settings, "desktop") == "/home/.portal/images/custom.sif"
 
 
 def test_registered_image_file_with_a_path_is_rejected(db, settings):
@@ -158,7 +177,7 @@ def test_submitted_script_uses_the_resolved_image(
     )
     spec = [kw["spec"] for name, kw in slurm_client.calls if name == "submit_job"][0]
     script = json.dumps(spec, ensure_ascii=False)
-    assert f"/home/portal/images/{session_apps.get('paraview').image}" in script
+    assert f"/home/.portal/images/{session_apps.get('paraview').image}" in script
 
 
 def test_each_app_resolves_to_its_own_image(db, settings, monkeypatch):

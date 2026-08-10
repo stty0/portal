@@ -58,10 +58,10 @@ spec:
             # 앱 아이콘 (A-OP-02). 관리 화면에서 업로드하므로 **쓰기가 필요하다** —
             # 호스트 디렉터리는 컨테이너 UID(10001) 소유여야 한다.
             - name: app-icons
-              mountPath: /home/portal/app-icons
+              mountPath: /home/.portal/app-icons
             # 앱 컨테이너 이미지. 파드는 **파일명 목록을 읽을 뿐**이고 실행은 워커가 한다.
             - name: app-images
-              mountPath: /home/portal/images
+              mountPath: /home/.portal/images
               readOnly: true
           livenessProbe:
             httpGet: { path: /healthz, port: 8000 }
@@ -80,11 +80,13 @@ spec:
             secretName: portal-ssh-known-hosts
         # 노드(dev01)의 디렉터리를 그대로 쓴다. 없으면 파드가 뜨지 않게 Directory로 둔다 —
         # DirectoryOrCreate는 오타 난 경로에 빈 디렉터리를 만들어 조용히 아이콘이 사라진다.
+        # `.portal`에 점이 붙은 이유: `/home` 아래는 **사용자명이 오는 자리**라
+        # `portal`이라는 AD 계정이 생기면 홈 프로비저닝이 이 위로 떨어진다.
         - name: app-icons
           hostPath:
-            path: /home/portal/app-icons
+            path: /home/.portal/app-icons
             type: Directory
         - name: app-images
           hostPath:
-            path: /home/portal/images
+            path: /home/.portal/images
             type: Directory
