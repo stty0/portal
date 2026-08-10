@@ -29,13 +29,7 @@ const apps = ref<AppCatalog[]>([])
 const iconFiles = ref<string[]>([])
 const imageFiles = ref<string[]>([])
 const error = ref<unknown>(null)
-const notice = ref('')
 const loading = ref(false)
-/** 변환 대상 앱. `null`이면 모달이 닫혀 있다. */
-const converting = ref<AppCatalog | null>(null)
-const convertCluster = ref<number | null>(null)
-const convertBusy = ref(false)
-const clusters = ref<{ id: number; name: string | null; alias: string | null }[]>([])
 const uploadingIcon = ref(false)
 const saving = ref(false)
 
@@ -46,7 +40,7 @@ const open = computed(() => creating.value || editing.value !== null)
 
 const emptyApp = (): Partial<AppCatalog> => ({
   kind: 'interactive', app_id: '', name: '', vendor: '', version: '',
-  image_file: '', image_ref: '', icon_file: '', description: '',
+  image_file: '', icon_file: '', description: '',
 })
 const form = ref<Partial<AppCatalog>>(emptyApp())
 
@@ -59,82 +53,11 @@ const form = ref<Partial<AppCatalog>>(emptyApp())
  * 실패는 빈 목록으로 흡수한다(서버도 같은 규칙이다).
  */
 async function loadImageFiles(): Promise<string[]> {
-  clusters.value = await clusterApi.list()
+  const clusters = await clusterApi.list()
   const lists = await Promise.all(
-    clusters.value.map((c) => clusterApi.appImages(c.id).catch(() => [] as string[])),
+    clusters.map((c) => clusterApi.appImages(c.id).catch(() => [] as string[])),
   )
   return [...new Set(lists.flat())].sort()
-}
-
-/**
- * OCI 참조에서 SIF 파일명을 만든다 — `docker://stty0/rocky9-mate:1.5` → `rocky9-mate-1.5.sif`.
- *
- * **제안일 뿐 강제가 아니다.** 이미 디렉터리에 있는 파일들은 손으로 붙인 이름을 갖고 있고,
- * 레지스트리에서 오지 않는 이미지도 있다. 다만 출처를 바꿔 놓고 파일명을 그대로 두면
- * **이름이 거짓말을 하므로**(`:2606`을 받아 `…-2512.sif`로 저장) 비어 있을 때 채워 준다.
- */
-function suggestFileName(ref: string): string {
-  const path = ref.replace(/^[A-Za-z][A-Za-z0-9+.-]*:\/\//, '').split('@')[0]
-  const last = path.split('/').pop() ?? ''
-  const [name, tag] = last.split(':')
-  if (!name) return ''
-  return `${tag ? `${name}-${tag}` : name}.sif`
-}
-
-/** 출처를 입력하면 파일명을 채워 준다 — **비어 있을 때만**. 손으로 넣은 값을 덮지 않는다. */
-function onRefInput() {
-  if (!form.value.image_file && form.value.image_ref) {
-    form.value.image_file = suggestFileName(form.value.image_ref)
-  }
-}
-
-const clusterLabel = (c: { name: string | null; alias: string | null }) =>
-  c.alias || c.name || '이름 미확인 클러스터'
-
-function openConvert(a: AppCatalog) {
-  converting.value = a
-  convertCluster.value = clusters.value[0]?.id ?? null
-  notice.value = ''
-  error.value = null
-}
-
-/**
- * 빌드와 배치를 **두 걸음으로 나눈 이유**: 포털에 백그라운드 워커가 없다. 잡이 끝났는지는
- * Job 화면이 말해 주고, 관리자가 그때 [배치]를 누른다. 폴링을 흉내 내느니 정직하다.
- */
-async function runBuild() {
-  const app = converting.value
-  const cid = convertCluster.value
-  if (!app || cid === null) return
-  convertBusy.value = true
-  error.value = null
-  try {
-    const res = await clusterApi.buildAppImage(cid, app.kind, app.app_id)
-    notice.value =
-      `변환 Job을 제출했습니다 (Job ${res.job_id}). 끝나면 [배치]를 누르세요 — ` +
-      'SIF는 내 홈의 .portal/build 아래에 만들어집니다.'
-  } catch (e) {
-    error.value = e
-  } finally {
-    convertBusy.value = false
-  }
-}
-
-async function runInstall() {
-  const app = converting.value
-  const cid = convertCluster.value
-  if (!app || cid === null) return
-  convertBusy.value = true
-  error.value = null
-  try {
-    const res = await clusterApi.installAppImage(cid, app.kind, app.app_id)
-    notice.value = res.message || '이미지를 배치했습니다.'
-    await load()
-  } catch (e) {
-    error.value = e
-  } finally {
-    convertBusy.value = false
-  }
 }
 
 async function load() {
@@ -172,7 +95,6 @@ function openEdit(a: AppCatalog) {
     vendor: a.vendor ?? '',
     version: a.version ?? '',
     image_file: a.image_file ?? '',
-    image_ref: a.image_ref ?? '',
     icon_file: a.icon_file ?? '',
     description: a.description ?? '',
   }
@@ -259,7 +181,6 @@ async function remove(a: AppCatalog) {
   </PageHead>
 
   <ErrorNote :error="error" />
-  <div v-if="notice" class="px-3.5 py-2.5 rounded-lg bg-ok-bg text-ok text-[14px] mb-4">{{ notice }}</div>
 
   <Card title="등록된 앱" flush>
     <template #title-extra><Fid id="A-OP-02" /></template>
@@ -302,13 +223,9 @@ async function remove(a: AppCatalog) {
         <td class="px-3.5 py-2.5 mono text-[13.5px]">{{ a.version || '—' }}</td>
         <td class="px-3.5 py-2.5 mono text-[13px] break-all">
           {{ a.image_file || '—' }}
-          <!-- 출처는 파일명보다 길다 — 아래 줄에 흐리게 붙인다 -->
-          <p v-if="a.image_ref" class="text-[12px] text-ink-3">{{ a.image_ref }}</p>
         </td>
         <td class="px-3.5 py-2.5 flex gap-2">
           <Btn size="sm" @click="openEdit(a)">{{ a.id === null ? '정보 입력' : '수정' }}</Btn>
-          <!-- 출처를 아는 앱만 변환할 수 있다 — 없으면 무엇을 받아올지 모른다 -->
-          <Btn v-if="a.image_ref" size="sm" @click="openConvert(a)">변환</Btn>
           <Btn v-if="a.id !== null" size="sm" variant="danger" @click="remove(a)">삭제</Btn>
         </td>
       </tr>
@@ -384,18 +301,6 @@ async function remove(a: AppCatalog) {
       </Field>
 
       <Field
-        label="이미지 출처 (OCI 참조)" full
-        hint="예: docker://opencfd/openfoam-default:2512 — 이 SIF를 무엇으로 만들었는지. 스킴(docker:// 등)이 필요합니다."
-      >
-        <input
-          v-model="form.image_ref"
-          :class="[inputClass, 'mono']"
-          placeholder="docker://…"
-          @blur="onRefInput"
-        />
-      </Field>
-
-      <Field
         label="아이콘 파일" full
         hint="SVG·PNG·JPEG·WEBP, 512KB 이하. 파일명은 서버가 정하고 같은 이름이 있으면 뒤에 번호를 붙입니다."
       >
@@ -437,42 +342,4 @@ async function remove(a: AppCatalog) {
     </template>
   </Modal>
 
-  <!--
-    변환 모달. **두 걸음**이다 — 빌드(Slurm 잡)와 배치(포털이 sudo로 하는 mv).
-    목적지가 root 소유인 이유는 컨테이너 이미지가 **모든 사용자가 실행하는 코드**여서다:
-    디렉터리를 사용자 그룹에 열면 아무나 남이 실행할 이미지를 바꿔 놓을 수 있다.
-  -->
-  <Modal
-    v-if="converting"
-    :title="`이미지 변환 — ${converting.name}`"
-    @close="converting = null"
-  >
-    <div class="space-y-4">
-      <p class="text-[13.5px] text-ink-2 leading-relaxed">
-        <b class="mono break-all">{{ converting.image_ref }}</b> 를 받아
-        <b class="mono">{{ converting.image_file || '(파일명 미지정)' }}</b> 로 만듭니다.
-      </p>
-      <Field label="대상 클러스터" full hint="이미지는 클러스터마다 따로 있어야 합니다.">
-        <select v-model.number="convertCluster" :class="inputClass">
-          <option v-for="c in clusters" :key="c.id" :value="c.id">{{ clusterLabel(c) }}</option>
-        </select>
-      </Field>
-      <div class="px-3.5 py-2.5 rounded-lg bg-info-bg text-[13px] text-ink-2 leading-relaxed">
-        <b>① 빌드</b>는 Slurm 잡으로 돌고 결과가 <b>내 홈</b>에 떨어집니다 — 진행 상황은
-        Job 화면에서 봅니다. 큰 이미지는 몇 분에서 수십 분 걸립니다.<br />
-        <b>② 배치</b>는 잡이 <b>끝난 뒤에</b> 누르세요. 그때 포털이 이미지 디렉터리로 옮깁니다.
-      </div>
-    </div>
-    <template #foot>
-      <Btn @click="converting = null">닫기</Btn>
-      <Btn :disabled="convertBusy || convertCluster === null" @click="runBuild">① 빌드</Btn>
-      <Btn
-        variant="primary"
-        :disabled="convertBusy || convertCluster === null"
-        @click="runInstall"
-      >
-        ② 배치
-      </Btn>
-    </template>
-  </Modal>
 </template>

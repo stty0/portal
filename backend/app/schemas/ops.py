@@ -89,8 +89,6 @@ class AppCatalogOut(BaseModel):
     vendor: str | None
     version: str | None
     image_file: str | None
-    #: 이미지의 출처(OCI 참조). **어디서 왔는지**를 아는 유일한 자리다.
-    image_ref: str | None = None
     #: 아이콘 파일명(등록 폼이 고르는 값). 파일이 없으면 None.
     icon_file: str | None = None
     #: 화면이 그대로 <img src>에 넣는 주소. 서버가 파일명으로 만든다.
@@ -106,9 +104,6 @@ class AppCatalogCreate(BaseModel):
     vendor: str | None = Field(default=None, max_length=128)
     version: str | None = Field(default=None, max_length=32)
     image_file: str | None = Field(default=None, max_length=128)
-    #: 모양 검사는 **서비스**가 한다(`app_images.IMAGE_REF`) — 정규식 정본이 거기 있고,
-    #: 스키마가 서비스를 import하는 전례를 만들지 않는다.
-    image_ref: str | None = Field(default=None, max_length=255)
     icon_file: str | None = Field(default=None, max_length=64)
     description: str | None = None
 
@@ -118,8 +113,5 @@ class AppCatalogUpdate(BaseModel):
     vendor: str | None = Field(default=None, max_length=128)
     version: str | None = Field(default=None, max_length=32)
     image_file: str | None = Field(default=None, max_length=128)
-    #: 모양 검사는 **서비스**가 한다(`app_images.IMAGE_REF`) — 정규식 정본이 거기 있고,
-    #: 스키마가 서비스를 import하는 전례를 만들지 않는다.
-    image_ref: str | None = Field(default=None, max_length=255)
     icon_file: str | None = Field(default=None, max_length=64)
     description: str | None = None

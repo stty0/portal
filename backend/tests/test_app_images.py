@@ -265,130 +265,24 @@ def test_failure_is_not_cached_so_one_broken_user_cannot_lock_everyone(
     assert _list(client, cluster, admin_token) == ["a.sif", "b.sif"]
 
 
-# --- 변환: 빌드 → 배치 (T-08) -------------------------------------------------
-# 빌드는 **Slurm 잡**(관리자 홈에 SIF가 떨어진다), 배치는 **포털이 sudo로 하는 mv 하나**다.
-# 목적지가 root 소유인 이유는 컨테이너 이미지가 **모든 사용자가 실행하는 코드**여서다 —
-# 디렉터리를 사용자 그룹에 열면 아무나 남이 실행할 이미지를 바꿔 놓을 수 있다.
 
 
-def _build(client, cluster, token, app_id="openfoam", kind="batch"):
-    return client.post(
-        f"{API}/clusters/{cluster.id}/app-images/{kind}/{app_id}/build",
-        headers=auth_headers(token),
-    )
 
 
-def test_build_submits_a_job_whose_script_pins_the_caches(
-    client, cluster, admin_token, fake_images, slurm_client
-):
-    """캐시를 홈 밖에 두면 노드가 찬다 — dev01이 실제로 그렇게 죽은 적이 있다(11GB)."""
-    assert _build(client, cluster, admin_token).status_code == 200
-    spec = [kw["spec"] for name, kw in slurm_client.calls if name == "submit_job"][0]
-    script = spec["script"]
-    # 작업 디렉터리가 없으면 **Slurm이 제출을 거부한다**(실측). 잡을 만들어 놓고
-    # 거부당하는 것을 테스트가 잡아야 한다.
-    assert spec["job"]["current_working_directory"] == "/home/opadmin"
-    assert "base=/home/opadmin/.portal/build" in script
-    assert 'APPTAINER_CACHEDIR="$base/cache"' in script
-    assert 'APPTAINER_TMPDIR="$base/tmp"' in script
-    # **$HOME을 쓰면 안 된다** — Slurm 배치 환경에 없어서 `set -u`와 만나 첫 줄에서 죽는다.
-    assert "$HOME" not in script
 
 
-def test_build_uses_the_registered_ref_and_writes_to_a_temp_name(
-    client, cluster, admin_token, fake_images, slurm_client
-):
-    """중간에 죽은 빌드가 완성된 파일처럼 보이면 `installed`가 앱을 열어 버린다."""
-    _build(client, cluster, admin_token)
-    script = [kw["spec"] for n, kw in slurm_client.calls if n == "submit_job"][0]["script"]
-    # IMAGE_REF가 셸 메타문자를 애초에 막아서 shlex.quote가 따옴표를 붙이지 않는다 —
-    # 그래도 quote를 통과시키는 이유는 정규식이 느슨해질 때의 안전망이다.
-    assert "apptainer build \"$out.tmp\" docker://opencfd/openfoam-default:2512" in script
-    assert 'mv "$out.tmp" "$out"' in script
 
 
-def test_build_is_refused_when_the_app_has_no_source(
-    client, cluster, admin_token, fake_images, monkeypatch
-):
-    """출처가 없으면 만들 수가 없다 — 잡을 던져 놓고 워커에서 죽게 두지 않는다."""
-    from app.services import session_apps
-
-    # jupyter가 쓰는 1.6은 아직 레지스트리에 없다(1.5만 올라가 있다).
-    assert session_apps.get("jupyter").image_ref == ""
-    resp = _build(client, cluster, admin_token, app_id="jupyter", kind="interactive")
-    assert resp.status_code == 422
-    assert "출처" in resp.json()["message"]
 
 
-def test_build_requires_admin(client, cluster, user_token, fake_images):
-    assert _build(client, cluster, user_token).status_code == 403
 
 
-def test_install_moves_the_built_file_as_root(client, cluster, admin_token, fake_images):
-    """포털이 권한을 올리는 **유일한** 지점이라, 무엇을 어떻게 부르는지 고정한다."""
-    resp = client.post(
-        f"{API}/clusters/{cluster.id}/app-images/batch/openfoam/install",
-        headers=auth_headers(admin_token),
-    )
-    assert resp.status_code == 200, resp.text
-    # 존재 확인은 **본인 계정**으로, 옮기기는 root로. 경로는 셋 다 서버가 만든다.
-    source = "/home/opadmin/.portal/build/openfoam-2512.sif"
-    assert ("opadmin", ["test", "-f", source]) in fake_images.ran
-    target = "/home/.portal/images/openfoam-2512.sif"
-    assert ("root", ["mv", source, target]) in fake_images.ran
-    # `mv`는 소유자를 가져온다 — 뺏지 않으면 빌드한 사용자가 **모두가 실행하는 이미지**를
-    # 계속 덮어쓸 수 있다. 디렉터리를 root 소유로 둔 이유가 여기서 무너진다.
-    assert ("root", ["chown", "root:root", target]) in fake_images.ran
-    assert ("root", ["chmod", "0644", target]) in fake_images.ran
 
 
-def test_install_invalidates_the_cache_so_the_app_opens_at_once(
-    client, cluster, admin_token, fake_images
-):
-    """포털이 **직접 넣은** 경우다 — 여기서만은 TTL을 기다릴 이유가 없다."""
-    fake_images.entries = []
-    assert _list(client, cluster, admin_token) == []  # 빈 목록이 캐시된다
-
-    fake_images.entries = [_entry("openfoam-2512.sif")]
-    client.post(
-        f"{API}/clusters/{cluster.id}/app-images/batch/openfoam/install",
-        headers=auth_headers(admin_token),
-    )
-    assert _list(client, cluster, admin_token) == ["openfoam-2512.sif"]
 
 
-def test_install_requires_admin(client, cluster, user_token, fake_images):
-    resp = client.post(
-        f"{API}/clusters/{cluster.id}/app-images/batch/openfoam/install",
-        headers=auth_headers(user_token),
-    )
-    assert resp.status_code == 403
-    assert fake_images.ran == []  # 권한을 보기 전에 아무것도 실행하지 않는다
 
 
-def test_catalog_refs_are_shaped_so_the_build_job_can_use_them():
-    """카탈로그에 적힌 출처는 **그대로 `apptainer build`로 넘어간다.**
-
-    오타나 스킴 누락은 잡을 던져 놓고 워커에서 죽는 것으로만 드러난다 — 여기서 막는다.
-    """
-    from app.services import batch_apps, session_apps
-    from app.services.app_images import IMAGE_REF
-
-    for app in list(session_apps.APPS) + list(batch_apps.APPS):
-        if app.image_ref:
-            assert IMAGE_REF.match(app.image_ref), f"{app.id}: {app.image_ref}"
-
-
-def test_apps_without_a_registry_source_say_so_by_being_empty():
-    """비어 있는 것이 정보다 — 레지스트리에서 오지 않는 이미지가 있다는 사실.
-
-    jupyter가 쓰는 1.6은 아직 안 올라갔고, code-server는 포털이 호스팅하지 않는다.
-    비어 있으면 화면에 [변환]이 뜨지 않는다.
-    """
-    from app.services import session_apps
-
-    empty = {a.id for a in session_apps.APPS if not a.image_ref}
-    assert empty == {"jupyter", "code-server"}
 
 
 def test_requires_admin(client, cluster, user_token, fake_images):

@@ -137,12 +137,6 @@ export const clusterApi = {
   appImages: (cid: number) => api.get<string[]>(`/clusters/${cid}/app-images`),
   /** 등록 직후 진단. **없어도 200**이다 — 포털은 디렉터리를 만들지 않고 알리기만 한다. */
   imageDir: (cid: number) => api.get<ImageDirCheck>(`/clusters/${cid}/image-dir`),
-  /** OCI 참조 → SIF를 **Slurm 잡으로** 만든다. 결과는 요청자 홈 아래에 떨어진다. */
-  buildAppImage: (cid: number, kind: string, appId: string) =>
-    api.post<{ job_id: string }>(`/clusters/${cid}/app-images/${kind}/${appId}/build`),
-  /** 빌드된 SIF를 이미지 디렉터리로 옮긴다 — 포털이 유일하게 권한을 올리는 지점. */
-  installAppImage: (cid: number, kind: string, appId: string) =>
-    api.post<OkResponse>(`/clusters/${cid}/app-images/${kind}/${appId}/install`),
   appAccess: (cid: number) => api.get<AppAccess[]>(`/clusters/${cid}/app-access`),
   /** 계정 배정도 QOS와 같은 **덮어쓰기**다. 빈 배열을 보내면 그 앱이 다시 전원에게 열린다. */
   setAppAccess: (cid: number, kind: string, appId: string, accounts: string[]) =>

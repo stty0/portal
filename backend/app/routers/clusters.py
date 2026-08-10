@@ -40,12 +40,9 @@ from app.schemas.cluster import (
     SlurmQosCreate,
 )
 from app.schemas.common import OkResponse
-from app.schemas.job import JobSubmitResponse
-from app.routers.jobs import JobServiceDep
 from app.services.app_access import AppAccessService
 from app.services.app_images import AppImageService
 from app.services.cluster import ClusterService
-from app.services.job import JobSpec
 
 router = APIRouter(tags=["clusters"])
 
@@ -277,50 +274,6 @@ def check_image_dir(
     return ImageDirCheck(
         **service.check(service.clusters.get(cid), username=actor.username)
     )
-
-
-@router.post(
-    "/clusters/{cid}/app-images/{kind}/{app_id}/build",
-    response_model=JobSubmitResponse,
-    summary="이미지 변환 Job 제출 (A-OP-02)",
-)
-def build_app_image(
-    cid: int,
-    kind: str,
-    app_id: str,
-    actor: AdminUser,
-    images: AppImageServiceDep,
-    jobs: JobServiceDep,
-) -> JobSubmitResponse:
-    """OCI 참조 → SIF를 **Slurm 잡으로** 만든다. 결과는 요청자 홈 아래에 떨어진다.
-
-    파드에서 돌리지 않는 이유는 셋이다 — apptainer가 없고, 메모리 제한이 있고, 무엇보다
-    **캐시가 쌓여 파드가 스스로 evict된 전례**가 있다. 클러스터에서 돌리면 스크래치도
-    네트워크도 거기 것이고 진행 상황은 기존 Job 화면이 보여준다.
-
-    목적지는 root 소유라 잡이 직접 못 쓴다 — 배치는 `install`이 따로 한다.
-    """
-    cluster = images.clusters.get(cid)
-    name, script, work_dir = images.build_script(cluster, kind, app_id, username=actor.username)
-    spec = JobSpec(name=name, script=script, mode="script", work_dir=work_dir)
-    return JobSubmitResponse(**jobs.submit(cluster, spec, user=actor))
-
-
-@router.post(
-    "/clusters/{cid}/app-images/{kind}/{app_id}/install",
-    response_model=OkResponse,
-    summary="변환된 이미지를 배치 (A-OP-02)",
-)
-def install_app_image(
-    cid: int, kind: str, app_id: str, actor: AdminUser, images: AppImageServiceDep
-) -> OkResponse:
-    """빌드된 SIF를 이미지 디렉터리로 옮긴다 — **포털이 유일하게 권한을 올리는 지점.**
-
-    빌드와 나눈 이유는 포털에 백그라운드 워커가 없어서다. 잡이 끝났는지는 Job 화면이
-    말해 주고, 관리자가 그때 이 버튼을 누른다. 폴링을 흉내 내느니 두 걸음이 정직하다.
-    """
-    path = images.install(images.clusters.get(cid), kind, app_id, username=actor.username)
-    return OkResponse(message=f"이미지를 배치했습니다: {path}")
 
 
 @router.get(

@@ -27,9 +27,6 @@ class InteractiveApp:
     image: str
     #: 기능 정의서 ID (화면의 `<Fid>` 매핑).
     fid: str
-    #: 이미지의 **출처**(OCI 참조). 등록이 이기고 없으면 이 값이다. 데스크톱 이미지는
-    #: 레지스트리가 아니라 `deploy/images/rocky9-mate`에서 직접 만들어 비어 있다.
-    image_ref: str = ""
     #: **실행 방식**(기동 커맨드·파라미터)이 확정됐는가. 이미지가 거기 있는지는 별개
     #: 질문이고(`installed`, 클러스터가 답한다) 이 값은 코드가 답한다. 목록에는 예정
     #: 앱도 보여주되 고를 수 없게 한다.
@@ -55,7 +52,6 @@ APPS: tuple[InteractiveApp, ...] = (
         name="원격 데스크톱",
         description="MATE 데스크톱 (Rocky 9)",
         image="rocky9-mate-1.5.sif",
-        image_ref="docker://stty0/rocky9-mate:1.5",
         fid="U-IA-02",
     ),
     InteractiveApp(
@@ -63,7 +59,6 @@ APPS: tuple[InteractiveApp, ...] = (
         name="ParaView",
         description="과학 시각화 5.11 (소프트웨어 렌더링)",
         image="rocky9-mate-1.5.sif",
-        image_ref="docker://stty0/rocky9-mate:1.5",
         fid="U-IA-02",
     ),
     # JupyterLab은 **VNC를 쓰지 않는 첫 앱이다**. X 서버 없이 HTTP로 뜨고, 포털이
@@ -74,8 +69,6 @@ APPS: tuple[InteractiveApp, ...] = (
         name="JupyterLab",
         description="노트북 세션 (Python 3.11)",
         image="rocky9-mate-1.6.sif",
-        # 1.6은 아직 레지스트리에 없다(1.5만 올라가 있다). 비워 두는 것이 사실이고,
-        # 비어 있으면 화면에 [변환]이 안 뜬다 — 무엇을 받아올지 모르는 채로 잡을 던지지 않는다.
         fid="U-IA-01",
         entry="/opt/portal/start-jupyter.sh",
         transport="http",

@@ -21,7 +21,6 @@ from app.repositories.content import (
 )
 from app.repositories.identity import UserRepository
 from app.services import batch_apps, session_apps
-from app.services.app_images import IMAGE_REF
 from app.services.audit import AuditService
 
 #: 설정 변경 시 감사 로그에 남길 필드. 값이 아니라 **바뀐 필드 이름만** 남긴다 —
@@ -141,7 +140,6 @@ class OpsService:
         return rows
 
     def create_app(self, *, actor: User, kind: str, app_id: str, **values: Any) -> dict[str, Any]:
-        _check_image_ref(values.get("image_ref"))
         if self.apps.get_by_app(kind, app_id):
             raise Conflict(
                 "같은 종류·id의 앱이 이미 등록되어 있습니다.",
@@ -159,7 +157,6 @@ class OpsService:
         app = self.apps.get(app_pk)
         if app is None:
             raise NotFound("앱을 찾을 수 없습니다.", detail={"id": app_pk})
-        _check_image_ref(values.get("image_ref"))
         # kind·app_id는 코드 카탈로그로 가는 연결 키다 — 바꾸면 다른 앱이 된다. 지우고 다시 등록한다.
         for key, value in values.items():
             setattr(app, key, value)
@@ -250,17 +247,6 @@ def _icon_url(name: str) -> str:
     return f"{ICON_URL_PREFIX}/{name}"
 
 
-def _check_image_ref(value: Any) -> None:
-    """OCI 참조의 모양. **스킴이 없으면 거절한다** — apptainer가 출처 종류를 그것으로
-    판정하고, 요구하지 않으면 로컬 경로를 붙여 넣어도 통과한다. 이 값은 변환 잡에서
-    `apptainer build`로 넘어간다(T-08)."""
-    if value and not IMAGE_REF.match(str(value)):
-        raise ValidationFailed(
-            "이미지 출처는 `docker://…`처럼 스킴으로 시작해야 합니다.",
-            detail={"image_ref": value},
-        )
-
-
 def _app_row(kind: str, app_id: str, row: AppCatalog | None, *, code: Any) -> dict[str, Any]:
     """등록분과 코드 카탈로그를 겹친다 — 등록이 없으면 코드의 이름·설명이 그대로 쓰인다."""
     return {
@@ -271,9 +257,6 @@ def _app_row(kind: str, app_id: str, row: AppCatalog | None, *, code: Any) -> di
         "vendor": row.vendor if row else None,
         "version": row.version if row else None,
         "image_file": (row.image_file if row else None) or (code.image if code else None),
-        "image_ref": (row.image_ref if row else None) or (
-            getattr(code, "image_ref", "") if code else None
-        ) or None,
         "icon_file": row.icon_file if row else None,
         "icon_url": _icon_url(row.icon_file) if row and row.icon_file else None,
         "description": (row.description if row else None) or (code.description if code else None),

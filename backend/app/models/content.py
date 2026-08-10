@@ -166,14 +166,9 @@ class AppCatalog(Base):
     name: Mapped[str] = mapped_column(String(128))
     vendor: Mapped[str | None] = mapped_column(String(128))
     version: Mapped[str | None] = mapped_column(String(32))
-    #: 컨테이너 이미지 **파일명**만 담는다(`openfoam-2512.sif`). 파일은
-    #: `settings.app_image_dir` 아래에 있다 — 아이콘과 같은 모양이다.
+    #: 컨테이너 이미지 **파일명**만 담는다(`openfoam-2512.sif`). 파일이 있는 곳은
+    #: 클러스터가 정한다(`services/app_images.image_dir`) — 아이콘과 달리 클러스터마다 다르다.
     image_file: Mapped[str | None] = mapped_column(String(128))
-    #: 이미지의 **출처**(OCI 참조, `docker://opencfd/openfoam-default:2512`).
-    #: `image_file`은 무엇을 실행하는지만 말하고 어디서 왔는지는 말하지 않는다 —
-    #: 버전을 올리거나 다른 클러스터에 같은 이미지를 만들 때 필요한 값이 이것이다.
-    #: 레지스트리 호스트를 따로 두지 않는다: 여러 레지스트리를 섞어 쓴다(마이그레이션 0018).
-    image_ref: Mapped[str | None] = mapped_column(String(255))
     #: 아이콘 **파일명**만 담는다(`jupyter.svg`). 파일은 `settings.app_icon_dir` 아래에
     #: 있고 URL은 서버가 만든다 — 배포 위치가 바뀌어도 DB를 고칠 필요가 없다.
     icon_file: Mapped[str | None] = mapped_column(String(64))

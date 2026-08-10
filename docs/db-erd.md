@@ -147,7 +147,6 @@ entity "app_catalog" as appcat {
   vendor : VARCHAR(128)
   version : VARCHAR(32)
   image_file : VARCHAR(128)            ' SIF 파일명만. 파일은 클러스터의 home_base/.portal/images
-  image_ref : VARCHAR(255)             ' 출처(OCI 참조) docker://opencfd/openfoam-default:2512
   icon_file : VARCHAR(64)              ' 파일명만. 실제 파일은 app_icon_dir, URL은 서버가 만든다
   description : TEXT
   created_at : DATETIME
@@ -356,7 +355,7 @@ end note
 | `api_token` | 기계 클라이언트용 장수명 자격증명. **원문 미저장**(sha256), 폐기·만료 가능. | C-01 |
 | `interactive_session` | 인터랙티브 앱 세션 **대장(臺帳)** — "누가 어떤 클러스터에 무엇을 띄웠나"만 기록한다. **접속 정보(호스트·포트·비밀번호)는 저장하지 않는다**: 유일한 출처는 세션 Job이 워커에 남기는 `connection.json`(공유 홈)이고, 살아 있는지는 **Slurm Job 상태**가 권위 있는 출처다(노드가 죽으면 정리 훅이 안 돌아 파일이 남는다 — 실측). `node_host`/`node_port`/`connect_url`은 채택하지 않은 초기 설계(Traefik 폴링 라우트)의 **잔재로 사용하지 않는다** — 채우면 출처가 둘이 되어 어긋난다. 종료는 REST `scancel` + 상태 변경. | U-IA-04, Architecture.md §1 |
 | `app_access` | 앱을 쓸 수 있는 Slurm 계정 배정. **허용 목록이고 행이 없으면 전원 허용**이다 — 기본이 잠김이면 표를 만든 순간 모든 앱이 멈춘다. `app_id`는 코드 카탈로그(`session_apps.py`·`batch_apps.py`)의 id, `account`는 slurmdbd 계정명의 **문자열 참조**다(계정은 포털 표가 아니다). 배정된 앱은 목록에서 잠기고, 제출된 Job도 그 계정으로 실행된다. | U-IA-01 · U-JB-13 / A-US-02 |
-| `app_catalog` | 앱의 **정보**(아이콘·벤더·버전·이미지 위치·설명). 아이콘·컨테이너 이미지 모두 **파일명만** 담는다 — 경로는 서버가 만든다. `image_ref`(마이그레이션 `0018`)는 그 SIF의 **출처**(OCI 참조, `docker://opencfd/openfoam-default:2512`)다 — `image_file`은 무엇을 실행하는지만 말하고 어디서 왔는지는 말하지 않는다. 레지스트리 호스트를 따로 두지 않는 이유는 여러 레지스트리를 섞어 쓰기 때문이다(Docker Hub·nvcr.io). 아이콘은 `app_icon_dir`(기본 `/home/.portal/app-icons`), 이미지는 **클러스터마다 다르다**: `cluster.home_base` 아래 `.portal/images`로 파생하고 비었을 때만 `app_image_dir`로 폴백한다. 배포 위치가 DB로 새지 않는다. 관리자가 SCR-15에서 CRUD한다. **실행 방식은 여기 없다** — 기동 스크립트·transport·파라미터 스키마는 코드 카탈로그가 정본이고, 이미지와 실행 커맨드는 함께 바뀌어 코드 배포를 벗어날 수 없다(`job_template` 제거 근거와 같다). `(kind, app_id)`가 코드 카탈로그로 가는 연결 키이며 FK가 아니다 — 코드에 없는 앱도 미리 등록할 수 있고, 등록이 없는 앱은 코드의 이름·설명이 쓰인다. | A-OP-02 |
+| `app_catalog` | 앱의 **정보**(아이콘·벤더·버전·이미지 위치·설명). 아이콘·컨테이너 이미지 모두 **파일명만** 담는다 — 경로는 서버가 만든다. 이미지의 **출처**는 담지 않는다(`image_ref`는 마이그레이션 `0019`에서 제거) — 포털이 레지스트리에서 받지 않고 관리자가 밖에서 만들어 올려놓는다. 적어 두려면 `description`에 쓴다. 아이콘은 `app_icon_dir`(기본 `/home/.portal/app-icons`), 이미지는 **클러스터마다 다르다**: `cluster.home_base` 아래 `.portal/images`로 파생하고 비었을 때만 `app_image_dir`로 폴백한다. 배포 위치가 DB로 새지 않는다. 관리자가 SCR-15에서 CRUD한다. **실행 방식은 여기 없다** — 기동 스크립트·transport·파라미터 스키마는 코드 카탈로그가 정본이고, 이미지와 실행 커맨드는 함께 바뀌어 코드 배포를 벗어날 수 없다(`job_template` 제거 근거와 같다). `(kind, app_id)`가 코드 카탈로그로 가는 연결 키이며 FK가 아니다 — 코드에 없는 앱도 미리 등록할 수 있고, 등록이 없는 앱은 코드의 이름·설명이 쓰인다. | A-OP-02 |
 | `ticket` | 헬프데스크 티켓(요청자/담당자). | U-AC-04 / A-OP-05 |
 | `audit_log` | 제어성 액션 감사. | C-05 / A-OP-03 |
 | `portal_setting` | 세션 정책(폴링 주기·타임아웃)·알림 채널(SMTP/웹훅). 단일 행. | A-OP-04 |

@@ -38,11 +38,6 @@ export interface AppCatalog {
   version: string | null
   /** 컨테이너 이미지 **파일명**. 파일은 클러스터의 공유 이미지 디렉터리에 있다. */
   image_file: string | null
-  /**
-   * 이미지의 **출처**(OCI 참조). `image_file`은 무엇을 실행하는지만 말하고 어디서 왔는지는
-   * 말하지 않는다 — 버전을 올리거나 다른 클러스터에 같은 이미지를 만들 때 필요한 값이다.
-   */
-  image_ref: string | null
   /** 아이콘 **파일명**. 등록 폼이 고르는 값이며 서버의 아이콘 디렉터리에 있는 파일이다. */
   icon_file: string | null
   /** 서버가 파일명으로 만든 주소. 화면은 이걸 그대로 <img src>에 넣는다. */
