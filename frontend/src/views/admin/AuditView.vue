@@ -15,6 +15,8 @@ import Table from '@/components/ui/Table.vue'
  *
  * 포털 내 **제어성 행위**(제출·취소·설정 변경·계정 관리·로그인)가 기록된다.
  * 읽기 전용이다 — 지우거나 고치는 길은 화면에도 API에도 없다.
+ *
+ * 추적 범위는 **포털의 행적**이다. 포털 밖에서 일어난 일은 애초에 이 화면의 대상이 아니다.
  */
 const logs = ref<AuditLog[]>([])
 const logTotal = ref(0)
@@ -146,7 +148,6 @@ const fieldClass =
 
     <template #foot>
       포털 내 제어성 행위(제출·취소·설정 변경·계정 관리)가 기록됩니다 (C-05).
-      <b>포털을 거치지 않은 행위</b>(웹 터미널·SSH에서 직접 실행한 명령)는 여기 남지 않습니다.
     </template>
   </Card>
 </template>
