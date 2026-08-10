@@ -10,7 +10,16 @@ helm install portal ./deploy/helm/hpc-portal \
   -n hpc-portal --create-namespace \
   --set-file backend.sshKnownHosts=known_hosts \
   --set ingress.host=www.dt-hpc.net \
-  --set ingress.tlsSecretName=dt-hpc-tls
+  --set ingress.tlsSecretName=dt-hpc-tls \
+  --set backend.appIconHostPath=/home/.portal/app-icons
+```
+
+**새 클러스터라면 이것만 먼저 하면 된다.** 저장소는 기본으로 클러스터 기본
+StorageClass를 쓰므로(k3s는 local-path) 별도 준비가 필요 없다. 아이콘 디렉터리는
+노드에 미리 만들어 둔다 — 없으면 목록이 비고 업로드가 422로 끊긴다.
+
+```bash
+sudo mkdir -p /home/.portal/app-icons && sudo chown 10001:10001 /home/.portal/app-icons
 ```
 
 이미지는 k3s containerd에 미리 넣어 둔다(`imagePullPolicy: Never`가 기본이다):
@@ -27,6 +36,7 @@ Secret으로 넣고 이름만 알려 준다(`certbot-deploy-hook.sh`가 갱신�
 
 ```bash
 --set storageClass.create=true    # PVC를 지워도 데이터가 남는다(reclaimPolicy: Retain)
+--set mysql.storage.className=local-path-retain   # 위와 **함께** 쓴다. 한쪽만 켜면 렌더가 멈춘다
 --set traefik.configure=true      # 내장 Traefik의 hostPort를 9080/9443으로
 ```
 
@@ -82,5 +92,7 @@ helm install portal ./deploy/helm/hpc-portal -n hpc-portal --dry-run=server --ta
 | `backend.sshKnownHosts` | 로그인 노드 호스트키. 없으면 파일 관리자·터미널·세션이 막힌다 |
 | `ingress.host` / `tlsSecretName` | 도메인과 인증서 Secret |
 | `traefik.configure` | 내장 Traefik hostPort 변경(**클러스터 전역**) |
-| `storageClass.create` | reclaimPolicy Retain StorageClass(**클러스터 전역**) |
+| `storageClass.create` | reclaimPolicy Retain StorageClass(**클러스터 전역**). `mysql.storage.className`과 함께 켠다 |
+| `backend.appIconHostPath` | 앱 아이콘이 놓이는 노드 디렉터리. 비우면 마운트하지 않는다(업로드 422) |
+| `backend.env.PORTAL_COOKIE_SECURE` | **TLS 없이 열면 `"false"`로.** 기본 true라 http에서 로그인이 조용히 실패한다 |
 | `dev.nodePorts.enabled` | DB·Redis를 클러스터 밖에 연다. **운영에서는 끄기** |

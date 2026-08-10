@@ -106,3 +106,18 @@ app.kubernetes.io/part-of: hpc-portal
 {{- define "hpc-portal.frontendImage" -}}
 {{- printf "%s:%s" .Values.image.frontend.repository (.Values.image.frontend.tag | default .Chart.AppVersion) -}}
 {{- end -}}
+
+{{/*
+  PVC가 가리킬 StorageClass 이름. **차트가 만들지 않는 이름을 가리키면 렌더를 멈춘다.**
+
+  이 조합이 조용히 통과하면 PVC가 Pending에서 멈추고 → MySQL이 안 뜨고 → 백엔드
+  init 컨테이너(alembic)가 계속 실패한다. 파드 목록만 보면 원인이 안 보이는 자리라
+  **설치 전에** 끊는다.
+*/}}
+{{- define "hpc-portal.mysqlStorageClass" -}}
+{{- $name := .Values.mysql.storage.className -}}
+{{- if and $name (eq $name .Values.storageClass.name) (not .Values.storageClass.create) -}}
+{{- fail (printf "mysql.storage.className=%s 인데 storageClass.create=false 입니다. 그 StorageClass가 클러스터에 이미 있으면 이 값을 그대로 두고, 없으면 --set storageClass.create=true 로 만들거나 mysql.storage.className=\"\" 로 비워 클러스터 기본을 쓰세요." $name) -}}
+{{- end -}}
+{{- $name -}}
+{{- end -}}

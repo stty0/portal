@@ -19,7 +19,29 @@
     helm upgrade {{ .Release.Name }} . -n {{ .Release.Namespace }} \
       --set-file backend.sshKnownHosts=known_hosts
 {{- end }}
+{{- if not .Values.backend.appIconHostPath }}
+
+⚠ 앱 아이콘 디렉터리를 지정하지 않았습니다. 아이콘 목록이 비고 업로드가 422로 끊깁니다
+  (A-OP-02). 쓰려면 노드에 디렉터리를 만들고 값을 넘기세요:
+
+    sudo mkdir -p /home/.portal/app-icons && sudo chown 10001:10001 /home/.portal/app-icons
+    helm upgrade {{ .Release.Name }} . -n {{ .Release.Namespace }} \
+      --set backend.appIconHostPath=/home/.portal/app-icons
+{{- end }}
 {{- if not .Values.ingress.tlsSecretName }}
 
-⚠ TLS Secret이 지정되지 않아 HTTPS가 열리지 않습니다.
+⚠ TLS Secret이 지정되지 않아 **HTTPS가 열리지 않습니다.**
+{{- /* `default`를 쓰면 안 된다 — Helm의 default는 **false를 빈 값으로 보고** 기본값으로
+       바꿔치기한다. 끄려고 false를 넣은 사람에게 경고가 그대로 뜬다. */}}
+{{- $cookieSecure := "true" }}
+{{- if hasKey (.Values.backend.env | default dict) "PORTAL_COOKIE_SECURE" }}
+{{-   $cookieSecure = toString (get .Values.backend.env "PORTAL_COOKIE_SECURE") }}
+{{- end }}
+{{- if ne $cookieSecure "false" }}
+  그리고 `PORTAL_COOKIE_SECURE`가 켜져 있어 **브라우저가 http에서 쿠키를 버립니다** —
+  화면은 뜨는데 로그인만 조용히 실패합니다. 둘 중 하나를 하세요:
+
+    (권장) 인증서 Secret을 만들고  --set ingress.tlsSecretName=<이름>
+    (검증용) http로 쓰려면        --set backend.env.PORTAL_COOKIE_SECURE=false
+{{- end }}
 {{- end }}

@@ -95,7 +95,10 @@ spec:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: {{ .Values.mysql.storage.className }}
+        {{- $sc := include "hpc-portal.mysqlStorageClass" . }}
+        {{- if $sc }}
+        storageClassName: {{ $sc }}
+        {{- end }}
         resources:
           requests:
             storage: {{ .Values.mysql.storage.size }}

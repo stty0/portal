@@ -4125,3 +4125,41 @@ SSH가 99%였고, 그 안을 다시 쪼개면 **연결 115~154ms + 첫 `list_dir
 
 문서·코드 grep으로는 안 걸렸다(`변환`이 흔한 단어라 앞선 감사에서 걸러졌다).
 **배포된 산출물을 직접 들여다본 것이 잡았다.**
+
+---
+
+### Helm 차트 — 검증계 신규 설치 대비 정정 4건
+
+다른 k3s 서버에 차트만 가져가 설치할 때 막히거나 조용히 반쪽이 되는 것을 찾았다.
+차트 자체는 `helm lint` 통과·렌더 정상이었고, **부트스트랩 데이터는 문제가 없었다**:
+마이그레이션 체인 `0001`~`0019` 무결, RBAC 시드는 `0002`가 넣고, init 컨테이너가 앱보다
+먼저 `alembic upgrade head`를 돌린다. `PORTAL_SETUP_TOKEN`도 자동 생성되고 NOTES가
+꺼내는 명령을 알려준다. 앱 카탈로그는 등록 없이도 코드 카탈로그로 동작해 시드가 필요 없다.
+
+#### 🔴 설치가 멈추던 것
+
+`mysql.storage.className: local-path-retain` + `storageClass.create: false`가 **기본값**이었다.
+새 클러스터에는 그 StorageClass가 없으니 PVC가 Pending → MySQL이 안 뜸 → init 컨테이너가
+계속 실패한다. **파드 목록만 보면 원인이 안 보이는 자리**다.
+
+기본을 `className: ""`(클러스터 기본 SC)로 바꿔 그냥 설치되게 하고, **어긋난 조합은 렌더
+단계에서 `fail`로 끊는다** — 값을 고쳐도 다시 어긋날 수 있으니 조합 자체를 막았다.
+
+#### 🟠 조용히 반쪽이 되던 것
+
+- **아이콘 마운트가 차트에 없었다**(차트 생성 시점부터). `backend.appIconHostPath`로 넣었다.
+  **비면 마운트하지 않는다** — emptyDir로 폴백하면 재시작마다 아이콘이 조용히 사라진다.
+  마운트가 없으면 업로드가 422로 끊기고, 그 편이 낫다. NOTES가 만드는 명령을 알려준다.
+- **TLS 없이 열면 로그인만 실패했다.** `cookie_secure` 기본이 true라 브라우저가 http에서
+  쿠키를 버린다 — 화면은 뜨는데 원인이 안 보인다. `PORTAL_COOKIE_SECURE`를 values에
+  노출하고, TLS 미지정 + 쿠키 on 조합에 NOTES 경고를 붙였다.
+
+#### Helm의 `default`가 `false`를 삼킨다
+
+경고 조건을 `default "true" .Values...PORTAL_COOKIE_SECURE`로 썼더니 **끄려고 false를 넣은
+사람에게 경고가 그대로 떴다.** Helm의 `default`는 빈 문자열·0과 함께 **`false`도 빈 값으로
+보고** 기본값으로 바꿔치기한다. `hasKey` + `get`으로 바꿨다.
+
+렌더로 확인한 것: 어긋난 SC 조합 → `fail` 메시지, 기본값 → `storageClassName` 자체가 빠짐,
+Retain을 함께 켜면 통과, 아이콘 경로 유무에 따라 마운트 유무, 쿠키 false → 경고만 사라지고
+Secret에는 `"false"`가 실림.

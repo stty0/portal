@@ -59,6 +59,12 @@ spec:
             - name: ssh-known-hosts
               mountPath: /etc/portal/ssh
               readOnly: true
+            {{- if .Values.backend.appIconHostPath }}
+            # 앱 아이콘 (A-OP-02). 관리 화면에서 업로드하므로 **쓰기가 필요하다** —
+            # 호스트 디렉터리는 컨테이너 UID(10001) 소유여야 한다.
+            - name: app-icons
+              mountPath: /home/.portal/app-icons
+            {{- end }}
           livenessProbe:
             httpGet: { path: /healthz, port: 8000 }
             initialDelaySeconds: 10
@@ -69,6 +75,14 @@ spec:
             periodSeconds: 10
           resources: {{- toYaml .Values.backend.resources | nindent 12 }}
       volumes:
+        {{- if .Values.backend.appIconHostPath }}
+        # 없으면 파드가 뜨지 않게 Directory로 둔다 — DirectoryOrCreate는 오타 난 경로에
+        # 빈 디렉터리를 만들어 **조용히 아이콘이 사라진다**.
+        - name: app-icons
+          hostPath:
+            path: {{ .Values.backend.appIconHostPath | quote }}
+            type: Directory
+        {{- end }}
         - name: ssh-known-hosts
           secret:
             secretName: {{ include "hpc-portal.knownHostsSecretName" . }}
