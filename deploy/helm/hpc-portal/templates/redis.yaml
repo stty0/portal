@@ -37,6 +37,7 @@ kind: Deployment
 metadata:
   name: {{ $fullname }}-redis
   labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
 spec:
   replicas: 1
   strategy:

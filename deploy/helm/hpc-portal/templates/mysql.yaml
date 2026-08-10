@@ -40,6 +40,7 @@ kind: StatefulSet
 metadata:
   name: {{ $fullname }}-mysql
   labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mysql
 spec:
   serviceName: {{ $fullname }}-mysql
   replicas: 1

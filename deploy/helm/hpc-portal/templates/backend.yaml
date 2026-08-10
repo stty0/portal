@@ -19,6 +19,7 @@ kind: Deployment
 metadata:
   name: {{ $fullname }}-backend
   labels: {{- include "hpc-portal.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
 spec:
   replicas: {{ .Values.backend.replicaCount }}
   selector:

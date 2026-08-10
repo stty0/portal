@@ -4168,3 +4168,35 @@ SSH가 99%였고, 그 안을 다시 쪼개면 **연결 115~154ms + 첫 `list_dir
 렌더로 확인한 것: 어긋난 SC 조합 → `fail` 메시지, 기본값 → `storageClassName` 자체가 빠짐,
 Retain을 함께 켜면 통과, 아이콘 경로 유무에 따라 마운트 유무, 쿠키 false → 경고만 사라지고
 Secret에는 `"false"`가 실림.
+
+---
+
+### 신규 서버 배포 문서 + 차트 라벨 정정
+
+검증계처럼 아무것도 없는 k3s에 차트만 가져가 설치하는 경로를
+[deploy-new-cluster.md](deploy-new-cluster.md)에 정리했다. 기존 두 README와 겹치지 않게
+범위를 갈랐다 — `deploy/k8s/README.md`는 개발계 매니페스트 구성, 차트 README는 values
+레퍼런스, 이 문서는 **처음 설치하는 사람이 순서대로 따라가는 것**.
+
+담은 것: 수동 준비물 4가지(이미지 반입·아이콘 디렉터리·호스트키·TLS), 설치 명령,
+**부트스트랩이 무엇을 자동으로 하는가**(스키마·RBAC 시드·비밀번호·setup 토큰 전부 자동이라
+DB에 따로 넣을 데이터가 없다), 설치 후 확인, 함정 4개, 실측값.
+
+#### 문서를 쓰다가 잡은 것 둘
+
+**① 오브젝트 이름이 릴리스 이름을 안 따른다.** `helm install portal ...`로 깔아도 Secret은
+`hpc-portal-backend-env`다 — `fullname` 헬퍼가 릴리스가 아니라 **차트 이름**을 쓰기 때문이다.
+문서에 `portal-backend-env`라고 썼다가 렌더로 확인하고 고쳤다.
+
+**② `kubectl get deploy -l app.kubernetes.io/component=backend`가 아무것도 못 찾았다.**
+`component` 라벨이 **셀렉터와 파드 템플릿에만** 있고 워크로드 오브젝트 자신에는 없었다.
+문서 명령을 파드 기준으로 우회시키는 대신 **차트를 고쳤다** — Deployment 3개와 StatefulSet
+1개의 `metadata.labels`에 `component`를 더했다(셀렉터가 아니라 라벨이라 변경 안전하다).
+이제 이름을 외우지 않고 라벨로 찾을 수 있다.
+
+#### TLS 경고를 사실에 맞게 고쳤다(앞 항목에서 이어짐)
+
+"TLS Secret이 없으면 HTTPS가 열리지 않는다"가 아니었다. 실측하니 Traefik이 자기 기본
+인증서로 응답한다(`CN=TRAEFIK DEFAULT CERT`). 접속은 되고 브라우저 경고만 나며, https라
+쿠키도 정상이다. `PORTAL_COOKIE_SECURE=false`가 필요한 경우는 **Ingress를 끄고 평문 http로
+노출할 때**뿐이다.
