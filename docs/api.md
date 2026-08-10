@@ -4,7 +4,7 @@ FastAPI 라우터로 제공할 REST API 목록(= Swagger/OpenAPI에 노출될 �
 기능 SoT는 [정의서.md](../정의서.md)(U-/A- ID·우선순위), 계층 설계는 [backend-design.md](backend-design.md)·[Architecture.md](Architecture.md).
 
 > **상태(2026-08-07 기준): 구현된 코드와 대조해 갱신함.** 라우터가 실제로 노출하는
-> **99개** 엔드포인트가 정본이며, 이 문서는 그것을 반영한다
+> **100개** 엔드포인트가 정본이며, 이 문서는 그것을 반영한다
 > (`grep -rhoE '@router\.(get|post|put|patch|delete)\(' app/routers/*.py | wc -l`).
 >
 > - 취소선 + **미구현** 표기는 **설계에는 있으나 아직 구현되지 않은** 항목이다.
@@ -140,6 +140,7 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 | DELETE | `/clusters/{cid}/accounts/{name}/users/{username}` | 계정에서 사용자 제거 | A-US-02 | admin:access | 필수 |
 | PUT | `/clusters/{cid}/accounts/{name}/users/{username}/qos` | 사용자별 QOS 지정(association 단위) | A-US-03 | admin:access | 필수 |
 | GET | `/clusters/{cid}/app-images` | **이 클러스터의** 이미지 디렉터리에 있는 파일명 — 등록 폼의 선택지. 경로는 `cluster.home_base` 아래 `.portal/images`로 파생한다(비면 `app_image_dir`). 로그인 노드 SSH `ls`이고 **실패는 빈 목록**이다(앱이 잠기는 것과 화면이 안 뜨는 것은 다른 일이다). Redis 60초 캐시 | A-OP-02 | admin:access | 필수 |
+| GET | `/clusters/{cid}/image-dir` | 이미지 디렉터리 진단 — `{path, ok, images, message}`. **없어도 200**이다(등록 순서를 강요하면 클러스터를 먼저 등록할 수 없다). 포털은 디렉터리를 **만들지 않는다** — `{home_base}`가 root 소유라 권한 상승이 필요하고 SIF는 어차피 손으로 넣는다. 캐시를 쓰지 않는다(진단은 지금을 봐야 한다) | A-CL-02 | admin:access | 필수 |
 | GET | `/clusters/{cid}/app-access` | 앱별 허용 계정. **카탈로그 전체**가 오고 배정이 없는 앱은 `accounts=[]`(=전원 허용) | A-US-02 | admin:access | 권장 |
 | PUT | `/clusters/{cid}/app-access/{kind}/{app_id}` | 앱에 계정 배정. QOS와 같은 **덮어쓰기** — 빈 배열이면 그 앱이 다시 전원에게 열린다. `kind`는 `interactive`·`batch` | A-US-02 | admin:access | 권장 |
 | ~~PUT~~ | ~~`/clusters/{cid}/accounts/{name}/users`~~ | 계정↔사용자 N:M 매핑(association 추가/제거) — **미구현**| A-US-02 | admin:access | 필수 |

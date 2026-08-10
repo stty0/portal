@@ -21,6 +21,8 @@ const rows = ref<Cluster[]>([])
 const loading = ref(false)
 const error = ref<unknown>(null)
 const notice = ref('')
+/** 경고는 성공(초록)도 실패(빨강)도 아니다 — 등록은 됐지만 손볼 곳이 남았다. */
+const warning = ref('')
 
 const showForm = ref(false)
 const editing = ref<Cluster | null>(null)
@@ -96,15 +98,33 @@ function label(c: { name: string | null; alias: string | null }): string {
   return c.alias || c.name || '이름 미확인 클러스터'
 }
 
+/**
+ * 이미지 디렉터리 확인 (A-CL-02). **등록을 막지 않는다** — 순서를 강요하면 클러스터를
+ * 먼저 등록할 수 없다. 포털은 디렉터리를 만들지 않고 무엇을 해야 하는지만 알린다:
+ * `{홈 상위}` 아래는 root 소유라 만들려면 권한 상승이 필요하고, 만들어 줘도 SIF는
+ * 여전히 손으로 넣어야 한다.
+ */
+async function checkImageDir(c: Cluster) {
+  try {
+    const res = await clusterApi.imageDir(c.id)
+    if (!res.ok) warning.value = `${label(c)}: ${res.message}`
+  } catch {
+    // 진단이 실패했다고 등록 흐름을 깨뜨리지 않는다.
+  }
+}
+
 async function save() {
   error.value = null
   notice.value = ''
+  warning.value = ''
   try {
     if (editing.value) {
-      await clusterApi.update(editing.value.id, { ...form })
+      const updated = await clusterApi.update(editing.value.id, { ...form })
       showForm.value = false
       await load()
       await store.load()
+      // 홈 상위 경로를 고치면 이미지 위치가 따라 바뀐다 — 그 자리에서 확인한다.
+      await checkImageDir(updated)
       return
     }
     await createCluster()
@@ -146,6 +166,7 @@ async function createCluster() {
   await store.load()
   // JWT까지 들어갔으면 바로 연결을 확인해 이름을 slurm.conf ClusterName으로 정정한다(A-CL-02).
   if (jwtSaved) await testRest(created)
+  await checkImageDir(created)
 }
 
 async function testRest(c: Cluster) {
@@ -272,6 +293,7 @@ function credentialStatus(kind: 'SLURM_JWT' | 'SSH_KEY'): string {
 
   <ErrorNote :error="error" />
   <div v-if="notice" class="px-3.5 py-2.5 rounded-lg bg-ok-bg text-ok text-[14px] mb-4">{{ notice }}</div>
+  <div v-if="warning" class="px-3.5 py-2.5 rounded-lg bg-warn-bg text-warn text-[14px] mb-4">{{ warning }}</div>
 
   <Card flush>
     <template #head><Fid id="A-CL-01" /></template>

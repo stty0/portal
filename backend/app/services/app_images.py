@@ -159,6 +159,53 @@ class AppImageService:
         self.cache.put(cluster.id, names)
         return names
 
+    def check(self, cluster: Cluster, *, username: str) -> dict[str, object]:
+        """등록 화면용 진단 — **캐시를 쓰지 않고** 실패 이유를 말한다.
+
+        `available()`은 목록을 그리는 자리라 실패를 삼키지만, 여기는 관리자가 *무엇을
+        해야 하는지* 알아야 하는 자리다. 디렉터리가 없는 것과 로그인 노드에 못 붙는 것은
+        할 일이 다르다 — 하나로 뭉뚱그리면 엉뚱한 데를 고치게 된다.
+
+        **포털이 디렉터리를 만들지 않는다.** `{home_base}`는 root 소유라 만들려면 권한
+        상승이 필요하고, 그건 "허용 루트는 홈뿐"이라는 경계를 깨는 첫 사례가 된다.
+        게다가 만들어 줘도 SIF는 여전히 손으로 넣어야 하고, 변환 잡(T-08)이 쓰려면
+        그룹 쓰기 권한까지 필요해서 `mkdir` 한 번으로 끝나지도 않는다.
+        """
+        directory = image_dir(cluster, self.settings)
+        try:
+            with self._connect(cluster) as client:
+                _, entries = client.list_dir(username, directory)
+        except ValidationFailed:
+            # 경로 없음·권한 없음 — 클라이언트가 이 둘을 ValidationFailed로 준다.
+            return {
+                "path": directory,
+                "ok": False,
+                "images": 0,
+                "message": (
+                    f"이미지 디렉터리가 없습니다: {directory} — "
+                    "클러스터에서 만들고 관리자 그룹에 쓰기 권한을 주세요."
+                ),
+            }
+        except Exception:
+            logger.warning("이미지 디렉터리 확인 실패 — cluster=%s", cluster.id, exc_info=True)
+            return {
+                "path": directory,
+                "ok": False,
+                "images": 0,
+                "message": (
+                    f"이미지 디렉터리를 확인할 수 없습니다: {directory} — "
+                    f"로그인 노드 접속과 '{username}' 계정을 확인하세요."
+                ),
+            }
+
+        count = sum(1 for e in entries if not e.is_dir and IMAGE_FILE.match(e.name))
+        return {
+            "path": directory,
+            "ok": True,
+            "images": count,
+            "message": f"이미지 디렉터리 확인 — {directory} (파일 {count}개)",
+        }
+
     def installed(self, cluster: Cluster, *, username: str, image: str) -> bool:
         """이 클러스터에 그 파일이 있나. 앱 목록의 `installed` 판정(T-06)이 이걸 쓴다."""
         return bool(image) and image in self.available(cluster, username=username)

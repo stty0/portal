@@ -192,6 +192,16 @@ class RestTestResult(BaseModel):
     api_version: str | None = None
 
 
+class ImageDirCheck(BaseModel):
+    """등록 화면의 이미지 디렉터리 진단 (A-CL-02). **없어도 등록은 성공한다** —
+    순서를 강요하면 클러스터를 먼저 등록할 수 없다."""
+
+    path: str
+    ok: bool
+    images: int
+    message: str
+
+
 class SlurmAccountCreate(BaseModel):
     """Slurm 계정 생성 (A-US-02). 이름은 sacctmgr 규칙에 맞춰 제한한다."""
 

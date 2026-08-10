@@ -8,7 +8,7 @@ import paramiko
 import pytest
 
 from app.clients.ssh.client import FileEntry
-from app.core.errors import ExternalServiceError
+from app.core.errors import ExternalServiceError, ValidationFailed
 from app.services.app_images import AppImageService
 from tests.conftest import auth_headers
 
@@ -104,6 +104,57 @@ def test_empty_result_is_cached_too(client, cluster, admin_token, fake_images):
     for _ in range(3):
         client.get(f"{API}/clusters/{cluster.id}/app-images", headers=auth_headers(admin_token))
     assert fake_images.opened == 1
+
+
+# --- 등록 화면의 진단 (A-CL-02) ---------------------------------------------
+# 목록은 실패를 삼키지만 여기는 **무엇을 해야 하는지** 말해야 한다.
+
+
+def _check(client, cluster, token):
+    return client.get(
+        f"{API}/clusters/{cluster.id}/image-dir", headers=auth_headers(token)
+    ).json()
+
+
+def test_check_reports_the_path_and_count(client, cluster, admin_token, fake_images):
+    body = _check(client, cluster, admin_token)
+    assert body["ok"] is True
+    assert body["path"] == "/home/.portal/images"
+    assert body["images"] == 2  # 디렉터리는 세지 않는다
+
+
+def test_missing_directory_is_a_warning_not_an_error(
+    client, cluster, admin_token, fake_images
+):
+    """등록 순서를 강요하면 클러스터를 먼저 등록할 수 없다 — 200으로 알리기만 한다."""
+    fake_images.error = ValidationFailed("경로를 찾을 수 없습니다.")
+    resp = client.get(
+        f"{API}/clusters/{cluster.id}/image-dir", headers=auth_headers(admin_token)
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is False
+    # 경로와 **할 일**이 함께 있어야 관리자가 움직일 수 있다.
+    assert "/home/.portal/images" in body["message"]
+    assert "쓰기 권한" in body["message"]
+
+
+def test_unreachable_login_node_says_something_different(
+    client, cluster, admin_token, fake_images
+):
+    """디렉터리가 없는 것과 못 붙는 것은 **할 일이 다르다** — 뭉뚱그리면 엉뚱한 데를 고친다."""
+    fake_images.error = paramiko.SSHException("EOF during negotiation")
+    body = _check(client, cluster, admin_token)
+    assert body["ok"] is False
+    assert "확인할 수 없습니다" in body["message"]
+    assert "쓰기 권한" not in body["message"]
+
+
+def test_check_does_not_use_the_cache(client, cluster, admin_token, fake_images):
+    """진단은 항상 지금을 봐야 한다 — 고친 뒤 다시 눌렀는데 옛 답이 나오면 안 된다."""
+    for _ in range(2):
+        _check(client, cluster, admin_token)
+    assert fake_images.opened == 2
 
 
 def test_requires_admin(client, cluster, user_token, fake_images):

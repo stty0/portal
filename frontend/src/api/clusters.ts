@@ -5,6 +5,7 @@ import type {
   ClusterSummary,
   CredentialOut,
   OkResponse,
+  ImageDirCheck,
   RestTestResult,
 } from '@/types/api'
 import type { SlurmRecord } from '@/utils/slurm'
@@ -134,6 +135,8 @@ export const clusterApi = {
     }),
   /** 이 클러스터에 실제로 있는 이미지 파일. 경로가 클러스터마다 갈려 포털이 답할 수 없다. */
   appImages: (cid: number) => api.get<string[]>(`/clusters/${cid}/app-images`),
+  /** 등록 직후 진단. **없어도 200**이다 — 포털은 디렉터리를 만들지 않고 알리기만 한다. */
+  imageDir: (cid: number) => api.get<ImageDirCheck>(`/clusters/${cid}/image-dir`),
   appAccess: (cid: number) => api.get<AppAccess[]>(`/clusters/${cid}/app-access`),
   /** 계정 배정도 QOS와 같은 **덮어쓰기**다. 빈 배열을 보내면 그 앱이 다시 전원에게 열린다. */
   setAppAccess: (cid: number, kind: string, appId: string, accounts: string[]) =>

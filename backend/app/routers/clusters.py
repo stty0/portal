@@ -26,6 +26,7 @@ from app.schemas.cluster import (
     ClusterUpdate,
     CredentialOut,
     CredentialPut,
+    ImageDirCheck,
     NodeStateIn,
     ReservationSpec,
     RestTestResult,
@@ -255,6 +256,24 @@ def list_app_images(
     관리자는 아는 파일명을 저장할 수 있어야 하므로 오류로 만들지 않는다.
     """
     return service.available(service.clusters.get(cid), username=actor.username)
+
+
+@router.get(
+    "/clusters/{cid}/image-dir",
+    response_model=ImageDirCheck,
+    summary="이미지 디렉터리 확인 (A-CL-02)",
+)
+def check_image_dir(
+    cid: int, actor: AdminUser, service: AppImageServiceDep
+) -> ImageDirCheck:
+    """등록 직후 확인용. **없어도 200이다** — 진단이지 검증이 아니다.
+
+    포털은 디렉터리를 만들지 않는다(근거는 서비스 docstring). 대신 무엇을 해야 하는지
+    말한다 — 디렉터리가 없는 것과 로그인 노드에 못 붙는 것은 할 일이 다르다.
+    """
+    return ImageDirCheck(
+        **service.check(service.clusters.get(cid), username=actor.username)
+    )
 
 
 @router.get(

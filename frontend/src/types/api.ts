@@ -144,6 +144,14 @@ export interface RestTestResult {
   api_version?: string | null
 }
 
+/** 이미지 디렉터리 진단 (A-CL-02). `ok=false`도 200이다 — 등록을 막지 않는다. */
+export interface ImageDirCheck {
+  path: string
+  ok: boolean
+  images: number
+  message: string
+}
+
 // --- Jobs ---------------------------------------------------------
 /** slurmrestd 응답은 버전마다 형태가 달라 백엔드가 그대로 흘려보낸다. */
 export type SlurmJob = Record<string, unknown> & {
