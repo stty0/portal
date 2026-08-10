@@ -28,6 +28,9 @@ const apps = ref<AppCatalog[]>([])
 //: 아이콘·이미지 모두 **서버 디렉터리에 실제로 있는 파일만** 고르게 한다. 임의 URL은 받지 않는다.
 const iconFiles = ref<string[]>([])
 const imageFiles = ref<string[]>([])
+const imagesLoading = ref(false)
+//: 한 번 받으면 이 화면에 머무는 동안 다시 안 받는다. 신선도는 서버 캐시가 맡는다.
+let imagesLoaded = false
 const error = ref<unknown>(null)
 const loading = ref(false)
 const uploadingIcon = ref(false)
@@ -60,15 +63,35 @@ async function loadImageFiles(): Promise<string[]> {
   return [...new Set(lists.flat())].sort()
 }
 
+/**
+ * 이미지 파일 목록을 **모달을 열 때** 받는다.
+ *
+ * 목록 화면에서는 쓰지 않는다 — 값이 들어가는 곳은 모달 안 `<datalist>` 하나뿐이다.
+ * 그런데 페이지 로드에서 받으면 **클러스터마다 SSH를 새로 연다**: 실측으로 클러스터당
+ * 653ms이고 그중 조회 자체는 23ms, 나머지는 전부 연결 수립 비용이다. 목록만 보고 나가는
+ * 대부분의 경우에 그 값을 아무 이유 없이 낸다.
+ *
+ * **모달을 막지 않는다** — 호출자는 기다리지 않고, 제안 목록이 잠시 뒤 채워진다.
+ */
+async function ensureImageFiles() {
+  if (imagesLoaded || imagesLoading.value) return
+  imagesLoading.value = true
+  try {
+    imageFiles.value = await loadImageFiles()
+    imagesLoaded = true
+  } catch {
+    // 제안 목록일 뿐이라 실패해도 폼은 그대로 쓸 수 있다(파일명은 직접 입력된다).
+  } finally {
+    imagesLoading.value = false
+  }
+}
+
 async function load() {
   loading.value = true
   try {
-    const [list, icons, images] = await Promise.all([
-      opsApi.apps(), opsApi.appIcons(), loadImageFiles(),
-    ])
+    const [list, icons] = await Promise.all([opsApi.apps(), opsApi.appIcons()])
     apps.value = list
     iconFiles.value = icons
-    imageFiles.value = images
     error.value = null
   } catch (e) {
     error.value = e
@@ -83,9 +106,11 @@ function openCreate() {
   editing.value = null
   form.value = emptyApp()
   error.value = null
+  void ensureImageFiles()
 }
 
 function openEdit(a: AppCatalog) {
+  void ensureImageFiles()
   editing.value = a
   creating.value = false
   error.value = null
@@ -283,11 +308,16 @@ async function remove(a: AppCatalog) {
 
       <Field
         label="컨테이너 이미지 파일" full
-        hint="변환 결과가 저장될 이름. 목록은 클러스터에 이미 있는 SIF(전 클러스터 합집합)이고, 새 이름을 직접 써도 됩니다. 비우면 코드 카탈로그의 기본 이미지를 씁니다."
+        :hint="
+          imagesLoading
+            ? '클러스터의 이미지 디렉터리에 있는 SIF 파일명. 목록을 불러오는 중입니다 — 기다리지 않고 직접 입력해도 됩니다.'
+            : '클러스터의 이미지 디렉터리에 있는 SIF 파일명. 목록은 전 클러스터 합집합이며, 아직 올리지 않은 파일명을 미리 적어 둘 수도 있습니다. 비우면 코드 카탈로그의 기본 이미지를 씁니다.'
+        "
       >
         <!--
-          **드롭다운이면 안 된다.** 새 버전의 첫 빌드는 아직 없는 파일명을 적어야 하는데,
-          고르기만 가능하면 그 이름을 넣을 방법이 없어 변환 경로가 막힌다.
+          드롭다운이 아니라 입력이다. 관리자가 **파일을 올리기 전에** 앱을 등록할 수 있어야
+          한다(클러스터 등록에서 순서를 강요하지 않는 것과 같은 이유). 아직 없는 파일명은
+          `installed=false`로 잠기고 화면이 사유를 말한다.
         -->
         <input
           v-model="form.image_file"
