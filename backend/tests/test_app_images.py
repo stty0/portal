@@ -298,3 +298,34 @@ def test_requires_admin(client, cluster, user_token, fake_images):
 
 def test_requires_auth(client, cluster):
     assert client.get(f"{API}/clusters/{cluster.id}/app-images").status_code == 401
+
+
+# --- 이미지로 인정하는 확장자 ------------------------------------------------
+# `IMAGE_FILE`은 **경로 안전성**만 본다(`../` 차단). 형식은 다른 질문이고, 둘을 한
+# 정규식이 겸하던 탓에 이미지 디렉터리의 `README.txt`가 선택지에 떴다.
+
+
+def test_only_container_images_are_listed(client, cluster, admin_token, fake_images):
+    """디렉터리에 문서를 같이 둘 수 있다 — 그게 이미지로 보이면 안 된다."""
+    fake_images.entries = [
+        _entry("openfoam-2512.sif"),
+        _entry("isaac.sqsh"),          # enroot(향후) — 목록에는 올린다
+        _entry("README.txt"),
+        _entry("notes.md"),
+        _entry("archive.tar.gz"),
+    ]
+    assert _list(client, cluster, admin_token) == ["isaac.sqsh", "openfoam-2512.sif"]
+
+
+def test_image_suffix_is_case_insensitive(client, cluster, admin_token, fake_images):
+    """대문자 확장자가 디렉터리에 있는데 목록에만 없으면 원인을 찾기 어렵다."""
+    fake_images.entries = [_entry("Rocky9-MATE.SIF")]
+    assert _list(client, cluster, admin_token) == ["Rocky9-MATE.SIF"]  # 이름은 그대로
+
+
+def test_non_image_files_are_not_counted_in_the_directory_check(
+    client, cluster, admin_token, fake_images
+):
+    """등록 화면의 '파일 N개'도 같은 기준이어야 한다 — 아니면 숫자가 거짓말을 한다."""
+    fake_images.entries = [_entry("a.sif"), _entry("README.txt")]
+    assert _check(client, cluster, admin_token)["images"] == 1

@@ -43,7 +43,27 @@ KIND_INTERACTIVE = "interactive"
 KIND_BATCH = "batch"
 
 #: 파일명만 받는다 — 경로 요소가 되면 공용 디렉터리 밖을 가리킬 수 있다.
+#: **이건 보안 경계지 형식 판별이 아니다.** 그래서 `README.txt`도 통과한다 —
+#: 목록에 올릴지는 아래 `IMAGE_SUFFIXES`가 따로 정한다.
 IMAGE_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+#: 이미지로 인정하는 확장자. 이 필터가 없으면 이미지 디렉터리에 둔 `README.txt`가
+#: 선택지에 뜨고, 그걸 고르면 `installed=true`가 되어 **잡이 워커에서 죽는다.**
+#:
+#: ⚠ `.sqsh`(enroot)는 **목록에만** 반영된다 — 실행은 아직 apptainer 하나뿐이라,
+#: 지금 `.sqsh`를 등록하면 `apptainer exec`로 돌다 실패한다. 런타임 분기(확장자 →
+#: apptainer/enroot, 자원은 `needs_gpu`가 따로 정한다)는 enroot가 클러스터에 깔릴 때 붙인다.
+IMAGE_SUFFIXES = (".sif", ".sqsh")
+
+
+def is_image_name(name: str) -> bool:
+    """목록에 올릴 파일인가. **경로 안전성과 형식은 다른 질문**이라 둘을 함께 본다.
+
+    확장자는 대소문자를 가리지 않는다 — `IMAGE.SIF`가 디렉터리에 있는데 목록에만 안 뜨면
+    원인을 찾기 어렵다. 이름 자체는 그대로 쓰므로(리눅스는 대소문자를 구분한다) 실제
+    파일과 어긋나지 않는다.
+    """
+    return bool(IMAGE_FILE.match(name)) and name.lower().endswith(IMAGE_SUFFIXES)
 
 #: 공유 홈 아래 이미지가 놓이는 자리. 점이 붙은 이유는 모듈 머리말 참조.
 IMAGE_SUBDIR = ".portal/images"
@@ -173,7 +193,7 @@ class AppImageService:
             # 잠글 수 있다. 빈 디렉터리는 사실이지만 실패는 사실이 아니다.
             return []
 
-        names = sorted(e.name for e in entries if not e.is_dir and IMAGE_FILE.match(e.name))
+        names = sorted(e.name for e in entries if not e.is_dir and is_image_name(e.name))
         self.cache.put(cluster.id, names)
         return names
 
@@ -221,7 +241,7 @@ class AppImageService:
                 ),
             }
 
-        count = sum(1 for e in entries if not e.is_dir and IMAGE_FILE.match(e.name))
+        count = sum(1 for e in entries if not e.is_dir and is_image_name(e.name))
         return {
             "path": directory,
             "ok": True,

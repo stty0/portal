@@ -139,7 +139,7 @@ slurmdbd 대상(= sacctmgr). Portal DB에 미러링하지 않음.
 | POST | `/clusters/{cid}/accounts/{name}/users` | 계정에 사용자 추가(association 생성) | A-US-02 | admin:access | 필수 |
 | DELETE | `/clusters/{cid}/accounts/{name}/users/{username}` | 계정에서 사용자 제거 | A-US-02 | admin:access | 필수 |
 | PUT | `/clusters/{cid}/accounts/{name}/users/{username}/qos` | 사용자별 QOS 지정(association 단위) | A-US-03 | admin:access | 필수 |
-| GET | `/clusters/{cid}/app-images` | **이 클러스터의** 이미지 디렉터리에 있는 파일명 — 등록 폼의 선택지. 경로는 `cluster.home_base` 아래 `.portal/images`로 파생한다(비면 `app_image_dir`). 로그인 노드 SSH `ls`이고 **실패는 빈 목록**이다(앱이 잠기는 것과 화면이 안 뜨는 것은 다른 일이다). Redis 60초 캐시 | A-OP-02 | admin:access | 필수 |
+| GET | `/clusters/{cid}/app-images` | **이 클러스터의** 이미지 디렉터리에 있는 컨테이너 이미지 파일명(`.sif`·`.sqsh`) — 등록 폼의 선택지. 경로는 `cluster.home_base` 아래 `.portal/images`로 파생한다(비면 `app_image_dir`). 로그인 노드 SSH `ls`이고 **실패는 빈 목록**이다(앱이 잠기는 것과 화면이 안 뜨는 것은 다른 일이다). Redis 60초 캐시 | A-OP-02 | admin:access | 필수 |
 | GET | `/clusters/{cid}/image-dir` | 이미지 디렉터리 진단 — `{path, ok, images, message}`. **없어도 200**이다(등록 순서를 강요하면 클러스터를 먼저 등록할 수 없다). 포털은 디렉터리를 **만들지 않는다** — `{home_base}`가 root 소유라 권한 상승이 필요하고 SIF는 어차피 손으로 넣는다. 캐시를 쓰지 않는다(진단은 지금을 봐야 한다) | A-CL-02 | admin:access | 필수 |
 | GET | `/clusters/{cid}/app-access` | 앱별 허용 계정. **카탈로그 전체**가 오고 배정이 없는 앱은 `accounts=[]`(=전원 허용) | A-US-02 | admin:access | 권장 |
 | PUT | `/clusters/{cid}/app-access/{kind}/{app_id}` | 앱에 계정 배정. QOS와 같은 **덮어쓰기** — 빈 배열이면 그 앱이 다시 전원에게 열린다. `kind`는 `interactive`·`batch` | A-US-02 | admin:access | 권장 |
