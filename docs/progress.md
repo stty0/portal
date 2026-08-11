@@ -4223,3 +4223,36 @@ DB에 따로 넣을 데이터가 없다), 설치 후 확인, 함정 4개, 실측
 
 검증: 테스트 **437개 통과**(3개 추가). 확장자 조건을 빼면 2개가 실패한다. 배포 후 실
 클러스터에서 목록이 그대로 SIF 8개(문서 파일이 섞이지 않음), 허용 확장자 `('.sif', '.sqsh')` 확인.
+
+---
+
+### 앱 이미지 만드는 법 문서 (ParaView 기준)
+
+[build-app-image.md](build-app-image.md). 기존 `deploy/images/rocky9-mate/README.md`와
+범위를 갈랐다 — 그쪽은 **그 이미지**의 문서이고, 이 문서는 **아무 앱이나 붙일 때의 계약**이다.
+
+담은 것은 코드에서 뽑은 계약이다:
+
+- 포털이 실제로 만드는 실행 줄(`apptainer exec --writable-tmpfs [--bind sss/pipes] <sif> <entry>`)과
+  넘기는 환경변수(`PORTAL_SESSION_DIR`·`PORTAL_GEOMETRY`·`PORTAL_APP`)
+- **`connection.json`이 접속 대상을 아는 유일한 경로**라는 것 — 필드표와 **원자적 쓰기**
+  (`.tmp` → `mv`). 반쯤 쓰인 파일을 읽으면 접속이 깨진다
+- **바깥 스크립트에서 `exec`을 쓰면 안 되는 이유** — 셸이 대체되며 `trap`이 사라져
+  `scancel` 뒤에도 `connection.json`이 남고 죽은 세션에 붙으려 한다(실측). 가장 안쪽
+  스크립트에서는 `exec`이 맞다는 것도 함께
+- 이미지 하나에 앱 여럿(`PORTAL_APP` 분기) — desktop·paraview가 같은 SIF를 쓰는 이유
+- 배치 앱은 계약이 거의 없다는 대비(바이너리가 PATH에 있으면 끝)
+
+ParaView는 3층 구조(`start-desktop.sh` → `start-paraview.sh` → `exec paraview`)를 그대로
+설명했다. 창 관리자가 없으면 **파일 열기 대화상자 하나에 갇힌다**는 근거까지.
+
+검증 절차의 첫 명령을 실 클러스터에서 돌려 확인했다:
+
+```
+apptainer exec --writable-tmpfs …/rocky9-mate-1.5.sif bash -lc 'which paraview vncserver marco tint2'
+→ /usr/bin/paraview /usr/bin/vncserver /usr/bin/marco /usr/bin/tint2
+```
+
+**곁가지로 옛 경로를 고쳤다** — `rocky9-mate/README.md`가 아직 `/home/portal/images/`를
+가리키고 있었다(T-02에서 `.portal`로 옮긴 뒤 갱신 누락). 클러스터마다 NFS가 갈릴 때의
+문장도 더했다. CLAUDE.md에서 새 문서를 링크했다.

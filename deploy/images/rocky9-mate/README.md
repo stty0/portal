@@ -23,12 +23,16 @@ Rocky 9 + MATE + TigerVNC + ParaView. 워커 노드에서 Apptainer로 실행된
 dev01에서 빌드한다. `/home`이 dev01·slurm01·slurm02에서 같은 NFS라 SIF를 두면
 노드에서 같은 경로로 바로 보인다(개발 단계 배포 = 복사 불필요).
 
+**클러스터마다 NFS가 갈리면 각 클러스터의 `{홈 상위 경로}/.portal/images/`에 따로 둔다.**
+포털이 앱을 열지 말지는 그 디렉터리에 파일이 있는지로 정한다. 계약과 일반 절차는
+[docs/build-app-image.md](../../../docs/build-app-image.md) 참조.
+
 ```bash
 sudo docker build -t rocky9-mate:1.5 deploy/images/rocky9-mate/
 
-sudo APPTAINER_TMPDIR=/home/portal/.tmp \
+sudo APPTAINER_TMPDIR=/home/.portal/.tmp \
   apptainer build --force \
-  /home/portal/images/rocky9-mate-1.5.sif \
+  /home/.portal/images/rocky9-mate-1.5.sif \
   docker-daemon://rocky9-mate:1.5
 ```
 
@@ -43,7 +47,7 @@ sudo APPTAINER_TMPDIR=/home/portal/.tmp \
 ```bash
 export PORTAL_SESSION_DIR=$HOME/.portal/sessions/$SLURM_JOB_ID
 apptainer exec --writable-tmpfs --bind /var/lib/sss/pipes \
-  /home/portal/images/rocky9-mate-1.5.sif \
+  /home/.portal/images/rocky9-mate-1.5.sif \
   /opt/portal/start-desktop.sh
 ```
 
