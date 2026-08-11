@@ -3,7 +3,11 @@ name: hpc-portal
 description: Slurm HPC 클러스터 웹 포털 (FastAPI + Vue) — MySQL·Redis 포함
 type: application
 # 차트 자체의 판. 앱 판올림과 따로 움직인다.
-version: 0.1.0
+version: 0.2.0
 # 기본 이미지 태그. values.image.*.tag가 비면 이 값을 쓴다.
-appVersion: "0.1.0"
+#
+# **이 값을 올리면 반드시 같은 태그의 이미지를 반입해야 한다.** 태그는 불변으로 다룬다 —
+# 같은 `0.1.0`에 내용이 다른 이미지를 두 번 넣으면 어느 서버가 무엇을 돌리는지 알 수 없고,
+# 롤아웃은 성공하는데 옛 코드가 뜬다(개발계에서 실제로 겪었다).
+appVersion: "0.2.0"
 keywords: [slurm, hpc, portal]

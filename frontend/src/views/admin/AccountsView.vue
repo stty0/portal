@@ -9,6 +9,8 @@ import Chip from '@/components/ui/Chip.vue'
 import Empty from '@/components/ui/Empty.vue'
 import ErrorNote from '@/components/ui/ErrorNote.vue'
 import Fid from '@/components/ui/Fid.vue'
+import Field from '@/components/ui/Field.vue'
+import Modal from '@/components/ui/Modal.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import Table from '@/components/ui/Table.vue'
 import { inputClass } from '@/utils/form'
@@ -56,8 +58,31 @@ watch(() => clusters.selectedId, load, { immediate: true })
 
 const totalUsers = computed(() => accounts.value.reduce((sum, a) => sum + a.users.length, 0))
 
+/* --- 계정 추가 (A-US-02) --- */
+const showCreate = ref(false)
 const form = ref({ name: '', description: '', organization: '' })
+/** Slurm 계정명 규칙. 폼 밖에서 검증하므로 브라우저 말풍선 대신 버튼을 잠근다. */
+const NAME_RE = /^[A-Za-z0-9._-]+$/
+const nameOk = computed(() => NAME_RE.test(form.value.name))
+
+function openCreate() {
+  form.value = { name: '', description: '', organization: '' }
+  error.value = null
+  showCreate.value = true
+}
+
+/* --- 연결 추가 (A-US-02) --- */
+const showLink = ref(false)
 const link = ref({ account: '', username: '' })
+const linkOk = computed(() => Boolean(link.value.account && link.value.username.trim()))
+
+function openLink() {
+  // 계정은 직전 선택을 남긴다 — 같은 계정에 여러 명을 넣는 것이 보통이다.
+  link.value = { account: link.value.account, username: '' }
+  error.value = null
+  showLink.value = true
+}
+
 const busy = ref(false)
 
 async function run(action: () => Promise<unknown>) {
@@ -75,10 +100,11 @@ async function run(action: () => Promise<unknown>) {
 
 function createAccount() {
   const cid = clusters.selectedId
-  if (!cid || !form.value.name) return
+  if (!cid || !nameOk.value) return
   run(async () => {
     await clusterApi.createAccount(cid, { ...form.value })
-    form.value = { name: '', description: '', organization: '' }
+    // 성공했을 때만 닫는다 — 실패하면 입력이 남아 있어야 고칠 수 있다.
+    showCreate.value = false
   })
 }
 
@@ -92,10 +118,11 @@ function removeAccount(name: string) {
 
 function addUser() {
   const cid = clusters.selectedId
-  if (!cid || !link.value.account || !link.value.username) return
+  if (!cid || !linkOk.value) return
   run(async () => {
-    await clusterApi.addAccountUser(cid, link.value.account, link.value.username)
-    link.value = { account: link.value.account, username: '' }
+    await clusterApi.addAccountUser(cid, link.value.account, link.value.username.trim())
+    // 계정 추가와 같은 규칙 — 성공했을 때만 닫는다.
+    showLink.value = false
   })
 }
 
@@ -153,22 +180,8 @@ function saveQos(account: string, username: string | null) {
       <template #title-extra><Fid id="A-US-02" /></template>
       <template #head>
         <Chip tone="gray">계정 {{ accounts.length }} · 연결 {{ totalUsers }}</Chip>
+        <Btn size="sm" @click="openCreate">＋ 계정 추가</Btn>
       </template>
-      <form class="px-4 py-3 border-b border-line flex flex-wrap gap-2 items-end" @submit.prevent="createAccount">
-        <label class="flex-1 min-w-[160px] text-[13px] text-ink-3">
-          계정명*
-          <input v-model="form.name" required pattern="[A-Za-z0-9._-]+" :class="[inputClass, 'mono mt-1']" placeholder="hpc-team" />
-        </label>
-        <label class="flex-1 min-w-[160px] text-[13px] text-ink-3">
-          조직
-          <input v-model="form.organization" :class="[inputClass, 'mt-1']" placeholder="dt-hpc" />
-        </label>
-        <label class="flex-[2] min-w-[200px] text-[13px] text-ink-3">
-          설명
-          <input v-model="form.description" :class="[inputClass, 'mt-1']" />
-        </label>
-        <Btn type="submit" variant="primary" :disabled="busy">계정 추가</Btn>
-      </form>
       <Empty v-if="!accounts.length" text="등록된 계정이 없습니다." />
       <Table
         v-else
@@ -274,20 +287,10 @@ function saveQos(account: string, username: string | null) {
     <!-- 사용자↔계정 연결은 association이 정본이다. 계정 응답의 associations는 비어 온다(실측). -->
     <Card title="사용자 매핑 (association)" flush>
       <template #title-extra><Fid id="A-US-02" /></template>
-      <form class="px-4 py-3 border-b border-line flex flex-wrap gap-2 items-end" @submit.prevent="addUser">
-        <label class="flex-1 min-w-[160px] text-[13px] text-ink-3">
-          계정
-          <select v-model="link.account" :class="[inputClass, 'mono mt-1']">
-            <option value="">선택</option>
-            <option v-for="a in accounts" :key="a.name" :value="a.name">{{ a.name }}</option>
-          </select>
-        </label>
-        <label class="flex-1 min-w-[160px] text-[13px] text-ink-3">
-          사용자
-          <input v-model="link.username" :class="[inputClass, 'mono mt-1']" placeholder="jungryul0515.park" />
-        </label>
-        <Btn type="submit" variant="primary" :disabled="busy">연결 추가</Btn>
-      </form>
+      <!-- 연결할 계정이 있어야 의미가 있다. 계정이 없으면 계정 목록에서 먼저 만든다. -->
+      <template #head>
+        <Btn size="sm" :disabled="!accounts.length" @click="openLink">＋ 연결 추가</Btn>
+      </template>
       <Empty v-if="!totalUsers" text="계정에 연결된 사용자가 없습니다." />
       <Table
         v-else
@@ -347,4 +350,45 @@ function saveQos(account: string, username: string | null) {
       </template>
     </Card>
   </div>
+
+  <Modal v-if="showCreate" title="계정 추가" @close="showCreate = false">
+    <template #title-extra><Fid id="A-US-02" /></template>
+    <!-- 실패해도 모달이 닫히지 않으므로 오류를 여기서 보여준다(뒤쪽 ErrorNote는 가려진다). -->
+    <ErrorNote :error="error" class="mb-4" />
+    <div class="grid sm:grid-cols-2 gap-4">
+      <Field label="계정명" required hint="영문·숫자·. _ - 만. 만든 뒤에는 바꿀 수 없습니다">
+        <input v-model="form.name" :class="[inputClass, 'mono']" placeholder="hpc-team" />
+      </Field>
+      <Field label="조직"><input v-model="form.organization" :class="inputClass" placeholder="dt-hpc" /></Field>
+      <Field label="설명" full><input v-model="form.description" :class="inputClass" /></Field>
+    </div>
+    <template #foot>
+      <Btn :disabled="busy" @click="showCreate = false">취소</Btn>
+      <Btn variant="primary" :disabled="busy || !nameOk" @click="createAccount">
+        {{ busy ? '추가 중…' : '계정 추가' }}
+      </Btn>
+    </template>
+  </Modal>
+
+  <Modal v-if="showLink" title="사용자 연결 추가" @close="showLink = false">
+    <template #title-extra><Fid id="A-US-02" /></template>
+    <ErrorNote :error="error" class="mb-4" />
+    <div class="grid sm:grid-cols-2 gap-4">
+      <Field label="계정" required>
+        <select v-model="link.account" :class="[inputClass, 'mono']">
+          <option value="">선택</option>
+          <option v-for="a in accounts" :key="a.name" :value="a.name">{{ a.name }}</option>
+        </select>
+      </Field>
+      <Field label="사용자" required hint="AD 계정명(sAMAccountName) — 클러스터에 있어야 합니다">
+        <input v-model="link.username" :class="[inputClass, 'mono']" placeholder="jungryul0515.park" />
+      </Field>
+    </div>
+    <template #foot>
+      <Btn :disabled="busy" @click="showLink = false">취소</Btn>
+      <Btn variant="primary" :disabled="busy || !linkOk" @click="addUser">
+        {{ busy ? '추가 중…' : '연결 추가' }}
+      </Btn>
+    </template>
+  </Modal>
 </template>

@@ -26,19 +26,24 @@
 `image.*.pullPolicy: Never`라 레지스트리에서 받지 않는다. 노드의 containerd에 직접 넣는다.
 
 ```bash
-# 빌드한 기계에서
-sudo docker save hpc-portal-backend:0.1.0  | gzip > backend.tgz
-sudo docker save hpc-portal-frontend:0.1.0 | gzip > frontend.tgz
+# 빌드한 기계에서 (dev01에서 만든 꾸러미는 dist-images/ 아래에 있다)
+sudo docker save hpc-portal-backend:0.2.0  | gzip > backend-0.2.0.tgz
+sudo docker save hpc-portal-frontend:0.2.0 | gzip > frontend-0.2.0.tgz
 
 # 새 서버에서
-gunzip -c backend.tgz  | sudo /usr/local/bin/k3s ctr images import -
-gunzip -c frontend.tgz | sudo /usr/local/bin/k3s ctr images import -
+gunzip -c backend-0.2.0.tgz  | sudo /usr/local/bin/k3s ctr images import -
+gunzip -c frontend-0.2.0.tgz | sudo /usr/local/bin/k3s ctr images import -
 sudo /usr/local/bin/k3s ctr images ls | grep hpc-portal
 ```
 
-⚠ **태그가 맞아야 한다.** 차트는 `values.image.*.tag`가 비면 `Chart.appVersion`(현재 `0.1.0`)을
+⚠ **태그가 맞아야 한다.** 차트는 `values.image.*.tag`가 비면 `Chart.appVersion`(현재 `0.2.0`)을
 쓴다. `:latest`로 반입하고 배포하면 **롤아웃은 성공하는데 옛 코드가 뜬다** — 개발계에서
 실제로 겪은 사고다.
+
+**태그는 불변으로 다룬다.** 같은 `0.2.0`에 내용이 다른 이미지를 두 번 넣지 않는다 —
+어느 서버가 무엇을 돌리는지 알 수 없게 되고, `imagePullPolicy: Never`라 파드는 노드에
+이미 있는 것을 그대로 쓴다. 코드가 바뀌면 `Chart.yaml`의 `appVersion`을 올리고 그 태그로
+빌드한다.
 
 ### 1.2 앱 아이콘 디렉터리 (선택 — 아이콘을 쓸 때만)
 
@@ -97,6 +102,12 @@ helm install portal ./deploy/helm/hpc-portal \
 
 **저장소 관련 설정은 필요 없다** — 기본이 클러스터 기본 StorageClass다(k3s는 `local-path`).
 
+차트 꾸러미(`hpc-portal-0.2.0.tgz`)를 받아 왔다면 경로 대신 그것을 준다:
+
+```bash
+helm install portal ./hpc-portal-0.2.0.tgz -n hpc-portal --create-namespace ...
+```
+
 ### 포트를 바꿔야 한다면
 
 노드의 80/443을 다른 서비스가 쓰고 있으면:
@@ -104,6 +115,11 @@ helm install portal ./deploy/helm/hpc-portal \
 ```bash
 --set traefik.configure=true --set traefik.webHostPort=9080 --set traefik.websecureHostPort=9443
 ```
+
+이 값은 **http→https 리다이렉트가 가리키는 포트도 함께 정한다.** 켜지 않으면 리다이렉트에
+포트를 붙이지 않아 표준 443으로 간다 — 검증계처럼 Traefik이 기본 포트에 있는 서버에서
+맞는 동작이다(0.2.0에서 고쳤다. 그 전에는 항상 `:9443`을 붙여, 표준 포트를 쓰는 서버에서
+**http로 들어온 사용자가 아무도 듣지 않는 포트로 튕겼다**).
 
 ⚠ **클러스터 전역 설정(kube-system)이다.** 그리고 `service.spec.type`을 ClusterIP로 고정한다 —
 기본 LoadBalancer면 k3s servicelb가 hostPort 80/443을 잡는 파드를 띄워 **그 노드의 기존

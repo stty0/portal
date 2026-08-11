@@ -35,3 +35,6 @@ frontend/dist/
 # 빌드 산출물·캐시
 backend/dist/
 .ruff_cache/
+
+# 다른 서버로 옮길 이미지·차트 꾸러미 (수십 MB — 레포에 넣지 않는다)
+dist-images/

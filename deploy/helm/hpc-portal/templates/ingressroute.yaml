@@ -11,7 +11,13 @@ metadata:
 spec:
   redirectScheme:
     scheme: https
+    # **포트는 Traefik의 포트를 바꿨을 때만 붙인다.** 기본값(9443)을 항상 붙이면
+    # `traefik.configure=false`인 새 클러스터 — Traefik이 표준 443에 있는 —에서
+    # http로 들어온 사용자를 **아무도 듣지 않는 :9443으로 보낸다.** 화면이 안 뜨는데
+    # 파드는 전부 Running이라 원인이 안 보인다. 생략하면 https 기본 포트로 간다.
+    {{- if .Values.traefik.configure }}
     port: {{ .Values.traefik.websecureHostPort | quote }}
+    {{- end }}
     permanent: true
 ---
 apiVersion: traefik.io/v1alpha1
