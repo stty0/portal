@@ -25,6 +25,29 @@ def test_script_runs_the_container_entrypoint():
     assert "/opt/portal/start-desktop.sh" in script
 
 
+def test_container_is_not_run_with_fakeroot():
+    """`--fakeroot`는 **모든 인터랙티브 세션을 죽인다** (2026-08-14 실측).
+
+    세션 중 `apt install`을 열어 주려고 붙였다가 job 118~120이 전부 즉시 COMPLETED로
+    끝났다. AD 사용자는 워커의 `/etc/subuid`에 없어서 apptainer가 root-mapped namespace로
+    폴백하고 거기서 하드 실패한다 — `Could not write info to setgroups: Permission denied`.
+    컨테이너가 **시작조차 못 하는데** Job은 SUCCESS로 끝나 화면에 원인이 안 드러난다.
+
+    **로컬 계정(dev01의 jrpark)에서는 잘 돈다** — 그래서 단독 테스트로는 안 잡혔다.
+    되살리려면 모든 컴퓨트 노드에 subuid/subgid를 먼저 프로비저닝해야 한다.
+    """
+    script = build_session_script(spec())
+    # **주석이 아니라 실행 줄만 본다** — 왜 쓰면 안 되는지는 주석에 남겨 두어야 하고,
+    # 그 주석에도 `--fakeroot`라는 글자가 들어간다.
+    command = next(line for line in script.splitlines() if line.startswith("apptainer exec"))
+    assert "--fakeroot" not in command, (
+        "AD 사용자에게 subuid가 없으면 세션이 통째로 안 뜬다 — 노드 프로비저닝이 먼저다"
+    )
+    assert "--writable-tmpfs" in command
+    # 왜 안 되는지가 스크립트에 남아 있어야 한다. 안 그러면 누군가 또 붙인다.
+    assert "subuid" in script
+
+
 def test_form_values_become_sbatch_directives():
     script = build_session_script(
         spec(partition="cpu", account="root", qos="normal", cpus=2, memory_gb=3, walltime="02:00:00")

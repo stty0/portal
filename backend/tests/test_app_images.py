@@ -219,16 +219,29 @@ def test_check_does_not_use_the_cache(client, cluster, admin_token, fake_images)
 
 
 def test_apps_report_installed_per_cluster(client, cluster, user_token, fake_images):
-    """desktop의 이미지만 놓아 두면 그것만 `installed`가 된다."""
+    """놓아 둔 이미지를 쓰는 앱만 `installed`가 된다.
+
+    **앱 이름을 박아 두지 않는다.** 전에는 desktop·jupyter가 서로 다른 SIF를 쓴다는
+    전제로 짰는데, 두 앱이 같은 이미지로 합쳐지자(1.5·1.6 → 1.7) 깨졌다. 실제 불변은
+    "이미지가 있으면 그 이미지를 쓰는 앱 전부가 열린다"이므로 그대로 검사한다.
+    """
     from app.services import session_apps
 
-    fake_images.entries = [_entry(session_apps.get("desktop").image)]
+    target = session_apps.get("desktop").image
+    others = {a.id for a in session_apps.APPS if a.ready and a.image and a.image != target}
+    assert others, "이미지가 다른 앱이 하나는 있어야 이 테스트가 의미를 갖는다"
+
+    fake_images.entries = [_entry(target)]
     body = client.get(
         f"{API}/clusters/{cluster.id}/interactive-apps", headers=auth_headers(user_token)
     ).json()
     installed = {a["id"]: a["installed"] for a in body}
-    assert installed["desktop"] is True
-    assert installed["jupyter"] is False
+
+    for app in session_apps.APPS:
+        if app.ready and app.image == target:
+            assert installed[app.id] is True, f"{app.id}: 이미지가 있는데 잠겼다"
+    for app_id in others:
+        assert installed[app_id] is False, f"{app_id}: 이미지가 없는데 열렸다"
 
 
 def test_missing_image_locks_the_app_but_keeps_it_listed(

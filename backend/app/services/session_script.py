@@ -154,6 +154,21 @@ fi
 echo "세션 시작: node=${{SLURMD_NODENAME:-?}} job=$SLURM_JOB_ID dir=$SESSION_DIR"
 
 # --writable-tmpfs: MATE·dbus가 /etc/machine-id, /var/run에 쓴다.
+#
+# ⚠ **`--fakeroot`를 붙이면 안 된다.** 세션 중 `apt install`을 열어 주려고 붙였다가
+# **모든 인터랙티브 세션이 즉시 COMPLETED로 죽었다**(2026-08-14, job 118~120 실측).
+# AD 사용자는 워커 노드의 `/etc/subuid`에 없어서 apptainer가 root-mapped namespace로
+# 폴백하는데, 거기서 하드 실패한다:
+#
+#     INFO : User not listed in /etc/subuid, trying root-mapped namespace
+#     ERROR: Could not write info to setgroups: Permission denied
+#     ERROR: Error while waiting event for user namespace mappings: no event received
+#
+# 컨테이너가 **시작조차 못 하고** Job은 SUCCESS로 끝나 원인이 화면에 안 드러난다.
+# 되살리려면 **먼저 모든 컴퓨트 노드의 `/etc/subuid`·`/etc/subgid`에 AD 사용자 범위를
+# 넣어야 한다**(노드 프로비저닝 작업이고 포털 밖이다). 로컬 계정에서는 잘 돌아서
+# dev01 단독 테스트로는 안 잡힌다 — 반드시 AD 계정으로 확인할 것.
+#
 # exec을 쓰지 않는다 — 셸이 대체되면 위의 cleanup trap이 사라진다.
 apptainer exec --writable-tmpfs "${{BINDS[@]}}" {image} {entry} &
 APPTAINER_PID=$!

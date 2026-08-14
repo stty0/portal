@@ -69,6 +69,29 @@ RUN dnf -y install python3.11 python3.11-pip \
  && dnf clean all \
  && rm -rf /var/cache/dnf /root/.cache
 
+# 사용자가 **스스로** 소프트웨어를 늘릴 수 있는 최소 도구.
+#
+# 세션 안에서는 `dnf`가 통하지 않는다 — 컨테이너가 사용자 uid로 돌고 `/usr`는 이미지
+# 안에서 root 소유다(실측: "This command has to be run with superuser privileges").
+# `--fakeroot`로 root를 주려 했다가 **모든 세션이 죽었고**(AD 사용자에게 subuid가 없다),
+# 설령 됐어도 쓰기 계층이 **64MB**뿐이라 `apt-get update`조차 No space left로 실패한다.
+#
+# 그래서 남는 길은 **홈에 설치하는 것**이고, 그 두 가지를 여기 넣는다:
+#
+#  1. micromamba — 빌드된 바이너리를 홈에 푼다. 컴파일러가 필요 없어 가장 실용적이다.
+#  2. 컴파일러·헤더 — `pip install`이 소스 빌드로 떨어질 때 필요하다. 없으면
+#     `failed-wheel-build-for-install`로 죽는다(실측).
+#
+# 둘 다 **홈(공유 NFS)에 설치되므로 세션이 끝나도 남는다** — 이미지 쓰기 계층과 다르다.
+RUN dnf -y install gcc gcc-c++ make python3.11-devel bzip2 tar \
+ && dnf clean all \
+ && rm -rf /var/cache/dnf
+# micromamba는 정적 단일 바이너리다. conda-forge가 주는 tar에서 실행파일만 꺼낸다.
+RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
+      | tar -xvj -C /usr/local bin/micromamba \
+ && chmod 755 /usr/local/bin/micromamba \
+ && /usr/local/bin/micromamba --version
+
 # 스크린세이버/잠금은 컨테이너 세션에서 의미가 없고, 잠기면 되살릴 방법이 없다.
 RUN rm -f /etc/xdg/autostart/mate-screensaver.desktop \
           /etc/xdg/autostart/blueman.desktop \

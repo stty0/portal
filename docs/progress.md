@@ -4329,3 +4329,97 @@ SIF를 허용하고 있었다.
 
 셋 다 `InteractiveApp.note`에 적어 앱 카드에 그대로 뜬다. 그래서 `note`의 용도를 넓혔다 —
 전에는 `ready=False`인 앱의 안내 자리였는데 화면은 `ready`와 무관하게 띄우고 있었다.
+
+---
+
+## 세션 컨테이너의 권한 모델 — `--fakeroot` 사고와 그 결론 (2026-08-14)
+
+"세션 중에 사용자가 패키지를 더 깔 수 있게" 하려다 **모든 인터랙티브 세션을 죽였다.**
+경위와 실측값을 남긴다. 다시 시도하기 쉬운 종류다.
+
+### 무엇이 깨졌나
+
+`apptainer exec`에 `--fakeroot`를 붙여 배포했더니 세션 Job이 **즉시 COMPLETED**로 끝났다
+(job 118~120). Slurm은 `SUCCESS`로 기록해서 화면에는 "그냥 끝났다"로만 보였다.
+로그를 봐야 원인이 나온다:
+
+```
+세션 시작: node=slurm01 job=120 dir=/home/jungryul0515.park/.portal/sessions/120
+INFO : User not listed in /etc/subuid, trying root-mapped namespace
+ERROR: Could not write info to setgroups: Permission denied
+ERROR: Error while waiting event for user namespace mappings: no event received
+```
+
+`VNC 준비 완료`가 없다 — **컨테이너가 시작조차 못 했다.** M-Star만이 아니라 모든 앱이
+같은 상태였다(직전 desktop 성공은 배포 전이었다).
+
+### 왜 사전 테스트를 통과했나
+
+dev01의 **로컬 계정**(`jrpark`)에는 `/etc/subuid` 항목이 있어서 `--fakeroot`가 완전히
+동작한다 — `apt install tree`까지 성공했다. **AD 사용자에게는 그 항목이 없다.**
+`/etc/subuid`는 노드의 로컬 파일이고 AD 계정은 거기 없다.
+
+교훈: **세션 실행 경로는 반드시 AD 계정으로 확인한다.** 로컬 계정 테스트는 이 부류를
+전혀 잡지 못한다. `test_container_is_not_run_with_fakeroot`가 재도입을 막는다.
+
+### user namespace가 실제로 하는 일 (실측)
+
+커널이 들고 있는 것은 `/proc/self/uid_map`의 번역표다:
+
+```
+컨테이너uid   호스트uid   개수
+     0          2001         1      ← 컨테이너 root = 자기 자신
+     1        165536     65536      ← 나머지는 subuid 대역
+```
+
+namespace 안에서는 capability를 전부 갖는다(`CapEff: 000001ffffffffff`, 호스트에서는
+`0000000000000000`). 그런데도 안전한 이유는 **표 밖 uid가 `nobody`(65534)로 보이기**
+때문이다 — 호스트 root 소유 파일도 컨테이너 안에서는 `nobody`라 손댈 수 없다.
+
+| 호스트 소유자 | ns 안에서 | 결과 |
+|---|---|---|
+| 2001 (본인, 표 안) | 0 (root) | 쓰기 성공 |
+| 500000 (표 밖) | 65534 | 거부 |
+| 0 (호스트 root) | 65534 | 거부 |
+
+### ⚠ subuid 대역이 AD uid와 겹쳐 있다 (미해결)
+
+```
+jrpark subuid : 165536 ~ 231071
+AD 계정 uid   : 201106 (jungryul0515.park)   ← 대역 안에 있다
+```
+
+컨테이너 안에서 uid 35571로 파일을 만들면 호스트에 **uid 201106 소유**로 떨어진다
+(실증했다). 공유 NFS 홈에서는 그 사용자 사칭이다. 지금은 `--fakeroot`를 빼서 세션
+경로로는 불가능하지만, **노드에 셸이 있는 사람은 가능하다.** subuid를 프로비저닝하게
+되면 AD uid 대역(20xxxx)에서 멀리 떨어진 구간(예: 1000000+)으로 잡아야 하고,
+기존 `jrpark` 항목도 함께 옮겨야 한다.
+
+### 결론 — 컨테이너 root를 쓰지 않는다
+
+`--fakeroot`를 살리려면 **모든 컴퓨트 노드**에 AD 사용자 subuid를 프로비저닝해야 하는데
+(사용자가 늘 때 자동 추가까지), 얻는 것은 **Job이 끝나면 사라지는 root**다. 게다가
+쓰기 계층이 작아서 실익도 없다:
+
+```
+--writable-tmpfs 로 얹히는 계층: fuse-overlayfs 64M
+→ root가 있어도 `apt-get update`가 No space left on device 로 실패한다(실측)
+```
+
+대신 **홈에 설치하는 길**을 이미지가 지원하게 했다(`rocky9-mate:1.7`):
+
+- **micromamba 2.9.0** — 빌드된 바이너리를 홈에 푼다. 컴파일러가 필요 없다
+- **gcc 11.5 · make · python3.11-devel** — `pip install`이 소스 빌드로 떨어질 때 필요.
+  없으면 `failed-wheel-build-for-install`로 죽는다(실측: `tinyarray`)
+
+둘 다 홈(공유 NFS)에 남으므로 **세션이 끝나도 유지된다** — 컨테이너 쓰기 계층과 다르다.
+검증: 일반 사용자(uid 2001)로 `pip install --user tinyarray`(소스 빌드) 성공,
+`micromamba create -n demo jq` 성공.
+
+### 이미지 정리
+
+1.5·1.6을 쓰던 앱(desktop·paraview·jupyter)을 **1.7 하나로 합쳤다** — 1.6은 1.5의
+상위집합이었고 굳이 둘일 이유가 없었다. `app_catalog` DB 행도 함께 고쳤다
+(**DB가 코드보다 우선한다** — 코드만 고치면 옛 이미지가 계속 쓰인다).
+
+미참조 SIF 6개를 지워 **11GB → 5.3GB**. 직전 판(1.6)은 롤백용으로 남겼다.
