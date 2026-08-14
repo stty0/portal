@@ -164,7 +164,7 @@ class AppImageService:
             timeout=self.settings.ssh_timeout_seconds,
         )
 
-    def available(self, cluster: Cluster, *, username: str) -> list[str]:
+    def available(self, cluster: Cluster, *, username: str, refresh: bool = False) -> list[str]:
         """이미지 디렉터리에 있는 파일명.
 
         **실패를 빈 목록으로 흡수한다.** 디렉터리가 아직 없거나 로그인 노드가 죽어도
@@ -174,8 +174,13 @@ class AppImageService:
         새어 나갔다 — paramiko는 `SSHException`을 그대로 던지고 그건 둘 다 아니다. 이
         메서드의 계약이 "무슨 일이 있어도 목록을 돌려준다"이므로 **경계가 예외 종류가
         아니라 이 호출 자체**다. 대신 원인을 삼키지 않도록 로그로 남긴다.
+
+        `refresh=True`면 캐시를 읽지 않고 클러스터에 다시 묻는다(결과는 캐시에 채운다).
+        SIF는 포털을 거치지 않고 놓이므로 "새 파일이 생겼다"는 사건을 서버가 알 수 없다 —
+        **사람이 눌러서 알려주는 것이 유일한 즉시 반영 수단**이다. 화면의 `↻ 새로고침`과
+        관리자 이미지 드롭다운이 이 경로를 쓴다.
         """
-        cached = self.cache.get(cluster.id)
+        cached = None if refresh else self.cache.get(cluster.id)
         if cached is not None:
             return cached
 
@@ -249,9 +254,11 @@ class AppImageService:
             "message": f"이미지 디렉터리 확인 — {directory} (파일 {count}개)",
         }
 
-    def installed_map(self, cluster: Cluster, kind: str, *, username: str) -> dict[str, bool]:
+    def installed_map(
+        self, cluster: Cluster, kind: str, *, username: str, refresh: bool = False
+    ) -> dict[str, bool]:
         """앱 id → 이 클러스터에 이미지가 있나. 목록 화면이 SSH를 한 번만 쓰게 한다."""
-        available = set(self.available(cluster, username=username))
+        available = set(self.available(cluster, username=username, refresh=refresh))
         return {
             app_id: bool(name) and name in available
             for app_id, name in image_files(self.session, kind).items()

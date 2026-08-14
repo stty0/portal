@@ -31,13 +31,84 @@ const loading = ref(false)
 const submitting = ref(false)
 const errors = ref<{ list: unknown; submit: unknown }>({ list: null, submit: null })
 
+/* --- 해상도 -------------------------------------------------------------
+ *
+ * 세션 뷰어는 `fixed inset-0`에 캔버스가 `w-full h-full`이고 오버레이는 전부
+ * `pointer-events-none`이라 공간을 먹지 않는다(DesktopView.vue) — 즉 **브라우저
+ * 뷰포트가 곧 세션 화면**이라 빼야 할 크롬이 없다.
+ */
+const FIXED_GEOMETRIES = ['1280x800', '1600x900', '1920x1080'] as const
+
+/** 폴백. 창 크기를 못 읽는 환경(SSR·테스트)에서 쓴다. */
+const DEFAULT_GEOMETRY = '1280x800'
+
+/**
+ * 안전 상한. **비율을 지키며** 이 안으로 줄인다.
+ *
+ * 처음에는 1920×1080으로 잡았는데 **두 가지가 잘못이었다.**
+ * 1. 울트라와이드(3440×1440)를 절반 이하로 깎았다 — "내 화면"이라면서 안 맞았다.
+ * 2. 더 나쁘게, **가로·세로를 따로 잘라 화면비가 바뀌었다.** 21:9 창에 16:9
+ *    프레임버퍼가 들어가 좌우에 검은 띠가 생기고, 그걸 늘려 보여 주니 흐릿했다.
+ *
+ * 지금은 창을 그대로 따라간다. 상한은 터무니없는 값(가상 데스크톱 등)만 막는
+ * 안전장치다. 느리면 사용자가 아래 고정 해상도를 고르면 된다 —
+ * 소프트웨어 렌더링이라 느릴 수 있다는 것은 앱 카드에 이미 적혀 있다.
+ */
+const MAX_W = 3840
+const MAX_H = 2160
+
+/**
+ * 지금 브라우저 창에 딱 맞는 해상도.
+ *
+ * - **화면비를 지킨다.** 상한을 넘으면 가로·세로를 **같은 비율로** 줄인다.
+ *   따로 자르면 세션이 창과 다른 모양이 되어 검은 띠가 생긴다.
+ * - **`devicePixelRatio`를 곱하지 않는다.** `innerWidth`는 CSS 픽셀이고 그것이
+ *   곧 캔버스 크기다. 물리 픽셀(레티나 2배)로 잡으면 원격 데스크톱에는 HiDPI
+ *   개념이 없어 **M-Star의 글자·아이콘이 절반 크기로 뜬다.** 선명해지는 대신
+ *   못 쓰게 된다.
+ * - **8의 배수로 내린다.** 홀수 폭에서 인코딩 아티팩트가 나는 경로가 있다.
+ */
+function fitGeometry(): string {
+  const rawW = window.innerWidth || 0
+  const rawH = window.innerHeight || 0
+  // 1 이하일 때만 줄인다 — 작은 창을 상한까지 늘리지 않는다.
+  const scale = Math.min(1, MAX_W / rawW, MAX_H / rawH)
+  const w = Math.floor((rawW * scale) / 8) * 8
+  const h = Math.floor((rawH * scale) / 8) * 8
+  // 창이 아주 작거나(도킹된 개발자 도구) 값을 못 읽으면 고정값으로 떨어진다.
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w < 640 || h < 480) return DEFAULT_GEOMETRY
+  return `${w}x${h}`
+}
+
+/** 창 크기가 바뀌면 따라 움직인다 — 제출 순간에 한 번 더 읽는다(`launch`). */
+const screenFit = ref(fitGeometry())
+
+/**
+ * 드롭다운 선택지. 맞춤값이 고정 목록과 겹치면 **항목을 더하지 않고 이름만 바꾼다** —
+ * 같은 값이 두 줄로 뜨면 무엇이 다른지 물어보게 된다.
+ */
+const geometryOptions = computed(() => {
+  // 맞춤값은 계산 결과라 리터럴 유니온에 안 들어간다 — 넓혀서 받는다.
+  const options: { value: string; label: string; fit: boolean }[] = FIXED_GEOMETRIES.map((value) => ({
+    value,
+    label: value.replace('x', ' × '),
+    fit: value === screenFit.value,
+  }))
+  if (!options.some((o) => o.fit)) {
+    options.unshift({ value: screenFit.value, label: screenFit.value.replace('x', ' × '), fit: true })
+  }
+  return options
+})
+
 const form = ref({
   partition: '',
   account: '',
   cpus: 2,
   memory_gb: 3,
   walltime: '02:00:00',
-  geometry: '1280x800',
+  // 기본은 **내 화면에 맞춤**이다. 고정값도 그대로 고를 수 있다 — 노트북에서 만든
+  // 세션을 큰 모니터에서 다시 열 때는 명시적인 값이 필요하다.
+  geometry: fitGeometry(),
   exclusive: false,
 })
 
@@ -82,14 +153,19 @@ watch(accounts, (list) => {
 
 const active = computed(() => sessions.value.filter((s) => !s.terminated_at && s.state !== 'ENDED'))
 
-async function load() {
+/**
+ * @param refresh `↻ 새로고침`으로 부를 때만 true. 서버가 이미지 목록 캐시를 건너뛰고
+ *   클러스터에 다시 물어본다(SSH 왕복 300~430ms). 주기 폴링은 절대 이걸 켜지 않는다 —
+ *   5초마다 로그인 노드에 SSH를 열게 된다.
+ */
+async function load(refresh = false) {
   const cid = clusters.selectedId
   if (!cid) return
   loading.value = true
   const [s, o, a] = await Promise.allSettled([
     sessionApi.list(cid),
     jobApi.options(cid),
-    sessionApi.apps(cid),
+    sessionApi.apps(cid, refresh),
   ])
   sessions.value = s.status === 'fulfilled' ? s.value : []
   errors.value.list = s.status === 'rejected' ? s.reason : null
@@ -113,6 +189,12 @@ async function launch() {
   if (!cid) return
   submitting.value = true
   errors.value.submit = null
+  // 맞춤을 고른 상태라면 **제출 순간에 다시 읽는다.** resize 이벤트가 안 오는 변화도
+  // 있고(모니터 간 창 이동, 브라우저 확대), 세션 해상도는 여기서 확정된다.
+  if (form.value.geometry === screenFit.value) {
+    screenFit.value = fitGeometry()
+    form.value.geometry = screenFit.value
+  }
   try {
     await sessionApi.create(cid, {
       app: selectedApp.value,
@@ -166,17 +248,35 @@ function open(s: Session) {
   window.open(url, '_blank', 'noopener')
 }
 
+/**
+ * 창 크기를 따라 '맞춤' 값을 갱신한다.
+ *
+ * **사용자가 고정 해상도를 골랐으면 건드리지 않는다** — 고른 값이 창 조절 한 번에
+ * 바뀌면 고른 의미가 없다. 맞춤에 머물러 있을 때만 따라간다.
+ */
+function onResize() {
+  const next = fitGeometry()
+  const wasOnFit = form.value.geometry === screenFit.value
+  screenFit.value = next
+  if (wasOnFit) form.value.geometry = next
+}
+
 /** 제출 직후엔 PENDING이라 붙을 수 없다 — RUNNING으로 바뀌는 것을 폴링으로 본다. */
 let timer: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   loadAppMeta()
   load()
+  window.addEventListener('resize', onResize)
   timer = setInterval(() => {
     if (active.value.length) load()
   }, 5000)
 })
-onBeforeUnmount(() => clearInterval(timer))
-watch(() => clusters.selectedId, load)
+onBeforeUnmount(() => {
+  clearInterval(timer)
+  window.removeEventListener('resize', onResize)
+})
+// 콜백을 그대로 넘기면 watch가 주는 (신규 id, 이전 id)가 `refresh` 자리에 들어간다.
+watch(() => clusters.selectedId, () => load())
 
 </script>
 
@@ -187,7 +287,8 @@ watch(() => clusters.selectedId, load)
     :sub="`브라우저에서 여는 GUI 세션 · ${clusters.selectedName}`"
   >
     <template #actions>
-      <Btn @click="load">↻ 새로고침</Btn>
+      <!-- 사용자가 누른 새로고침만 서버 캐시를 건너뛴다(SSH 재조회). -->
+      <Btn @click="load(true)">↻ 새로고침</Btn>
     </template>
   </PageHead>
 
@@ -196,8 +297,48 @@ watch(() => clusters.selectedId, load)
       <template #title-extra><Fid id="U-IA-01" /></template>
       <ErrorNote :error="errors.submit" class="m-4" />
 
+      <!--
+        **첫 조회는 비어 있는 채로 기다리게 두지 않는다.** 목록은 클러스터에 SSH로
+        물어서 만들기 때문에(이미지가 실제로 거기 있는지) 캐시가 없으면 300~430ms가
+        걸린다. 그동안 빈 격자만 보이면 "앱이 하나도 없다"로 읽힌다.
+
+        **이미 목록이 있으면 자리를 비우지 않는다** — 새로고침·클러스터 전환에서
+        카드가 사라졌다 나타나면 깜빡임이 된다. 그때는 아래 격자를 흐리게만 한다.
+      -->
+      <div v-if="loading && !apps.length" class="p-4 border-b border-line">
+        <div class="grid sm:grid-cols-4 gap-3">
+          <div
+            v-for="n in 4"
+            :key="n"
+            class="border border-line rounded-lg p-3.5 animate-pulse"
+            aria-hidden="true"
+          >
+            <div class="h-4 w-2/3 rounded bg-bg" />
+            <div class="mt-2 h-3 w-full rounded bg-bg" />
+            <div class="mt-1.5 h-3 w-1/2 rounded bg-bg" />
+          </div>
+        </div>
+        <p class="mt-3 text-[13.5px] text-ink-3" role="status">
+          앱 목록을 불러오는 중… 클러스터에서 설치된 이미지를 확인하고 있습니다.
+        </p>
+      </div>
+
+      <!--
+        조회가 끝났는데 목록이 비었을 때. 이 줄이 없으면 **빈 격자만 남아** 화면이
+        고장 난 것처럼 보인다(로딩 표시는 위에서 이미 끝났다).
+      -->
+      <Empty
+        v-else-if="!apps.length"
+        text="이 클러스터에서 쓸 수 있는 앱이 없습니다."
+        class="border-b border-line"
+      />
+
       <!-- 카드를 눌러 앱을 고른다. 자원 폼과 제출 버튼은 공유한다. -->
-      <div class="grid sm:grid-cols-4 gap-3 p-4 border-b border-line">
+      <div
+        v-else
+        class="grid sm:grid-cols-4 gap-3 p-4 border-b border-line transition-opacity"
+        :class="{ 'opacity-60': loading }"
+      >
         <button
           v-for="a in apps"
           :key="a.id"
@@ -249,8 +390,16 @@ watch(() => clusters.selectedId, load)
         </button>
       </div>
 
-      <!-- 폼 값이 그대로 sbatch 자원이 된다 (Job 제출과 같은 규칙) -->
-      <div class="p-4 grid sm:grid-cols-5 gap-3 items-end">
+      <!--
+        폼 값이 그대로 sbatch 자원이 된다 (Job 제출과 같은 규칙).
+
+        **입력 6개를 한 줄에 둔다** — 열 수가 입력 개수와 같아야 한다. 5열이던 동안
+        해상도만 다음 줄로 넘어가 폼이 두 동강 나 보였다. 입력을 늘리거나 줄이면
+        `lg:grid-cols-6`도 함께 고친다.
+        좁은 화면에서는 3열(2줄)로 접는다 — 6열을 640px에 밀어 넣으면 '메모리 (GB)'
+        같은 라벨이 줄바꿈되어 오히려 읽기 어렵다.
+      -->
+      <div class="p-4 grid sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
         <label class="text-[13px] text-ink-3">
           파티션
           <select v-model="form.partition" :class="[inputClass, 'mt-1']">
@@ -300,12 +449,13 @@ watch(() => clusters.selectedId, load)
         <label class="text-[13px] text-ink-3">
           해상도
           <select v-model="form.geometry" :class="[inputClass, 'mt-1']">
-            <option value="1280x800">1280 × 800</option>
-            <option value="1600x900">1600 × 900</option>
-            <option value="1920x1080">1920 × 1080</option>
+            <option v-for="g in geometryOptions" :key="g.value" :value="g.value">
+              {{ g.label }}{{ g.fit ? ' — 내 화면' : '' }}
+            </option>
           </select>
         </label>
-        <label class="sm:col-span-3 flex items-center gap-2 text-[13.5px] text-ink-2">
+        <!-- 남는 칸을 다 먹어 제출 버튼을 오른쪽 끝으로 민다(열 수 - 1). -->
+        <label class="sm:col-span-2 lg:col-span-5 flex items-center gap-2 text-[13.5px] text-ink-2">
           <input v-model="form.exclusive" type="checkbox" />
           노드 독점 (--exclusive) — 워커 노드를 통째로 씁니다. CPU·메모리를 노드 전체로
           잡고 다른 사용자의 작업이 배정되지 않아 렌더링 성능이 안정적이지만, 대기열이

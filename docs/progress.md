@@ -4256,3 +4256,76 @@ apptainer exec --writable-tmpfs …/rocky9-mate-1.5.sif bash -lc 'which paraview
 **곁가지로 옛 경로를 고쳤다** — `rocky9-mate/README.md`가 아직 `/home/portal/images/`를
 가리키고 있었다(T-02에서 `.portal`로 옮긴 뒤 갱신 누락). 클러스터마다 NFS가 갈릴 때의
 문장도 더했다. CLAUDE.md에서 새 문서를 링크했다.
+
+---
+
+## M-Star CFD를 인터랙티브 앱으로 추가 (U-IA-02, 2026-08-13)
+
+`/home/jrpark/workspace/mstar/mstarcfd-4.1.15-ubuntu24`(벤더 배포 트리)를 SIF로 만들어
+포털에 붙였다. **GPU 노드가 없으므로 GUI 기동까지가 범위**이고 해석은 대상이 아니다.
+
+### 이미지가 처음으로 갈라졌다
+
+지금까지 인터랙티브 앱은 전부 `rocky9-mate` 하나에 `PORTAL_APP` 분기로 들어갔다.
+M-Star는 **넣을 수가 없다**:
+
+```
+objdump -T bin/mstar → GLIBC_2.38, GLIBCXX_3.4.32
+Rocky 9             → glibc 2.34
+```
+
+`ldd`가 실행을 거부한다. `deploy/images/ubuntu24-mstar`(Ubuntu 24.04, glibc 2.39)를
+새로 만들었다. 세션 계약(Xvnc·`connection.json`·`PORTAL_APP`)은 그대로라 코드 카탈로그에
+한 줄 더하는 것으로 붙었다 — `session_apps.py`의 `image` 필드가 처음부터 앱마다 다른
+SIF를 허용하고 있었다.
+
+**대가는 스크립트 복사본이다.** `start-desktop.sh`(VNC 비밀번호·xauth 쿠키·포트 경쟁·
+`connection.json` 원자적 쓰기)는 보안과 직결되고 실측으로 다듬은 부분인데 이제 두 벌이다.
+`tests/test_session_images.py`가 **앱 분기를 뺀 본문이 글자까지 같은지** 검사한다(머리말은
+제외 — 이미지마다 자기 사정을 적는 자리다). 작성 중 이 테스트가 실제로 내 머리말 수정을
+잡아내서, 비교 구간을 `set -euo pipefail`부터로 좁혔다.
+
+### docker 테스트가 놓치고 SIF 테스트가 잡은 버그
+
+`vncpasswd`가 Ubuntu에서는 **`tigervnc-tools`**에 있다(Rocky는 서버 패키지에 함께 넣는다).
+빠뜨린 채로 이미지는 멀쩡히 빌드됐고 `Xvnc`도 있었다. docker 스모크 테스트를
+`-SecurityTypes None`으로 돌린 탓에 비밀번호 발급 줄을 지나가지 않아 통과했고,
+**SIF를 실제 기동 경로(`start-desktop.sh`)로 돌렸을 때** `vncpasswd: command not found`로
+죽었다.
+
+교훈은 T-08에서와 같다 — **실행 경로를 그대로 밟는 테스트만이 이 부류를 잡는다.**
+
+### 실측
+
+| 항목 | 값 |
+|---|---|
+| 설치본 | 3.9GB (bin 958M · lib 1.4G · post 818M · docs 583M) |
+| docker 이미지 | 4.97GB |
+| SIF | **2.1GB**, 변환 8분 11초 |
+| 유휴 세션 RSS | **674MB** (mstar 439 · Xvnc 109 · marco 91 · tint2 19) |
+| 렌더러 | `llvmpipe (LLVM 20.1.2, 256 bits)` · OpenGL 3.3 Compatibility |
+
+노드 메모리 3915MB에 여유가 있다. 3.9GB 설치본을 빌드 컨텍스트에 넣지 않으려고 BuildKit
+이름 있는 컨텍스트(`--build-context mstar=...` + `COPY --from=mstar`)를 썼다.
+
+### 확인한 것
+
+- SIF를 워커와 같은 명령(`apptainer exec --writable-tmpfs … start-desktop.sh`,
+  `PORTAL_APP=mstar`)으로 돌려 **화면을 캡처했다** — M-Star Pre 창, 모델 트리, 3D 뷰포트,
+  tint2 작업표시줄, 최대화까지 정상. 캡처는 M-Star가 번들한 ffmpeg(`post/bin/ffmpeg`)의
+  `x11grab`으로 했다(호스트에 이미지 도구가 없다).
+- `connection.json`이 정상 기록됨(포트 5901, 비밀번호 2종, geometry).
+- 포털이 두 클러스터 모두에서 `installed: mstar=True`로 인식(SSH로 물어본 결과).
+- 백엔드 445개 테스트 통과.
+
+### 남은 제약 — 사용자에게 카드로 알린다
+
+- **라이선스가 없다.** 상태 표시줄에 `No license`, 콘솔에 `License stat: -1`. 모델 작성·
+  저장·시각화는 되고 Solve는 막힌다.
+- **GPU가 없어 해석이 안 된다.** `mstar-cfd-mgpu`는 CUDA를 요구한다.
+- 소프트웨어 렌더링이라 회전·확대가 느리다.
+- OpenCASCADE가 `window Visual is incomplete: no depth buffer` 경고를 남긴다. 와이어프레임
+  렌더링은 정상이었다 — 셰이딩된 곡면에서 z-순서가 어긋나면 여기를 의심한다.
+
+셋 다 `InteractiveApp.note`에 적어 앱 카드에 그대로 뜬다. 그래서 `note`의 용도를 넓혔다 —
+전에는 `ready=False`인 앱의 안내 자리였는데 화면은 `ready`와 무관하게 띄우고 있었다.

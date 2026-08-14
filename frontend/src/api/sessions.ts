@@ -68,7 +68,14 @@ export interface InteractiveApp {
 export const sessionApi = {
   // 앱마다 쓸 수 있는 계정이 다를 수 있고 계정은 클러스터별 slurmdbd 소유다 —
   // 그래서 목록이 클러스터에 매인다.
-  apps: (cid: number) => api.get<InteractiveApp[]>(`/clusters/${cid}/interactive-apps`),
+  /**
+   * `refresh`는 서버의 이미지 목록 캐시를 건너뛴다 — 방금 올린 SIF를 바로 보려면
+   * 이 경로여야 한다. 대가는 SSH 왕복 300~430ms라 **사용자가 누를 때만** 쓴다.
+   */
+  apps: (cid: number, refresh = false) =>
+    api.get<InteractiveApp[]>(
+      `/clusters/${cid}/interactive-apps${refresh ? '?refresh=true' : ''}`,
+    ),
   create: (cid: number, payload: SessionCreate) =>
     api.post<Session>(`/clusters/${cid}/sessions`, payload),
   list: (cid: number) => api.get<Session[]>(`/clusters/${cid}/sessions`),

@@ -201,9 +201,14 @@ def test_app_catalog_is_listed_for_the_launcher(client, desktop_cluster, user_to
         f"/api/v1/clusters/{desktop_cluster.id}/interactive-apps",
         headers=auth_headers(user_token),
     ).json()
-    assert {a["id"] for a in body} == {"desktop", "paraview", "jupyter", "code-server"}
+    assert {a["id"] for a in body} == {
+        "desktop", "paraview", "jupyter", "code-server", "mstar",
+    }
     # JupyterLab은 2026-08-08부터 실행된다(HTTP 프록시 경로).
-    assert {a["id"] for a in body if a["ready"]} == {"desktop", "paraview", "jupyter"}
+    # M-Star는 2026-08-13부터 — **자기 이미지**를 쓴다(Ubuntu 24.04, glibc 2.38 요구).
+    assert {a["id"] for a in body if a["ready"]} == {
+        "desktop", "paraview", "jupyter", "mstar",
+    }
     # code-server는 **포털이 호스팅하지 않는다** — 하위 경로 서비스가 불가능해서
     # Remote-SSH를 안내한다. 안내 문구가 없으면 "준비 중" 카드만 남아 물어볼 데가 없다.
     guide = next(a for a in body if a["id"] == "code-server")

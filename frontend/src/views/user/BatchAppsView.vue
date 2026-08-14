@@ -32,6 +32,14 @@ const selected = ref<BatchApp | null>(null)
 const error = ref<unknown>(null)
 const busy = ref(false)
 const submitted = ref<string | null>(null)
+/**
+ * 목록을 불러오는 중인가.
+ *
+ * **"없다"와 "아직 모른다"는 다른 말이다.** 이 값이 없던 동안 화면은 조회가 끝나기
+ * 전부터 "등록된 앱이 없습니다."를 띄웠다 — 목록은 클러스터에 SSH로 물어서 만들기
+ * 때문에(이미지가 실제로 거기 있는지) 캐시가 없으면 수백 ms가 걸린다.
+ */
+const loading = ref(false)
 
 /** 앱을 바꾸면 파라미터도 통째로 바뀐다 — 이전 값이 남으면 엉뚱하게 제출된다. */
 const params = reactive<Record<string, string>>({})
@@ -58,12 +66,14 @@ watch(
   async (cid) => {
     if (!cid) return
     loadAppMeta()
+    loading.value = true
     // 앱 목록도 클러스터에 매인다 — 앱마다 쓸 수 있는 계정이 클러스터별로 정해진다.
     const [h, o, a] = await Promise.allSettled([
       fileApi.browse(cid),
       jobApi.options(cid),
       batchAppApi.list(cid),
     ])
+    loading.value = false
     home.value = h.status === 'fulfilled' ? h.value.home : ''
     options.value =
       o.status === 'fulfilled'
@@ -230,7 +240,15 @@ async function submit() {
     <div class="space-y-5">
       <Card title="해석 s/w">
         <template #title-extra><Fid id="U-JB-13" /></template>
-        <Empty v-if="!apps.length" text="등록된 앱이 없습니다." />
+        <!--
+          **조회가 끝나기 전에 "없다"고 말하지 않는다.** 목록은 클러스터에 SSH로 물어서
+          만들기 때문에 캐시가 없으면 수백 ms가 걸리고, 그동안 "등록된 앱이 없습니다."가
+          떠 있으면 사용자는 관리자에게 문의하러 간다.
+        -->
+        <Empty
+          v-if="!apps.length"
+          :text="loading ? '앱을 불러오고 있습니다…' : '등록된 앱이 없습니다.'"
+        />
         <div v-else class="grid sm:grid-cols-2 gap-4">
           <!-- 준비 전 앱도 보여준다. 숨기면 "언젠가 되나?"를 물을 데가 없다. -->
           <button

@@ -254,8 +254,15 @@ def list_app_images(
     **클러스터에 물어본다.** 경로가 클러스터마다 갈리므로 포털 파드의 파일시스템으로는
     답할 수 없다. 디렉터리가 없거나 로그인 노드가 죽으면 **빈 목록**이 된다 — 그래도
     관리자는 아는 파일명을 저장할 수 있어야 하므로 오류로 만들지 않는다.
+
+    **캐시를 쓰지 않는다.** 여기는 관리자가 *방금 올린* SIF를 고르는 자리다. 캐시를
+    타면 올린 파일이 드롭다운에 없어 등록을 못 하고, 원인이 화면에 드러나지 않는다.
+    관리자 전용이고 호출이 드물어 매번 SSH를 열어도 된다(300~430ms).
+    옆의 `image-dir` 진단도 같은 이유로 캐시를 우회한다.
     """
-    return service.available(service.clusters.get(cid), username=actor.username)
+    return service.available(
+        service.clusters.get(cid), username=actor.username, refresh=True
+    )
 
 
 @router.get(

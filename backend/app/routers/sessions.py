@@ -85,7 +85,11 @@ AppImageServiceDep = Annotated[AppImageService, Depends(_images)]
     summary="인터랙티브 앱 목록 (U-IA-01)",
 )
 def list_interactive_apps(
-    cid: int, user: CurrentUser, access: AppAccessServiceDep, images: AppImageServiceDep
+    cid: int,
+    user: CurrentUser,
+    access: AppAccessServiceDep,
+    images: AppImageServiceDep,
+    refresh: bool = False,
 ) -> list[InteractiveAppOut]:
     """앱 목록의 단일 출처. 프론트엔드가 같은 배열을 또 갖지 않게 한다.
 
@@ -93,10 +97,16 @@ def list_interactive_apps(
 
     **클러스터에 매인 목록이다.** 앱마다 쓸 수 있는 계정이 정해질 수 있고 계정은
     클러스터별 slurmdbd 소유라, 같은 앱이 클러스터마다 다르게 잠긴다.
+
+    `refresh=true`는 **이미지 목록 캐시를 건너뛴다**(화면의 `↻ 새로고침`이 쓴다).
+    SIF는 포털 밖에서 놓이므로 서버가 변화를 알 수 없다 — 방금 올린 이미지를 바로
+    보려면 사람이 눌러 알려주는 수밖에 없다. 대가는 SSH 왕복 300~430ms다.
     """
     cluster = access.clusters.get(cid)
     verdict = access.allowances(cluster, KIND_INTERACTIVE, user=user)
-    present = images.installed_map(cluster, KIND_INTERACTIVE, username=user.username)
+    present = images.installed_map(
+        cluster, KIND_INTERACTIVE, username=user.username, refresh=refresh
+    )
     return [
         InteractiveAppOut(
             id=a.id, name=a.name, description=a.description, fid=a.fid,

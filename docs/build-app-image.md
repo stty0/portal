@@ -1,5 +1,11 @@
 # 이 포털에서 도는 SIF 만들기 — ParaView 기준
 
+> §3은 **같은 이미지에 앱을 더하는** 경우(ParaView), §3.6은 **이미지를 따로 만들어야
+> 하는** 경우(M-Star — 벤더 바이너리의 glibc가 베이스보다 높다)를 다룬다.
+>
+> M-Star 쪽은 명령·스크립트 전문과 실패한 시도까지 담은 전 과정 기록이 따로 있다 —
+> [build-mstar-image.md](build-mstar-image.md).
+
 - 작성일: 2026-08-10
 - 대상: 새 앱을 컨테이너로 붙이려는 사람
 - 참조 구현: [deploy/images/rocky9-mate/](../deploy/images/rocky9-mate/) — 지금 도는 이미지의
@@ -195,6 +201,66 @@ InteractiveApp(
     # entry·transport는 기본값(start-desktop.sh · vnc)을 쓴다
 )
 ```
+
+---
+
+## 3.6 두 번째 이미지가 필요할 때 — M-Star CFD (2026-08-13)
+
+지금까지는 이미지가 하나였다(`rocky9-mate`, `PORTAL_APP`으로 분기). **M-Star에서 처음
+갈라졌다.** 벤더 바이너리가 베이스 이미지보다 새 glibc를 요구하면 선택의 여지가 없다.
+
+```bash
+# 실측 — 이걸 먼저 본다. 여기서 갈리면 뒤 작업이 전부 헛수고다
+$ objdump -T bin/mstar | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -1
+GLIBC_2.38
+$ ldd --version | head -1      # Rocky 9
+ldd (GNU libc) 2.34
+```
+
+Rocky 9에서는 `ldd`가 실행을 거부한다. 그래서 `deploy/images/ubuntu24-mstar`
+(Ubuntu 24.04, glibc 2.39)를 따로 만들었다. 세션 계약은 그대로라 카탈로그에 한 줄이면 붙는다.
+
+### 설치본을 빌드 컨텍스트에 넣지 않는다
+
+M-Star 설치본은 3.9GB다. 그대로 두면 매 빌드마다 그만큼을 tar로 말아 데몬에 넘긴다.
+BuildKit의 **이름 있는 컨텍스트**를 쓰면 컨텍스트는 스크립트 몇 개로 유지된다.
+
+```bash
+sudo docker build -t ubuntu24-mstar:1.0 \
+  --build-context mstar=/home/jrpark/workspace/mstar/mstarcfd-4.1.15-ubuntu24 \
+  deploy/images/ubuntu24-mstar
+```
+```dockerfile
+COPY --from=mstar . /opt/mstar/
+```
+
+### 배포판이 바뀌면 패키지 이름부터 다시 확인한다
+
+**`vncpasswd`가 Ubuntu에서는 `tigervnc-tools`에 있다.** Rocky는 서버 패키지에 함께 넣는다.
+빠뜨려도 **이미지는 멀쩡히 빌드되고 `Xvnc`도 있어서** docker 확인을 통과하고,
+SIF로 돌릴 때 비밀번호 발급 줄에서 `vncpasswd: command not found`로 죽는다.
+
+→ **스모크 테스트를 실제 기동 경로로 해야 잡힌다.** `-SecurityTypes None`으로 Xvnc만
+띄워 보면 그 줄을 지나가지 않는다(이 함정에 그대로 걸렸다).
+
+### GPU 없이 3D를 띄우는 환경변수
+
+```bash
+export LIBGL_ALWAYS_SOFTWARE=1
+export GALLIUM_DRIVER=llvmpipe
+export MESA_GL_VERSION_OVERRIDE=3.3
+```
+
+실측으로 `llvmpipe (LLVM 20.1.2) / OpenGL 3.3 Compatibility`가 잡히고 뷰포트가 정상
+렌더링된다. OpenCASCADE가 `window Visual is incomplete: no depth buffer` 경고를 남기지만
+와이어프레임 표시에는 영향이 없었다.
+
+### 복사한 스크립트는 테스트로 묶는다
+
+`start-desktop.sh`의 VNC 부트스트랩(비밀번호·xauth 쿠키·포트 경쟁·`connection.json`)은
+보안과 직결되고 실측으로 다듬은 부분이다. 두 이미지에 복사본이 생겼으므로
+[test_session_images.py](../backend/tests/test_session_images.py)가 **앱 분기를 뺀 본문이
+글자까지 같은지** 검사한다. 머리말은 뺀다 — 이미지마다 자기 사정을 적는 자리다.
 
 ---
 

@@ -71,8 +71,17 @@ def get_client_factory(request: Request) -> ClusterClientFactory:
     return request.app.state.client_factory
 
 
-#: 이미지 목록 캐시 TTL. 관리자가 SIF를 올린 뒤 최대 이만큼 늦게 보인다.
-_APP_IMAGE_CACHE_SECONDS = 60
+#: 이미지 목록 캐시 TTL.
+#:
+#: 60초였다. 목록을 그리는 데 드는 SSH 왕복이 **300~430ms**(연결 169 + sftp `ls` 244,
+#: 실측)라, 1분마다 처음 들어온 사람이 그 값을 다 냈다 — 앱 화면을 띄엄띄엄 여는 흐름에서는
+#: 캐시 히트보다 미스가 더 잘 걸려 "느리다"로 체감됐다.
+#:
+#: 늘리는 대신 **강제 재읽기 경로를 뒀다**(`available(refresh=True)`). 화면의 `↻ 새로고침`과
+#: 관리자 드롭다운이 그 경로를 쓰므로, TTL은 이제 "아무도 새로고침을 안 눌렀을 때의
+#: 안전망"이다. 무한으로 두지 않는 이유가 그것이다 — 관리자가 SIF를 올렸는데 아무도
+#: 버튼을 안 누르면 사용자 화면은 영원히 잠겨 있고, 그 사용자는 원인을 알 수 없다.
+_APP_IMAGE_CACHE_SECONDS = 600
 
 
 def get_app_image_cache(request: Request) -> AppImageCache:

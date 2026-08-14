@@ -36,7 +36,9 @@ class InteractiveApp:
     #: 접속 방식. `vnc`는 RFB 바이트 중계, `http`는 리버스 프록시다 — **화면이
     #: 어디로 보낼지 정하는 값**이라 카탈로그가 알려 준다.
     transport: str = "vnc"
-    #: 준비되지 않은 앱에 붙이는 안내. "언젠가 되나?"에 답할 자리가 없으면 안 적는 것보다 나쁘다.
+    #: 카드에 함께 띄우는 안내. 원래는 **준비되지 않은 앱**의 "언젠가 되나?"에 답하는
+    #: 자리였는데(`ready=False`), 화면이 `ready`와 무관하게 띄우므로 **제약이 있는 채로
+    #: 제공하는 앱**의 안내도 여기 적는다(M-Star: GPU·라이선스 없음).
     note: str = ""
 
 
@@ -60,6 +62,23 @@ APPS: tuple[InteractiveApp, ...] = (
         description="과학 시각화 5.11 (소프트웨어 렌더링)",
         image="rocky9-mate-1.5.sif",
         fid="U-IA-02",
+    ),
+    # **이미지가 다른 첫 VNC 앱이다.** M-Star 4.1.15는 Ubuntu 24.04 빌드라
+    # `GLIBC_2.38`·`GLIBCXX_3.4.32`를 요구하고, Rocky 9는 glibc 2.34라 실행 자체가
+    # 안 된다(실측). 그래서 `deploy/images/ubuntu24-mstar`로 따로 만든다 —
+    # 세션 계약(Xvnc·connection.json·PORTAL_APP)은 같아서 여기 한 줄이면 붙는다.
+    InteractiveApp(
+        id="mstar",
+        name="M-Star CFD",
+        description="M-Star Pre 4.1.15 — 모델 작성·시각화 (해석은 GPU 노드 필요)",
+        image="ubuntu24-mstar-1.0.sif",
+        fid="U-IA-02",
+        entry="/opt/portal/start-desktop.sh",
+        note=(
+            "**GPU가 없어 해석(Solve)은 돌지 않습니다.** 화면은 소프트웨어 렌더링"
+            "(Mesa llvmpipe)이라 회전·확대가 느립니다. 라이선스가 등록되지 않은 "
+            "상태에서는 상태 표시줄에 'No license'가 뜨며 모델 작성·저장만 됩니다."
+        ),
     ),
     # JupyterLab은 **VNC를 쓰지 않는 첫 앱이다**. X 서버 없이 HTTP로 뜨고, 포털이
     # `session-apps/{job_id}/**`로 리버스 프록시한다. 컨테이너가 자기 base_url을 그

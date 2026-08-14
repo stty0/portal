@@ -103,19 +103,60 @@ def test_any_ssh_failure_becomes_an_empty_list_not_an_error(
     assert resp.json() == []
 
 
-def test_second_call_does_not_reopen_ssh(client, cluster, admin_token, fake_images):
-    """앱 목록을 그릴 때마다 물으면 화면 한 번에 SSH가 여러 번 열린다."""
+def _apps(client, cluster, token, *, refresh=False):
+    """사용자 앱 목록 — **캐시를 쓰는 쪽**이다(관리자 드롭다운과 다르다)."""
+    query = "?refresh=true" if refresh else ""
+    return client.get(
+        f"{API}/clusters/{cluster.id}/interactive-apps{query}", headers=auth_headers(token)
+    )
+
+
+def test_second_call_does_not_reopen_ssh(client, cluster, user_token, fake_images):
+    """앱 목록을 그릴 때마다 물으면 화면 한 번에 SSH가 여러 번 열린다.
+
+    SSH 왕복이 300~430ms(실측)라 이 캐시가 앱 화면 체감 속도를 그대로 정한다.
+    """
     for _ in range(3):
-        client.get(f"{API}/clusters/{cluster.id}/app-images", headers=auth_headers(admin_token))
+        _apps(client, cluster, user_token)
     assert fake_images.opened == 1
 
 
-def test_empty_result_is_cached_too(client, cluster, admin_token, fake_images):
+def test_empty_result_is_cached_too(client, cluster, user_token, fake_images):
     """디렉터리가 없는 클러스터에 매번 SSH를 여는 것이 제일 아깝다."""
     fake_images.entries = []
     for _ in range(3):
-        client.get(f"{API}/clusters/{cluster.id}/app-images", headers=auth_headers(admin_token))
+        _apps(client, cluster, user_token)
     assert fake_images.opened == 1
+
+
+def test_refresh_bypasses_the_cache(client, cluster, user_token, fake_images):
+    """`↻ 새로고침`은 **클러스터에 다시 묻는다.**
+
+    SIF는 포털을 거치지 않고 놓이므로 서버가 새 파일을 알 방법이 없다 — 사람이 눌러
+    알려주는 것이 유일한 즉시 반영 수단이다. 이걸 잃으면 방금 올린 이미지가
+    캐시 TTL(10분)이 끝날 때까지 안 보인다.
+    """
+    _apps(client, cluster, user_token)
+    assert fake_images.opened == 1
+
+    fake_images.entries = [_entry("newly-uploaded.sif")]
+    body = _apps(client, cluster, user_token, refresh=True).json()
+
+    assert fake_images.opened == 2, "refresh=true인데 SSH를 다시 열지 않았다"
+    assert all(not a["installed"] for a in body), "카탈로그에 없는 파일이라 설치로 잡히면 안 된다"
+    # 새로 읽은 결과가 캐시에 남아야 한다 — 안 그러면 다음 요청이 또 SSH를 연다.
+    _apps(client, cluster, user_token)
+    assert fake_images.opened == 2
+
+
+def test_admin_image_dropdown_never_serves_a_stale_list(client, cluster, admin_token, fake_images):
+    """관리자가 **방금 올린** SIF를 고르는 자리다 — 캐시를 타면 등록을 못 한다.
+
+    호출이 드물고 관리자 전용이라 매번 SSH를 열어도 된다.
+    """
+    for _ in range(3):
+        client.get(f"{API}/clusters/{cluster.id}/app-images", headers=auth_headers(admin_token))
+    assert fake_images.opened == 3
 
 
 # --- 등록 화면의 진단 (A-CL-02) ---------------------------------------------

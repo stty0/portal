@@ -16,6 +16,9 @@ Claude가 이 프로젝트에서 세션마다 읽는 기본 컨텍스트 파일�
   Helm으로 처음 설치할 때의 준비물·부트스트랩·함정
 - **앱 이미지 만들기**: [docs/build-app-image.md](docs/build-app-image.md) — 포털이
   컨테이너에 요구하는 계약(entry·`connection.json`·`PORTAL_APP`)과 ParaView 실례
+- **상용 코드 붙이기(전 과정)**: [docs/build-mstar-image.md](docs/build-mstar-image.md) —
+  M-Star CFD를 SIF로 만들어 붙인 작업 기록. 베이스 이미지 결정(glibc)·스크립트 전문·
+  잘못 든 길까지. 다른 상용 코드를 붙일 때의 체크리스트가 §8에 있다
 - **GPU 도입 검토**: [docs/gpu-simulation.md](docs/gpu-simulation.md) — Isaac Sim/Omniverse
   아키텍처 결정, GPU 선택(RT 코어), 미구현 4건
 
